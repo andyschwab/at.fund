@@ -1,0 +1,596 @@
+{
+  "entries": [
+    {
+      "prefix": "app.bsky.",
+      "appName": "Bluesky",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Web app",
+          "url": "https://bsky.app"
+        },
+        {
+          "label": "Lexicons (repository)",
+          "url": "https://github.com/bluesky-social/atproto/tree/main/lexicons/app/bsky"
+        },
+        {
+          "label": "Bluesky (@bsky.app)",
+          "url": "https://bsky.app/profile/bsky.app"
+        },
+        {
+          "label": "Lexicon discussions",
+          "url": "https://github.com/bluesky-social/atproto/discussions/categories/bluesky-lexicons"
+        }
+      ],
+      "notes": "Official Bluesky Social product lexicons (feeds, graphs, embeds, etc.). Maintained by Bluesky PBLLC."
+    },
+    {
+      "prefix": "chat.bsky.",
+      "appName": "Bluesky Chat (DMs)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Lexicons (repository)",
+          "url": "https://github.com/bluesky-social/atproto/tree/main/lexicons/chat/bsky"
+        },
+        {
+          "label": "Bluesky (@bsky.app)",
+          "url": "https://bsky.app/profile/bsky.app"
+        }
+      ],
+      "notes": "Bluesky direct-messaging lexicons. Same stewardship as app.bsky."
+    },
+    {
+      "prefix": "com.atproto.",
+      "appName": "AT Protocol (core)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Lexicons (repository)",
+          "url": "https://github.com/bluesky-social/atproto/tree/main/lexicons/com/atproto"
+        },
+        {
+          "label": "AT Protocol docs",
+          "url": "https://atproto.com/"
+        }
+      ],
+      "notes": "Core protocol schemas (repo, identity, sync, moderation primitives, labels, etc.). Primarily maintained by Bluesky with community contributions."
+    },
+    {
+      "prefix": "tools.ozone.",
+      "appName": "Ozone (moderation)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Lexicons (repository)",
+          "url": "https://github.com/bluesky-social/atproto/tree/main/lexicons/tools/ozone"
+        }
+      ],
+      "notes": "Moderation and tooling lexicons used with the Ozone moderator stack. Bluesky-stewarded."
+    },
+    {
+      "prefix": "events.smokesignal.",
+      "appName": "Smoke Signal",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://smokesignal.events"
+        },
+        {
+          "label": "Docs / blog",
+          "url": "https://docs.smokesignal.events"
+        },
+        {
+          "label": "Nick Gerakines (@ngerakines.me)",
+          "url": "https://bsky.app/profile/ngerakines.me"
+        },
+        {
+          "label": "Bluesky (@smokesignal.events)",
+          "url": "https://bsky.app/profile/smokesignal.events"
+        }
+      ],
+      "notes": "Events and RSVPs on ATProto. Creator: Nick Gerakines."
+    },
+    {
+      "prefix": "fyi.unravel.frontpage.",
+      "appName": "Frontpage",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://frontpage.fyi"
+        },
+        {
+          "label": "Lexicons (repository)",
+          "url": "https://github.com/likeandscribe/frontpage/tree/main/lexicons/fyi/unravel/frontpage"
+        },
+        {
+          "label": "Tom (@tom.frontpage.team)",
+          "url": "https://bsky.app/profile/tom.frontpage.team"
+        },
+        {
+          "label": "Will (@will.frontpage.team)",
+          "url": "https://bsky.app/profile/will.frontpage.team"
+        },
+        {
+          "label": "Bluesky (@frontpage.fyi)",
+          "url": "https://bsky.app/profile/frontpage.fyi"
+        }
+      ],
+      "notes": "Link aggregator; lexicon under the Unravel FYI namespace."
+    },
+    {
+      "prefix": "fyi.unravel.",
+      "appName": "Unravel",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://unravel.fyi"
+        }
+      ],
+      "notes": "Broader FYI / Unravel ecosystem namespace (includes Frontpage under fyi.unravel.frontpage.*)."
+    },
+    {
+      "prefix": "blue.linkat.",
+      "appName": "Linkat",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://linkat.blue"
+        },
+        {
+          "label": "Repository",
+          "url": "https://github.com/mkizka/linkat"
+        },
+        {
+          "label": "Lexicons in repo",
+          "url": "https://github.com/mkizka/linkat/tree/main/lexicons/blue/linkat"
+        },
+        {
+          "label": "Kizuka (@mkizka.dev)",
+          "url": "https://bsky.app/profile/mkizka.dev"
+        },
+        {
+          "label": "Bluesky (@linkat.blue)",
+          "url": "https://bsky.app/profile/linkat.blue"
+        }
+      ],
+      "notes": "Link-in-bio style client. Maintainer: Kizuka (mkizka)."
+    },
+    {
+      "prefix": "com.whtwnd.",
+      "appName": "WhiteWind (blog)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://whtwnd.com"
+        },
+        {
+          "label": "GitHub org",
+          "url": "https://github.com/whtwnd"
+        },
+        {
+          "label": "Lexicons",
+          "url": "https://github.com/whtwnd/whitewind-blog/tree/main/lexicons/com/whtwnd/blog"
+        },
+        {
+          "label": "K-NKSM (@knksm5.final-techblog.com)",
+          "url": "https://bsky.app/profile/knksm5.final-techblog.com"
+        },
+        {
+          "label": "Bluesky (@whtwnd.com)",
+          "url": "https://bsky.app/profile/whtwnd.com"
+        }
+      ],
+      "notes": "Long-form blogging. Primary developer: K-NKSM."
+    },
+    {
+      "prefix": "my.skylights.",
+      "appName": "Skylights",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://skylights.my"
+        },
+        {
+          "label": "Repository",
+          "url": "https://github.com/Gregoor/skylights"
+        },
+        {
+          "label": "Gregor (@watwa.re)",
+          "url": "https://bsky.app/profile/watwa.re"
+        }
+      ],
+      "notes": "Book lists and reading-related records."
+    },
+    {
+      "prefix": "com.shinolabs.pinksea.",
+      "appName": "PinkSea",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://pinksea.art"
+        },
+        {
+          "label": "Repository",
+          "url": "https://github.com/shinolabs/PinkSea"
+        },
+        {
+          "label": "Prefetcher (@prefetcher.miku.place)",
+          "url": "https://bsky.app/profile/prefetcher.miku.place"
+        }
+      ],
+      "notes": "Oekaki BBS–style AppView and client."
+    },
+    {
+      "prefix": "blue.zio.atfile.",
+      "appName": "ATFile",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Repository",
+          "url": "https://github.com/ziodotsh/atfile"
+        },
+        {
+          "label": "Lexicons submodule",
+          "url": "https://github.com/ziodotsh/lexicons"
+        },
+        {
+          "label": "zio (@zio.sh)",
+          "url": "https://bsky.app/profile/did:web:zio.sh"
+        },
+        {
+          "label": "Ducky (@ducky.ws)",
+          "url": "https://bsky.app/profile/did:plc:kv7sv4lynbv5s6gdhn5r5vcw"
+        }
+      ],
+      "notes": "File upload / blob helper records."
+    },
+    {
+      "prefix": "social.pmsky.",
+      "appName": "PMsky",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://pmsky.social"
+        },
+        {
+          "label": "Docs (lexicon)",
+          "url": "https://docs.pmsky.social/tech/lexicon"
+        },
+        {
+          "label": "App repository",
+          "url": "https://github.com/pmsky-social/app"
+        }
+      ],
+      "notes": "Proposal and vote records for label-like governance. Namespace: social.pmsky.*"
+    },
+    {
+      "prefix": "im.flushing.right.now.",
+      "appName": "Flushes",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://flushes.app"
+        },
+        {
+          "label": "Bluesky (@flushes.app)",
+          "url": "https://bsky.app/profile/did:plc:omyqslmybfah7a5shue7hnqz"
+        },
+        {
+          "label": "dame (@dame.is)",
+          "url": "https://bsky.app/profile/did:plc:gq4fo3u6tqzzdkjlwzpb23tj"
+        }
+      ],
+      "notes": "Short ephemeral-style posts. Creator: dame."
+    },
+    {
+      "prefix": "blue.flashes.",
+      "appName": "Flashes",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://www.flashes.blue"
+        },
+        {
+          "label": "Bluesky (@flashes.blue)",
+          "url": "https://bsky.app/profile/flashes.blue"
+        },
+        {
+          "label": "seabass (@seabass.bsky.social)",
+          "url": "https://bsky.app/profile/seabass.bsky.social"
+        }
+      ],
+      "notes": "Photo-oriented sharing. Creator: seabass."
+    },
+    {
+      "prefix": "lol.atmo.",
+      "appName": "atmo.lol",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Repository (tangled.sh)",
+          "url": "https://tangled.sh/@mchal.lol/atmo.lol"
+        },
+        {
+          "label": "mchal (@mchal.lol)",
+          "url": "https://bsky.app/profile/did:plc:w3aonw33w3mz3mwws34x5of6"
+        }
+      ],
+      "notes": "Community app; lexicon namespace lol.atmo.*"
+    },
+    {
+      "prefix": "actor.popfeed.",
+      "appName": "Popfeed",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://popfeed.social"
+        }
+      ],
+      "notes": "Media logging (film, TV, music, games). Collections under actor.popfeed.* pair with feed.popfeed.*."
+    },
+    {
+      "prefix": "feed.popfeed.",
+      "appName": "Popfeed",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://popfeed.social"
+        }
+      ],
+      "notes": "Same project as actor.popfeed.* (see Popfeed)."
+    },
+    {
+      "prefix": "actor.sprk.",
+      "appName": "SPRK (sprk.so)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "sprk.so / ATProto libraries",
+          "url": "https://sprk.so"
+        },
+        {
+          "label": "JSR (@sprk packages)",
+          "url": "https://jsr.io/@sprk"
+        }
+      ],
+      "notes": "Lexicon tooling and XRPC helpers (Deno/JSR). Namespace pairs with feed.sprk.*."
+    },
+    {
+      "prefix": "feed.sprk.",
+      "appName": "SPRK (sprk.so)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "sprk.so",
+          "url": "https://sprk.so"
+        },
+        {
+          "label": "JSR (@sprk packages)",
+          "url": "https://jsr.io/@sprk"
+        }
+      ],
+      "notes": "Same ecosystem as actor.sprk.*."
+    },
+    {
+      "prefix": "app.anisota.",
+      "appName": "Anisota",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://anisota.net"
+        },
+        {
+          "label": "Bluesky (@anisota.net)",
+          "url": "https://bsky.app/profile/anisota.net"
+        }
+      ],
+      "notes": "Experimental card-deck social client; beta.* and related records."
+    },
+    {
+      "prefix": "community.lexicon.",
+      "appName": "Lexicon community (shared types)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Calendar event (Lexicon Garden)",
+          "url": "https://lexicon.garden/lexicon/did:plc:2uwoih2htodskvgocarwv5eq/community.lexicon.calendar.event"
+        },
+        {
+          "label": "lexicon-community/lexicon",
+          "url": "https://github.com/lexicon-community/lexicon"
+        }
+      ],
+      "notes": "Cross-app schemas such as community.lexicon.calendar.* and location types. Distinct NSID authority from lexicon.community.*."
+    },
+    {
+      "prefix": "place.stream.",
+      "appName": "Streamplace",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://stream.place"
+        },
+        {
+          "label": "Lexicon reference",
+          "url": "https://stream.place/docs/lex-reference/chat/place-stream-chat-defs/"
+        }
+      ],
+      "notes": "Live streaming; place.stream.chat.* and related namespaces."
+    },
+    {
+      "prefix": "dev.keytrace.",
+      "appName": "Keytrace",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://keytrace.dev"
+        },
+        {
+          "label": "Developers (@keytrace/claims)",
+          "url": "https://keytrace.dev/developers"
+        }
+      ],
+      "notes": "Cross-platform identity verification claims stored on the PDS (dev.keytrace.claim, etc.)."
+    },
+    {
+      "prefix": "app.youandme.",
+      "appName": "You and Me",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://www.you-and-me.app"
+        }
+      ],
+      "notes": "If your collections use a different authority than app.youandme.*, open a PR to correct this row."
+    },
+    {
+      "prefix": "com.germnetwork.",
+      "appName": "Germ Network",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://www.germnetwork.com"
+        },
+        {
+          "label": "ATProto integration",
+          "url": "https://www.germnetwork.com/blog/integrating-germ-atproto"
+        }
+      ],
+      "notes": "E2EE messaging; declaration and keypackage records (com.germnetwork.*)."
+    },
+    {
+      "prefix": "site.standard.",
+      "appName": "Standard.site",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Standard.site",
+          "url": "https://standard.site"
+        },
+        {
+          "label": "Lexicons (repository)",
+          "url": "https://tangled.org/standard.site/lexicons"
+        },
+        {
+          "label": "site.standard.document (Lexicon Garden)",
+          "url": "https://eu.lexicon.garden/lexicon/did:plc:uqzpqmrjnptsxezjx4xuh2mn/site.standard.document"
+        }
+      ],
+      "notes": "Long-form publishing: site.standard.document, site.standard.publication, site.standard.graph.*, themes."
+    },
+    {
+      "prefix": "network.cosmik.",
+      "appName": "Cosmik (Semble)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://cosmik.network"
+        },
+        {
+          "label": "Bluesky (@cosmik.network)",
+          "url": "https://bsky.app/profile/cosmik.network"
+        },
+        {
+          "label": "Semble / follow graph notes",
+          "url": "https://notes.cosmik.network/3mfryjkrqss25"
+        }
+      ],
+      "notes": "Social knowledge network; network.cosmik.follow and related collections."
+    },
+    {
+      "prefix": "pub.leaflet.",
+      "appName": "Leaflet",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://leaflet.pub"
+        },
+        {
+          "label": "Lexicons (repository)",
+          "url": "https://github.com/hyperlink-academy/leaflet/tree/main/lexicons/pub/leaflet"
+        },
+        {
+          "label": "About (manual)",
+          "url": "https://about.leaflet.pub"
+        }
+      ],
+      "notes": "Block-based publishing; pub.leaflet.interactions.* and other pub.leaflet.* records."
+    },
+    {
+      "prefix": "id.sifa.",
+      "appName": "Sifa",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://sifa.id"
+        },
+        {
+          "label": "API / lexicon fixtures",
+          "url": "https://github.com/singi-labs/sifa-api"
+        }
+      ],
+      "notes": "Professional profiles: id.sifa.profile.* (self, education, etc.)."
+    },
+    {
+      "prefix": "space.roomy.",
+      "appName": "Roomy",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://a.roomy.space"
+        },
+        {
+          "label": "Repository",
+          "url": "https://github.com/muni-town/roomy"
+        },
+        {
+          "label": "Muni blog",
+          "url": "https://blog.muni.town/tag/roomy/"
+        }
+      ],
+      "notes": "Group chat / community spaces; space.roomy.* lexicons (see roomy packages/app lexicons)."
+    },
+    {
+      "prefix": "lexicon.community.",
+      "appName": "Lexicon community schemas",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Lexicon repo",
+          "url": "https://github.com/lexicon-community/lexicon"
+        },
+        {
+          "label": "Awesome lexicons",
+          "url": "https://github.com/lexicon-community/awesome-lexicons"
+        },
+        {
+          "label": "Organization",
+          "url": "https://github.com/lexicon-community"
+        }
+      ],
+      "notes": "Shared community lexicons and curation; multi-maintainer."
+    }
+  ]
+}
