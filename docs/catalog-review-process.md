@@ -10,17 +10,19 @@ The more complete the catalog, the fewer "unknown" cards users see.
 
 ## What qualifies for the catalog
 
-An entry belongs in the manual catalog if the app **defines its own custom lexicons and writes records to user repositories**. This is what triggers steward card display during `scanRepo()`.
+An entry belongs in the manual catalog if it is a meaningful part of the AT Protocol ecosystem that users interact with.
 
-**Include:**
+**Include (highest priority first):**
 - Apps with custom NSID prefixes that store records on user PDSs (e.g., `com.whtwnd.blog.entry`, `events.smokesignal.rsvp`)
 - Infrastructure that defines shared lexicons (e.g., `lexicon.community`, `standard.site`)
+- Alternative Bluesky clients — these are critical ecosystem participants even though they read/write `app.bsky.*` records
+- Infrastructure tools (bridges, feed builders, repo browsers, firehose tools) — these can appear as dependencies and should resolve
 - Services with high record activity on the network
 
-**Exclude:**
-- Alternative Bluesky clients that only read/write `app.bsky.*` records (Graysky, deck.blue, Skeets, etc.)
-- Browser extensions, analytics dashboards, feed generators, labelers
-- Tools that don't write their own record types to user repos
+**Lower priority (add if time permits):**
+- Browser extensions with small user bases
+- Analytics dashboards that only display data
+- Single-purpose utilities (post deleters, screenshot makers, etc.)
 
 ## Discovery sources
 
@@ -143,4 +145,4 @@ Run this review quarterly (or when the ecosystem has notable new launches).
 
 ## Current catalog statistics
 
-As of 2026-03-30: **50 steward entries**, **18 resolver overrides**.
+As of 2026-03-30: **80 steward entries**, **18 resolver overrides**.

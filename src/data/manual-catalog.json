@@ -716,6 +716,426 @@
           }
         }
       }
+    },
+    "graysky.app": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Graysky",
+          "description": "Open source Bluesky client for iOS and Android with inline translations, GIFs, and trending topics.",
+          "landingPage": "https://graysky.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "graysky.app"
+          }
+        }
+      }
+    },
+    "deck.blue": {
+      "disclosure": {
+        "meta": {
+          "displayName": "deck.blue",
+          "description": "TweetDeck-style multi-column Bluesky client with multi-account support and post scheduling.",
+          "landingPage": "https://deck.blue"
+        },
+        "contact": {
+          "general": {
+            "handle": "deck.blue"
+          }
+        }
+      }
+    },
+    "skeetsapp.com": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Skeets",
+          "description": "Native Bluesky client for iOS and macOS with accessibility optimizations.",
+          "landingPage": "https://www.skeetsapp.com"
+        },
+        "contact": {
+          "general": {
+            "handle": "skeetsapp.com"
+          }
+        }
+      }
+    },
+    "klearsky.pages.dev": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Klearsky",
+          "description": "Design-focused Bluesky web client with a single-column layout and rich feature set.",
+          "landingPage": "https://klearsky.pages.dev"
+        },
+        "contact": {
+          "general": {
+            "handle": "klearsky.pages.dev"
+          }
+        }
+      }
+    },
+    "skyfeed.app": {
+      "disclosure": {
+        "meta": {
+          "displayName": "SkyFeed",
+          "description": "Bluesky web client and custom feed builder. Hosts the majority of community Feed Generators.",
+          "landingPage": "https://skyfeed.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "skyfeed.app"
+          }
+        }
+      }
+    },
+    "tokimeki.blue": {
+      "disclosure": {
+        "meta": {
+          "displayName": "TOKIMEKI",
+          "description": "Open-source multi-column, multi-account Bluesky web client with PWA support.",
+          "landingPage": "https://tokimeki.blue"
+        },
+        "contact": {
+          "general": {
+            "handle": "tokimeki.blue"
+          }
+        }
+      }
+    },
+    "nootti.com": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Nootti",
+          "description": "Cross-posting client for Bluesky, Mastodon, and other platforms.",
+          "landingPage": "https://nootti.com"
+        },
+        "contact": {
+          "general": {
+            "handle": "nootti.com"
+          }
+        }
+      }
+    },
+    "croissantapp.com": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Croissant",
+          "description": "Cross-posting client for Bluesky, Mastodon, and Threads.",
+          "landingPage": "https://croissantapp.com"
+        },
+        "contact": {
+          "general": {
+            "handle": "croissantapp.com"
+          }
+        }
+      }
+    },
+    "useouranos.app": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Ouranos",
+          "description": "Bluesky web client built with Next.js.",
+          "landingPage": "https://useouranos.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "useouranos.app"
+          }
+        }
+      }
+    },
+    "openvibe.social": {
+      "disclosure": {
+        "meta": {
+          "displayName": "OpenVibe",
+          "description": "Unified timeline client combining Mastodon, Bluesky, Nostr, and Threads in one app.",
+          "landingPage": "https://openvibe.social"
+        },
+        "contact": {
+          "general": {
+            "handle": "openvibe.social"
+          }
+        }
+      }
+    },
+    "skittr.lol": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Skittr",
+          "description": "Nostalgic Bluesky client replicating late-2007 Twitter layout with no client-side JS.",
+          "landingPage": "https://skittr.lol"
+        },
+        "contact": {
+          "general": {
+            "handle": "skittr.lol"
+          }
+        }
+      }
+    },
+    "pinksky.app": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Pinksky",
+          "description": "Instagram-style photo sharing client for Bluesky with profiles, feed, and Stories.",
+          "landingPage": "https://pinksky.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "pinksky.app"
+          }
+        }
+      }
+    },
+    "fed.brid.gy": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Bridgy Fed",
+          "description": "Bridge between ATProto, ActivityPub (Mastodon), and the IndieWeb. Built by Ryan Barrett.",
+          "landingPage": "https://fed.brid.gy"
+        },
+        "contact": {
+          "general": {
+            "handle": "fed.brid.gy"
+          }
+        }
+      }
+    },
+    "graze.social": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Graze",
+          "description": "Design custom Bluesky feeds without code.",
+          "landingPage": "https://www.graze.social"
+        },
+        "contact": {
+          "general": {
+            "handle": "graze.social"
+          }
+        }
+      }
+    },
+    "goodfeeds.co": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Goodfeeds",
+          "description": "Custom feed search, charts, and simple feed creation for Bluesky.",
+          "landingPage": "https://goodfeeds.co"
+        },
+        "contact": {
+          "general": {
+            "handle": "goodfeeds.co"
+          }
+        }
+      }
+    },
+    "clearsky.app": {
+      "disclosure": {
+        "meta": {
+          "displayName": "ClearSky",
+          "description": "Block and DID transparency tool for Bluesky.",
+          "landingPage": "https://clearsky.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "clearsky.app"
+          }
+        }
+      }
+    },
+    "pdsls.dev": {
+      "disclosure": {
+        "meta": {
+          "displayName": "PDSls",
+          "description": "ATProto repository browser for inspecting PDS contents and records.",
+          "landingPage": "https://pdsls.dev"
+        },
+        "contact": {
+          "general": {
+            "handle": "pdsls.dev"
+          }
+        }
+      }
+    },
+    "firesky.tv": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Firesky",
+          "description": "Real-time ATProto firehose activity visualizer.",
+          "landingPage": "https://firesky.tv"
+        },
+        "contact": {
+          "general": {
+            "handle": "firesky.tv"
+          }
+        }
+      }
+    },
+    "skyview.social": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Skyview",
+          "description": "View and share Bluesky threads without an account.",
+          "landingPage": "https://skyview.social"
+        },
+        "contact": {
+          "general": {
+            "handle": "skyview.social"
+          }
+        }
+      }
+    },
+    "deer.social": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Deer",
+          "description": "Community-maintained soft fork of the official Bluesky app with toggleable niche features.",
+          "landingPage": "https://deer.social"
+        },
+        "contact": {
+          "general": {
+            "handle": "deer.social"
+          }
+        }
+      }
+    },
+    "threadsky.app": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Threadsky",
+          "description": "Reddit-style discussion client organizing Bluesky posts into topic-based community channels.",
+          "landingPage": "https://threadsky.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "threadsky.app"
+          }
+        }
+      }
+    },
+    "bluecast.app": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Bluecast",
+          "description": "Browser-based audio livestreaming for Bluesky, similar to Twitter/X Spaces.",
+          "landingPage": "https://www.bluecast.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "bluecast.app"
+          }
+        }
+      }
+    },
+    "helico.oza.works": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Helico",
+          "description": "Native SwiftUI Bluesky client for iPhone, iPad, and Mac with multi-column view and Jetstream support.",
+          "landingPage": "https://helico.oza.works/en/"
+        },
+        "contact": {
+          "general": {
+            "handle": "helico.oza.works"
+          }
+        }
+      }
+    },
+    "azsky.app": {
+      "disclosure": {
+        "meta": {
+          "displayName": "AzSky",
+          "description": "Bluesky client focused on long-form threaded discussions with 50,000-character post support.",
+          "landingPage": "https://azsky.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "azsky.app"
+          }
+        }
+      }
+    },
+    "tabtter.jp": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Tabtter",
+          "description": "Japanese-focused multi-tab web client integrating Bluesky, Mastodon, and Misskey.",
+          "landingPage": "https://tabtter.jp"
+        },
+        "contact": {
+          "general": {
+            "handle": "tabtter.jp"
+          }
+        }
+      }
+    },
+    "bluescreen.blue": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Bluescreen",
+          "description": "TikTok-style video client for Bluesky. Creator: Sebastian Vogelsang.",
+          "landingPage": "https://www.bluescreen.blue"
+        },
+        "contact": {
+          "general": {
+            "handle": "bluescreen.blue"
+          }
+        }
+      }
+    },
+    "getsky.app": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Sky.app",
+          "description": "Lightweight macOS-native Bluesky client with keyboard shortcuts and Dark Mode sync.",
+          "landingPage": "https://getsky.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "getsky.app"
+          }
+        }
+      }
+    },
+    "redgazer.com": {
+      "disclosure": {
+        "meta": {
+          "displayName": "RedGazer",
+          "description": "Visual content browser for Bluesky with image-first interface and advanced filtering.",
+          "landingPage": "https://www.redgazer.com"
+        },
+        "contact": {
+          "general": {
+            "handle": "redgazer.com"
+          }
+        }
+      }
+    },
+    "sill.social": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Sill",
+          "description": "Link aggregation service surfacing the most-shared links from your Bluesky and Mastodon feeds.",
+          "landingPage": "https://sill.social"
+        },
+        "contact": {
+          "general": {
+            "handle": "sill.social"
+          }
+        }
+      }
+    },
+    "bluestream.deno.dev": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Bluestream",
+          "description": "RSS feed generator for Bluesky accounts.",
+          "landingPage": "https://bluestream.deno.dev"
+        },
+        "contact": {
+          "general": {
+            "handle": "bluestream.deno.dev"
+          }
+        }
+      }
     }
   }
 }
