@@ -413,7 +413,7 @@ function DependenciesSection({
 
       <dialog
         ref={dialogRef}
-        className="m-auto max-h-[85vh] w-full max-w-lg overflow-auto rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl dark:border-slate-800 dark:bg-slate-950 [&::backdrop]:bg-black/40"
+        className="m-auto max-h-[85vh] w-full max-w-2xl overflow-auto rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl dark:border-slate-800 dark:bg-slate-950 [&::backdrop]:bg-black/40"
         onClick={(e) => {
           if (e.target === e.currentTarget) closeModal()
         }}
