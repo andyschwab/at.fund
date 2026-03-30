@@ -13,6 +13,7 @@ const mockDescribeRepo = vi.fn()
 const mockListRecords = vi.fn()
 const mockResolveIdentity = vi.fn()
 const mockGetProfile = vi.fn()
+const mockGetFollows = vi.fn()
 
 vi.mock('@atproto/api', () => {
   class MockAgent {
@@ -31,6 +32,9 @@ vi.mock('@atproto/api', () => {
       bsky: {
         actor: {
           getProfile: mockGetProfile,
+        },
+        graph: {
+          getFollows: mockGetFollows,
         },
       },
     }
@@ -108,6 +112,8 @@ beforeEach(() => {
   // Default: no records in any collection
   mockListRecords.mockResolvedValue({ data: { records: [] } })
   mockGetProfile.mockResolvedValue({ data: { handle: 'testuser.bsky.social' } })
+  // Default: no follows
+  mockGetFollows.mockResolvedValue({ data: { follows: [] } })
 })
 
 describe('scanRepo pipeline', () => {
