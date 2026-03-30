@@ -143,4 +143,4 @@ Run this review quarterly (or when the ecosystem has notable new launches).
 
 ## Current catalog statistics
 
-As of 2026-03-30: **43 steward entries**, **16 resolver overrides**.
+As of 2026-03-30: **45 steward entries**, **16 resolver overrides**.
