@@ -1,6 +1,8 @@
 import { Agent } from '@atproto/api'
 import { extractPdsUrl } from '@atproto/did'
 import type { AtprotoDidDocument } from '@atproto/did'
+import type { OAuthSession } from '@atproto/oauth-client'
+import { Client } from '@atproto/lex'
 
 export const FUND_CONTRIBUTE = 'fund.at.contribute'
 export const FUND_DISCLOSURE = 'fund.at.disclosure'
@@ -353,6 +355,66 @@ export async function fetchFundAtRecords(
     const depValues = collectRecordValues(depListed.data.records ?? [])
     const merged = new Set<string>()
     for (const rec of filter(depValues)) {
+      if (!isHostScopedDependency(rec)) continue
+      for (const u of readDependencyUris(rec)) merged.add(u)
+      if (!dependencyNotes && typeof rec.notes === 'string' && rec.notes.trim()) {
+        dependencyNotes = rec.notes.trim()
+      }
+    }
+    if (merged.size > 0) {
+      dependencyUris = [...merged].sort((a, b) => a.localeCompare(b))
+    }
+  } catch {
+    // optional
+  }
+
+  return { links, dependencyUris, dependencyNotes, disclosure }
+}
+
+// ---------------------------------------------------------------------------
+// Authenticated read: use the session to list the user's own records directly,
+// bypassing public API identity resolution.
+// ---------------------------------------------------------------------------
+
+type RawRecord = { value: unknown }
+
+export async function fetchOwnFundAtRecords(
+  session: OAuthSession,
+): Promise<FundAtResult | null> {
+  const client = new Client(session)
+
+  let contributeValues: RawValue[] = []
+  try {
+    const res = await client.listRecords(FUND_CONTRIBUTE, { limit: 100 })
+    contributeValues = collectRecordValues(
+      res.body.records as RawRecord[],
+    )
+  } catch {
+    // optional
+  }
+
+  const bestContribute = pickBestContribute(contributeValues)
+  const links = bestContribute ? readLinks(bestContribute) : undefined
+
+  let disclosure: DisclosureMeta | undefined
+  try {
+    const res = await client.listRecords(FUND_DISCLOSURE, { limit: 50 })
+    const discValues = collectRecordValues(res.body.records as RawRecord[])
+    const best = pickBestDisclosure(discValues)
+    if (best) disclosure = extractDisclosureMeta(best) ?? undefined
+  } catch {
+    // optional
+  }
+
+  if (!disclosure) return null
+
+  let dependencyUris: string[] | undefined
+  let dependencyNotes: string | undefined
+  try {
+    const res = await client.listRecords(FUND_DEPENDENCIES, { limit: 100 })
+    const depValues = collectRecordValues(res.body.records as RawRecord[])
+    const merged = new Set<string>()
+    for (const rec of depValues) {
       if (!isHostScopedDependency(rec)) continue
       for (const u of readDependencyUris(rec)) merged.add(u)
       if (!dependencyNotes && typeof rec.notes === 'string' && rec.notes.trim()) {
