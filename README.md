@@ -26,6 +26,11 @@ Set `PUBLIC_URL` to your HTTPS origin (no trailing slash). The app switches from
 - `POST /api/lexicons` — body `{ "selfReportedStewards": ["whtwnd.com", "did:plc:..."] }` (optional). Requires session cookie.
 - `GET /api/lexicons?extraStewards=whtwnd.com,roomy.space` — same merge via query string.
 
+## Future: contribution signals/acknowledgements
+
+`fund.at` may add event-style records for contribution signaling and recipient acknowledgement.
+Design target: ATProto-native social edges for status transparency while keeping all fund transfer flows out-of-band.
+
 ## Project layout
 
 - `src/lib/catalog.ts` — resolver (observed key → steward URI) + manual catalog lookup.

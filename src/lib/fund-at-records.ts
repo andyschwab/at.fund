@@ -38,6 +38,54 @@ export type FundAtResult = {
   disclosure: DisclosureMeta
 }
 
+function handleFromAlsoKnownAs(didDoc: unknown): string | undefined {
+  if (!didDoc || typeof didDoc !== 'object') return undefined
+  const raw = (didDoc as { alsoKnownAs?: unknown }).alsoKnownAs
+  if (!Array.isArray(raw)) return undefined
+  for (const v of raw) {
+    if (typeof v !== 'string') continue
+    if (!v.startsWith('at://')) continue
+    const handle = v.slice('at://'.length).trim()
+    if (handle) return handle
+  }
+  return undefined
+}
+
+export async function resolveHandleFromDid(
+  stewardDid: string,
+): Promise<string | undefined> {
+  try {
+    const res = await identityAgent.com.atproto.identity.resolveIdentity({
+      identifier: stewardDid,
+    })
+    const fromIdentity = res.data.handle ?? handleFromAlsoKnownAs(res.data.didDoc)
+    if (fromIdentity) return fromIdentity
+  } catch {
+    // fall through
+  }
+  try {
+    const plcRes = await fetch(`https://plc.directory/${encodeURIComponent(stewardDid)}`)
+    if (!plcRes.ok) return undefined
+    const plcDoc = (await plcRes.json()) as unknown
+    return handleFromAlsoKnownAs(plcDoc)
+  } catch {
+    return undefined
+  }
+}
+
+export async function resolveDidFromIdentifier(
+  identifier: string,
+): Promise<string | undefined> {
+  try {
+    const res = await identityAgent.com.atproto.identity.resolveIdentity({
+      identifier,
+    })
+    return res.data.did
+  } catch {
+    return undefined
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Record value helpers
 // ---------------------------------------------------------------------------

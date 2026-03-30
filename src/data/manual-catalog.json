@@ -9,6 +9,24 @@
         }
       }
     },
+    "bsky.social": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Bluesky",
+          "description": "Official Bluesky Social product (feeds, graphs, embeds, DMs, moderation). Maintained by Bluesky PBLLC.",
+          "landingPage": "https://bsky.app"
+        }
+      }
+    },
+    "did:plc:z72i7hdynmk6r22z27h6tvur": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Bluesky",
+          "description": "Official Bluesky Social product (feeds, graphs, embeds, DMs, moderation). Maintained by Bluesky PBLLC.",
+          "landingPage": "https://bsky.app"
+        }
+      }
+    },
     "atproto.com": {
       "disclosure": {
         "meta": {

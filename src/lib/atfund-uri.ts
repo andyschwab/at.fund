@@ -1,5 +1,7 @@
-import { lookupAtprotoDid } from '@/lib/atfund-dns'
+import { Agent } from '@atproto/api'
+import { lookupAtprotoDid, lookupAtprotoDidExact } from '@/lib/atfund-dns'
 import { fetchPdsHostFunding, type PdsHostFunding } from '@/lib/atfund-steward'
+import { resolveDidFromIdentifier, resolveHandleFromDid } from '@/lib/fund-at-records'
 
 function hostnameFromUriLike(input: string): string | null {
   const raw = input.trim()
@@ -20,6 +22,36 @@ function hostnameFromUriLike(input: string): string | null {
   return raw.toLowerCase().replace(/\.$/, '')
 }
 
+function hostnameFromWebUrl(input: string | undefined): string | undefined {
+  if (!input) return undefined
+  try {
+    return new URL(input).hostname.toLowerCase()
+  } catch {
+    return undefined
+  }
+}
+
+async function describeServerStewardFallback(hostname: string): Promise<{
+  pdsStewardUri?: string
+  pdsStewardHandle?: string
+  stewardDid?: string
+}> {
+  try {
+    const agent = new Agent(`https://${hostname}`)
+    const res = await agent.com.atproto.server.describeServer()
+    const did = typeof res.data.did === 'string' ? res.data.did : undefined
+    const policyHost =
+      hostnameFromWebUrl(res.data.links?.privacyPolicy) ??
+      hostnameFromWebUrl(res.data.links?.termsOfService)
+    const pdsStewardUri = policyHost ?? did
+    const pdsStewardHandle =
+      pdsStewardUri && !pdsStewardUri.startsWith('did:') ? pdsStewardUri : undefined
+    return { pdsStewardUri, pdsStewardHandle, stewardDid: did }
+  } catch {
+    return {}
+  }
+}
+
 /**
  * Generic fund.at discovery starting from a URI-like identifier (URL or hostname).
  * For hostnames, we resolve `_atproto.<hostname>` to a steward DID, then load
@@ -32,8 +64,48 @@ export async function fetchFundingForUriLike(
   if (!hostname) return null
 
   const did = await lookupAtprotoDid(hostname)
-  if (!did) return null
+  if (!did) {
+    const fallback = await describeServerStewardFallback(hostname)
+    if (!fallback.pdsStewardUri && !fallback.stewardDid) return null
 
-  return fetchPdsHostFunding(did, hostname)
+    const fallbackStewardDid =
+      fallback.pdsStewardUri && !fallback.pdsStewardUri.startsWith('did:')
+        ? (await lookupAtprotoDidExact(fallback.pdsStewardUri)) ??
+          (await resolveDidFromIdentifier(fallback.pdsStewardUri))
+        : fallback.pdsStewardUri
+    const resolvedDid = fallbackStewardDid ?? fallback.stewardDid
+    if (!resolvedDid) return null
+    const resolvedHandle = await resolveHandleFromDid(resolvedDid)
+    const resolvedUri = resolvedHandle ?? fallback.pdsStewardUri ?? resolvedDid
+
+    const hostFunding = await fetchPdsHostFunding(resolvedDid, hostname, {
+      pdsStewardUri: resolvedUri,
+      pdsStewardHandle: resolvedHandle ?? fallback.pdsStewardHandle,
+    })
+    if (hostFunding) return hostFunding
+
+    return {
+      pdsHostname: hostname,
+      stewardDid: resolvedDid,
+      pdsStewardUri: resolvedUri,
+      pdsStewardHandle: resolvedHandle ?? fallback.pdsStewardHandle,
+    }
+  }
+  const pdsStewardHandle = await resolveHandleFromDid(did)
+  const pdsStewardUri = pdsStewardHandle ?? did
+
+  const hostFunding = await fetchPdsHostFunding(did, hostname, {
+    pdsStewardUri,
+    pdsStewardHandle,
+  })
+  if (hostFunding) return hostFunding
+
+  // Return steward identity even when no fund.at.disclosure is published.
+  return {
+    pdsHostname: hostname,
+    stewardDid: did,
+    pdsStewardUri,
+    pdsStewardHandle,
+  }
 }
 

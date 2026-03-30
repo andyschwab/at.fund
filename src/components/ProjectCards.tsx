@@ -146,13 +146,22 @@ export function PdsHostSupportCard({
   funding?: PdsHostFunding | null
 }) {
   const disclosure = funding?.disclosure
+  const pdsStewardLabel = funding?.pdsStewardHandle ?? funding?.pdsStewardUri
+  const stewardWebsiteFallback = funding?.pdsStewardUri
+    ? websiteFallbackForStewardUri(funding.pdsStewardUri)
+    : undefined
   const title =
-    disclosure?.displayName ?? `Your host (${pdsHostname})`
+    disclosure?.displayName ??
+    (pdsStewardLabel
+      ? `Your host steward (${pdsStewardLabel})`
+      : `Your host (${pdsHostname})`)
   const contributeLink = funding?.links?.[0]
-  const websiteFallback = `https://${pdsHostname}`
+  const websiteFallback = stewardWebsiteFallback ?? `https://${pdsHostname}`
   const summary =
     disclosure?.description ??
-    `Your account's home server (${pdsHostname}) — support options if published.`
+    (pdsStewardLabel
+      ? `Your account's home server (${pdsHostname}), operated by ${pdsStewardLabel}.`
+      : `Your account's home server (${pdsHostname}) — support options if published.`)
 
   const disclosureSlots = buildDisclosureSlots(disclosure, websiteFallback)
 
@@ -204,6 +213,11 @@ export function PdsHostSupportCard({
           <p className="mt-1 max-w-3xl text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
             {summary}
           </p>
+          {pdsStewardLabel && (
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              Steward: <span className="font-mono">{pdsStewardLabel}</span>
+            </p>
+          )}
         </div>
       </div>
     </article>

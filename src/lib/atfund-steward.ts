@@ -6,6 +6,8 @@ export type { FundLink }
 export type PdsHostFunding = {
   pdsHostname: string
   stewardDid: string
+  pdsStewardUri?: string
+  pdsStewardHandle?: string
   links?: FundLink[]
   dependencyUris?: string[]
   disclosure?: DisclosureMeta
@@ -18,8 +20,12 @@ export type PdsHostFunding = {
 export async function fetchPdsHostFunding(
   stewardDid: string,
   pdsHostname: string,
+  opts?: {
+    pdsStewardUri?: string
+    pdsStewardHandle?: string
+  },
 ): Promise<PdsHostFunding | null> {
   const result = await fetchFundAtRecords(stewardDid, pdsHostname)
   if (!result) return null
-  return { pdsHostname, stewardDid, ...result }
+  return { pdsHostname, stewardDid, ...opts, ...result }
 }

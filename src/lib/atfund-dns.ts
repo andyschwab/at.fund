@@ -13,11 +13,74 @@ function parseDidFromTxtChunks(chunks: string[]): string | null {
   return null
 }
 
+function candidateHostnames(hostname: string): string[] {
+  const labels = hostname.split('.').filter(Boolean)
+  if (labels.length < 2) return []
+  const out: string[] = []
+  for (let i = 0; i <= labels.length - 2; i++) {
+    out.push(labels.slice(i).join('.'))
+  }
+  return out
+}
+
+function parseDidFromWellKnownText(raw: string): string | null {
+  const v = raw.trim().replace(/^"|"$/g, '')
+  if (!v) return null
+  const match = v.match(/^(did:plc:[a-z0-9]+|did:web:[a-z0-9.-]+)$/i)
+  return match?.[1] ?? null
+}
+
+async function lookupDidViaWellKnown(hostname: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://${hostname}/.well-known/atproto-did`)
+    if (!res.ok) return null
+    const text = await res.text()
+    return parseDidFromWellKnownText(text)
+  } catch {
+    return null
+  }
+}
+
 /**
- * Looks up `_atproto.<hostname>` TXT and returns the domain’s ATProto DID if present.
- * The returned DID is the canonical identity for that hostname.
+ * Resolves a hostname to an ATProto DID.
+ * For each hostname candidate (exact, then parents), tries DNS `_atproto` TXT
+ * and then `https://<host>/.well-known/atproto-did`.
  */
 export async function lookupAtprotoDid(hostname: string): Promise<string | null> {
+  const h = hostname.trim().toLowerCase().replace(/\.$/, '')
+  if (!h || h.includes('/') || h.includes(':')) return null
+
+  for (const candidate of candidateHostnames(h)) {
+    const name = `${ATPROTO_TXT_PREFIX}.${candidate}`
+    try {
+      const records = await dns.resolveTxt(name)
+      for (const chunks of records) {
+        const did = parseDidFromTxtChunks(chunks)
+        if (did) return did
+      }
+    } catch {
+      // Try HTTPS well-known fallback for this candidate.
+    }
+    const wellKnownDid = await lookupDidViaWellKnown(candidate)
+    if (wellKnownDid) return wellKnownDid
+    // Otherwise keep climbing parent hostnames.
+  }
+
+  const exactWellKnown = await lookupDidViaWellKnown(h)
+  if (exactWellKnown) {
+    return exactWellKnown
+  }
+
+  return null
+}
+
+/**
+ * Resolve a single hostname without climbing parent labels.
+ * Uses DNS `_atproto` first, then HTTPS well-known.
+ */
+export async function lookupAtprotoDidExact(
+  hostname: string,
+): Promise<string | null> {
   const h = hostname.trim().toLowerCase().replace(/\.$/, '')
   if (!h || h.includes('/') || h.includes(':')) return null
 
@@ -29,7 +92,7 @@ export async function lookupAtprotoDid(hostname: string): Promise<string | null>
       if (did) return did
     }
   } catch {
-    return null
+    // fall through
   }
-  return null
+  return lookupDidViaWellKnown(h)
 }
