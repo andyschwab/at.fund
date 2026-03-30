@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import type { ScanResult } from '@/lib/lexicon-scan'
 import { pdslsRepoUrl } from '@/lib/pdsls'
 import {
+  FollowedAccountCard,
   KnownStewardCard,
   PdsHostSupportCard,
   UnknownStewardCard,
@@ -23,6 +24,7 @@ import {
   PlusCircle,
   RefreshCw,
   Sparkles,
+  Users,
   UserRound,
 } from 'lucide-react'
 
@@ -57,6 +59,12 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
   const unknownStewards = useMemo(
     () => scan?.stewards.filter((s) => s.source === 'unknown') ?? [],
     [scan?.stewards],
+  )
+  const followedAccounts = scan?.followedAccounts.filter((a) => a.links?.[0]) ?? []
+  // Merge scanned stewards + resolved dep models so lookup covers deps not in the main scan
+  const allStewardsForLookup = useMemo(
+    () => [...(scan?.stewards ?? []), ...(scan?.referencedStewards ?? [])],
+    [scan?.stewards, scan?.referencedStewards],
   )
 
   async function login(e: React.FormEvent) {
@@ -122,6 +130,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
   }
 
   const stewardCount = scan?.stewards.length ?? 0
+  const followedCount = followedAccounts.length
   const displayId = scan?.handle ?? scan?.did ?? ''
   const pdsUrl = scan?.pdsUrl
 
@@ -363,11 +372,47 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                           <KnownStewardCard
                             key={steward.stewardUri}
                             steward={steward}
+                            allStewards={allStewardsForLookup}
                           />
                         ))}
                       </div>
                     </div>
                   )}
+
+                  <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
+                    <div className="flex gap-3 border-b border-[var(--network-border)]/50 bg-[var(--network-muted)] px-5 py-4 dark:border-[var(--network-border)]/35">
+                      <span
+                        className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--network)] shadow-sm dark:bg-slate-900/80"
+                        aria-hidden
+                      >
+                        <Users className="h-5 w-5" strokeWidth={2} />
+                      </span>
+                      <div>
+                        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                          In your network
+                        </h2>
+                        <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+                          People you follow who accept support via at.fund.
+                        </p>
+                      </div>
+                    </div>
+                    {followedAccounts.length > 0 ? (
+                      <div className="flex flex-col gap-4 p-5">
+                        {followedAccounts.map((account) => (
+                          <FollowedAccountCard
+                            key={account.did}
+                            account={account}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">
+                        None of the accounts you follow have published at.fund
+                        records yet. As more people adopt at.fund, they&apos;ll
+                        show up here automatically.
+                      </p>
+                    )}
+                  </div>
 
                   {unknownStewards.length > 0 && (
                     <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
@@ -400,12 +445,20 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                   )}
                 </>
               )}
-              {scan && scan.stewards.length > 0 && (
+              {scan && (stewardCount > 0 || followedCount > 0) && (
                 <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                    <Heart className="h-3.5 w-3.5 text-[var(--support)]" aria-hidden />
-                    {stewardCount} service{stewardCount === 1 ? '' : 's'}
-                  </span>
+                  {stewardCount > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                      <Heart className="h-3.5 w-3.5 text-[var(--support)]" aria-hidden />
+                      {stewardCount} service{stewardCount === 1 ? '' : 's'}
+                    </span>
+                  )}
+                  {followedCount > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                      <Users className="h-3.5 w-3.5 text-[var(--network)]" aria-hidden />
+                      {followedCount} in network
+                    </span>
+                  )}
                 </div>
               )}
             </section>

@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Sky.app",
+      "description": "Lightweight macOS-native Bluesky client with keyboard shortcuts and Dark Mode sync.",
+      "landingPage": "https://getsky.app"
+    },
+    "contact": {
+      "general": {
+        "handle": "getsky.app"
+      }
+    }
+  }
+}

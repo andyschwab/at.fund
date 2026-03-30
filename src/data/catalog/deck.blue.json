@@ -1,0 +1,30 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "deck.blue",
+      "description": "TweetDeck-style multi-column Bluesky client with multi-account support and post scheduling.",
+      "landingPage": "https://deck.blue"
+    },
+    "contact": {
+      "general": {
+        "handle": "deck.blue"
+      }
+    }
+  },
+  "contribute": {
+    "links": [
+      {
+        "label": "GitHub Sponsors (@deckblue)",
+        "url": "https://github.com/sponsors/deckblue"
+      },
+      {
+        "label": "Patreon",
+        "url": "https://www.patreon.com/deckblue"
+      },
+      {
+        "label": "Ko-fi",
+        "url": "https://ko-fi.com/deck_blue"
+      }
+    ]
+  }
+}

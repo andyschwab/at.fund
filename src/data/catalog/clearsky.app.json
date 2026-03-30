@@ -1,0 +1,22 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "ClearSky",
+      "description": "Block and DID transparency tool for Bluesky.",
+      "landingPage": "https://clearsky.app"
+    },
+    "contact": {
+      "general": {
+        "handle": "clearsky.app"
+      }
+    }
+  },
+  "contribute": {
+    "links": [
+      {
+        "label": "Ko-fi (ClearSky)",
+        "url": "https://ko-fi.com/clearskyapp"
+      }
+    ]
+  }
+}

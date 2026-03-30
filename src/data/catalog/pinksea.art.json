@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "PinkSea",
+      "description": "Oekaki BBS-style AppView and client.",
+      "landingPage": "https://pinksea.art"
+    },
+    "contact": {
+      "general": {
+        "handle": "pinksea.art"
+      }
+    }
+  }
+}

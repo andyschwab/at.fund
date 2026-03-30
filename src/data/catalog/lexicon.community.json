@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Lexicon community schemas",
+      "description": "Shared community lexicons and curation (location, bookmarks, interactions, payments). Multi-maintainer.",
+      "landingPage": "https://github.com/lexicon-community/lexicon"
+    },
+    "contact": {
+      "general": {
+        "handle": "lexicon.community"
+      }
+    }
+  }
+}

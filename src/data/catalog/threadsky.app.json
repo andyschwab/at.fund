@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Threadsky",
+      "description": "Reddit-style discussion client organizing Bluesky posts into topic-based community channels.",
+      "landingPage": "https://threadsky.app"
+    },
+    "contact": {
+      "general": {
+        "handle": "threadsky.app"
+      }
+    }
+  }
+}

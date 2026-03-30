@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Tabtter",
+      "description": "Japanese-focused multi-tab web client integrating Bluesky, Mastodon, and Misskey.",
+      "landingPage": "https://tabtter.jp"
+    },
+    "contact": {
+      "general": {
+        "handle": "tabtter.jp"
+      }
+    }
+  }
+}

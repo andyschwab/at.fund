@@ -1,4 +1,5 @@
-import manualCatalogJson from '@/data/manual-catalog.json'
+import fs from 'node:fs'
+import path from 'node:path'
 import resolverJson from '@/data/resolver-catalog.json'
 import { normalizeStewardUri } from '@/lib/steward-uri'
 import type { FundLink } from '@/lib/fund-at-records'
@@ -30,10 +31,6 @@ type ManualRecord = {
   dependencies?: ManualDependencies
 }
 
-type ManualCatalogFile = {
-  records: Record<string, ManualRecord>
-}
-
 type ResolverOverride = {
   matchPrefix: string
   stewardUri: string
@@ -43,7 +40,19 @@ type ResolverFile = {
   overrides: ResolverOverride[]
 }
 
-const manualCatalog = manualCatalogJson as ManualCatalogFile
+function loadCatalogRecords(): Record<string, ManualRecord> {
+  const catalogDir = path.join(process.cwd(), 'src', 'data', 'catalog')
+  const records: Record<string, ManualRecord> = {}
+  for (const file of fs.readdirSync(catalogDir)) {
+    if (!file.endsWith('.json')) continue
+    const stewardUri = file.replace(/\.json$/, '')
+    const content = fs.readFileSync(path.join(catalogDir, file), 'utf-8')
+    records[stewardUri] = JSON.parse(content) as ManualRecord
+  }
+  return records
+}
+
+const manualCatalogRecords = loadCatalogRecords()
 const resolverCatalog = resolverJson as ResolverFile
 
 function normalizePrefix(prefix: string): string {
@@ -111,6 +120,30 @@ export type ManualStewardRecord = {
   dependencies?: string[]
 }
 
+function buildHandleIndex(
+  records: Record<string, ManualRecord>,
+): Map<string, ManualStewardRecord> {
+  const index = new Map<string, ManualStewardRecord>()
+  for (const stewardUri of Object.keys(records)) {
+    const record = lookupManualStewardRecord(stewardUri)
+    if (!record?.contactGeneralHandle) continue
+    index.set(record.contactGeneralHandle.toLowerCase(), record)
+  }
+  return index
+}
+
+const handleIndex = buildHandleIndex(manualCatalogRecords)
+
+/**
+ * Look up a catalog record by the account's Bluesky handle.
+ * Handles the case where the catalog key (steward domain) differs from the handle.
+ */
+export function lookupManualStewardByHandle(handle: string): ManualStewardRecord | null {
+  const normalized = handle.trim().replace(/^@/, '').toLowerCase()
+  if (!normalized) return null
+  return handleIndex.get(normalized) ?? null
+}
+
 /** Manual fallback keyed by steward URI. Returns fund.at-shaped data from our curated catalog. */
 export function lookupManualStewardRecord(
   stewardUri: string,
@@ -118,7 +151,7 @@ export function lookupManualStewardRecord(
   const key = normalizeStewardUri(stewardUri)
   if (!key) return null
 
-  const record = manualCatalog.records[key]
+  const record = manualCatalogRecords[key]
   if (!record) return null
 
   const meta = record.disclosure?.meta

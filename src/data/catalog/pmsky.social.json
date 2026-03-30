@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "PMsky",
+      "description": "Proposal and vote records for label-like governance.",
+      "landingPage": "https://pmsky.social"
+    },
+    "contact": {
+      "general": {
+        "handle": "pmsky.social"
+      }
+    }
+  }
+}

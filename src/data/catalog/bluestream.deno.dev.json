@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Bluestream",
+      "description": "RSS feed generator for Bluesky accounts.",
+      "landingPage": "https://bluestream.deno.dev"
+    },
+    "contact": {
+      "general": {
+        "handle": "bluestream.deno.dev"
+      }
+    }
+  }
+}

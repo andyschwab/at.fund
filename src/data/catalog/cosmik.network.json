@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Cosmik (Semble)",
+      "description": "Social knowledge network.",
+      "landingPage": "https://cosmik.network"
+    },
+    "contact": {
+      "general": {
+        "handle": "cosmik.network"
+      }
+    }
+  }
+}

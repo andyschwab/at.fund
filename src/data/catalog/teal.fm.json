@@ -1,0 +1,19 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Teal.fm",
+      "description": "Music scrobbling service on ATProto.",
+      "landingPage": "https://teal.fm"
+    },
+    "contact": {
+      "general": {
+        "handle": "teal.fm"
+      }
+    }
+  },
+  "dependencies": {
+    "uris": [
+      "natalie.sh"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Sill",
+      "description": "Link aggregation service surfacing the most-shared links from your Bluesky and Mastodon feeds.",
+      "landingPage": "https://sill.social"
+    },
+    "contact": {
+      "general": {
+        "handle": "sill.social"
+      }
+    }
+  }
+}

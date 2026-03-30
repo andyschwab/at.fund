@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Nooki",
+      "description": "Reddit-style community discussion platform on ATProto.",
+      "landingPage": "https://nooki.me"
+    },
+    "contact": {
+      "general": {
+        "handle": "nooki.me"
+      }
+    }
+  }
+}

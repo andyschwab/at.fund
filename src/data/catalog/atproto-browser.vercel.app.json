@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "ATProto Browser",
+      "description": "Web app for browsing AT Protocol data using at:// URIs, handles, or DIDs.",
+      "landingPage": "https://atproto-browser.vercel.app"
+    },
+    "contact": {
+      "general": {
+        "handle": "atproto-browser.vercel.app"
+      }
+    }
+  }
+}

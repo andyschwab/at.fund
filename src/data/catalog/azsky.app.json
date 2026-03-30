@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "AzSky",
+      "description": "Bluesky client focused on long-form threaded discussions with 50,000-character post support.",
+      "landingPage": "https://azsky.app"
+    },
+    "contact": {
+      "general": {
+        "handle": "azsky.app"
+      }
+    }
+  }
+}

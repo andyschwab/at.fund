@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Picosky",
+      "description": "Real-time chat and messaging on ATProto.",
+      "landingPage": "https://psky.social"
+    },
+    "contact": {
+      "general": {
+        "handle": "psky.social"
+      }
+    }
+  }
+}

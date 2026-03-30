@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Skittr",
+      "description": "Nostalgic Bluesky client replicating late-2007 Twitter layout with no client-side JS.",
+      "landingPage": "https://skittr.lol"
+    },
+    "contact": {
+      "general": {
+        "handle": "skittr.lol"
+      }
+    }
+  }
+}
