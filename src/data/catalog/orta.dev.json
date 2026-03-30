@@ -1,0 +1,22 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Orta Therox",
+      "description": "Developer of Keytrace and other ATProto tools.",
+      "landingPage": "https://orta.io"
+    },
+    "contact": {
+      "general": {
+        "handle": "orta.dev"
+      }
+    }
+  },
+  "contribute": {
+    "links": [
+      {
+        "label": "GitHub Sponsors (@orta)",
+        "url": "https://github.com/sponsors/orta"
+      }
+    ]
+  }
+}

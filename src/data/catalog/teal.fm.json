@@ -10,5 +10,10 @@
         "handle": "teal.fm"
       }
     }
+  },
+  "dependencies": {
+    "uris": [
+      "natalie.sh"
+    ]
   }
 }

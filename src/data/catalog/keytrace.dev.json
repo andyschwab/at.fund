@@ -11,12 +11,9 @@
       }
     }
   },
-  "contribute": {
-    "links": [
-      {
-        "label": "GitHub Sponsors (@orta)",
-        "url": "https://github.com/sponsors/orta"
-      }
+  "dependencies": {
+    "uris": [
+      "orta.dev"
     ]
   }
 }

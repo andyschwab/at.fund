@@ -10,5 +10,13 @@
         "handle": "blacksky.community"
       }
     }
+  },
+  "contribute": {
+    "links": [
+      {
+        "label": "Open Collective",
+        "url": "https://opencollective.com/blacksky"
+      }
+    ]
   }
 }

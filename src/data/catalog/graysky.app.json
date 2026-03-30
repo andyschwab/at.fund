@@ -10,5 +10,10 @@
         "handle": "graysky.app"
       }
     }
+  },
+  "dependencies": {
+    "uris": [
+      "mozzius.dev"
+    ]
   }
 }
