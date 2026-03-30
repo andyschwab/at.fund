@@ -125,7 +125,7 @@ describe('scanRepo pipeline', () => {
     expect(result.handle).toBe('testuser.bsky.social')
 
     // Should have resolved frontpage and atfile stewards
-    const uris = result.stewards.map((s) => s.stewardUri)
+    const uris = result.entries.map((e) => e.uri)
     expect(uris).toContain('frontpage.fyi') // fyi.unravel.frontpage.post → resolver override
     expect(uris).toContain('zio.sh')        // blue.zio.atfile.upload → resolver override → zio.sh
 
@@ -147,7 +147,7 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    const frontpage = result.stewards.find((s) => s.stewardUri === 'frontpage.fyi')
+    const frontpage = result.entries.find((e) => e.uri === 'frontpage.fyi')
     // frontpage.fyi has a manual catalog entry with a displayName
     if (frontpage) {
       expect(frontpage.source).toBe('manual')
@@ -170,10 +170,10 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    const unknown = result.stewards.find((s) => s.source === 'unknown')
+    const unknown = result.entries.find((e) => e.source === 'unknown')
     expect(unknown).toBeDefined()
-    // Unknown stewards use stewardUri as displayName
-    expect(unknown!.displayName).toBe(unknown!.stewardUri)
+    // Unknown entries use uri as displayName
+    expect(unknown!.displayName).toBe(unknown!.uri)
   })
 
   it('uses fund.at records when steward DID resolves', async () => {
@@ -204,12 +204,12 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    const frontpage = result.stewards.find((s) => s.stewardUri === 'frontpage.fyi')
+    const frontpage = result.entries.find((e) => e.uri === 'frontpage.fyi')
     expect(frontpage).toBeDefined()
     expect(frontpage!.source).toBe('fund.at')
     expect(frontpage!.displayName).toBe('Frontpage')
     expect(frontpage!.links).toEqual([{ label: 'Donate', url: 'https://frontpage.fyi/donate' }])
-    expect(frontpage!.stewardDid).toBe('did:plc:frontpage')
+    expect(frontpage!.did).toBe('did:plc:frontpage')
   })
 
   it('includes self-reported stewards in resolution', async () => {
@@ -223,7 +223,7 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, ['bsky.app'])
 
-    const bsky = result.stewards.find((s) => s.stewardUri === 'bsky.app')
+    const bsky = result.entries.find((e) => e.uri === 'bsky.app')
     expect(bsky).toBeDefined()
     // bsky.app should resolve via fund.at or manual catalog (not unknown)
     expect(['fund.at', 'manual']).toContain(bsky!.source)
@@ -261,10 +261,10 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    // First steward should be the one with links
-    expect(result.stewards[0]!.source).toBe('fund.at')
-    // Last steward should be unknown
-    expect(result.stewards[result.stewards.length - 1]!.source).toBe('unknown')
+    // First entry should be the one with links
+    expect(result.entries[0]!.source).toBe('fund.at')
+    // Last entry should be unknown
+    expect(result.entries[result.entries.length - 1]!.source).toBe('unknown')
   })
 
   it('handles empty repo (no collections)', async () => {
@@ -278,7 +278,7 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    expect(result.stewards).toEqual([])
+    expect(result.entries).toEqual([])
     expect(result.did).toBe('did:plc:testuser123')
   })
 
@@ -298,7 +298,7 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    expect(result.stewards).toEqual([])
+    expect(result.entries).toEqual([])
   })
 
   it('deduplicates steward URIs from multiple collections', async () => {
@@ -318,7 +318,7 @@ describe('scanRepo pipeline', () => {
     const result = await scanRepo(session, [])
 
     // Both popfeed collections should resolve to popfeed.social (one entry)
-    const popfeedCards = result.stewards.filter((s) => s.stewardUri === 'popfeed.social')
+    const popfeedCards = result.entries.filter((e) => e.uri === 'popfeed.social')
     expect(popfeedCards).toHaveLength(1)
   })
 
@@ -340,7 +340,7 @@ describe('scanRepo pipeline', () => {
     const result = await scanRepo(session, [])
 
     // Should still return a result (partial success)
-    expect(result.stewards.length).toBeGreaterThanOrEqual(0)
+    expect(result.entries.length).toBeGreaterThanOrEqual(0)
     // Should have a warning about the DNS failure
     expect(result.warnings.length).toBeGreaterThan(0)
     const dnsWarning = result.warnings.find((w) => w.step === 'dns-lookup')
@@ -366,7 +366,7 @@ describe('scanRepo pipeline', () => {
     const result = await scanRepo(session, [])
 
     // Should fall through to manual catalog
-    const frontpage = result.stewards.find((s) => s.stewardUri === 'frontpage.fyi')
+    const frontpage = result.entries.find((e) => e.uri === 'frontpage.fyi')
     expect(frontpage).toBeDefined()
 
     // Should have a warning

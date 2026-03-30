@@ -7,6 +7,7 @@ export type StewardFundAt = {
   stewardDid: string
   links?: FundLink[]
   dependencyUris?: string[]
+  dependencyNotes?: string
   disclosure: DisclosureMeta
 }
 

@@ -7,9 +7,10 @@ import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { resolveStewardUri, lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
-import type { StewardCardModel } from '@/lib/steward-model'
+import type { StewardCardModel, StewardEntry } from '@/lib/steward-model'
 import { scanFollows } from '@/lib/follow-scan'
 import type { FollowedAccountCard } from '@/lib/follow-scan'
+import { mergeIntoEntries, referencedStewardsToEntries } from '@/lib/steward-merge'
 import {
   getBlueskyHandleFallback,
   handleFromDescribeRepo,
@@ -63,10 +64,10 @@ export type ScanResult = {
   did: string
   handle?: string
   pdsUrl?: string
-  stewards: StewardCardModel[]
-  /** Resolved models for dependency URIs not in stewards — used for lookup only, not rendered as cards. */
-  referencedStewards: StewardCardModel[]
-  followedAccounts: FollowedAccountCard[]
+  /** Unified, deduplicated list of all discovered stewards. */
+  entries: StewardEntry[]
+  /** Resolved models for dependency URIs not in entries — used for lookup only, not rendered as cards. */
+  referencedEntries: StewardEntry[]
   warnings: ScanWarning[]
   pdsHostFunding?: PdsHostFunding
 }
@@ -285,9 +286,8 @@ export async function scanRepo(
     did: session.did,
     handle,
     pdsUrl: pdsUrl?.origin,
-    stewards,
-    referencedStewards,
-    followedAccounts,
+    entries: mergeIntoEntries(stewards, followedAccounts),
+    referencedEntries: referencedStewardsToEntries(referencedStewards),
     warnings,
     pdsHostFunding,
   }

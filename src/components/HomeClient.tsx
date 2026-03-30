@@ -4,10 +4,8 @@ import { useState, useMemo } from 'react'
 import type { ScanResult } from '@/lib/lexicon-scan'
 import { pdslsRepoUrl } from '@/lib/pdsls'
 import {
-  FollowedAccountCard,
-  KnownStewardCard,
+  StewardCard,
   PdsHostSupportCard,
-  UnknownStewardCard,
 } from '@/components/ProjectCards'
 import Link from 'next/link'
 import {
@@ -52,19 +50,32 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
     error ? 'Something went wrong signing in. Try again.' : null,
   )
 
-  const knownStewards = useMemo(
-    () => scan?.stewards.filter((s) => s.source !== 'unknown') ?? [],
-    [scan?.stewards],
+  const knownEntries = useMemo(
+    () => scan?.entries.filter((e) => e.source !== 'unknown') ?? [],
+    [scan?.entries],
   )
-  const unknownStewards = useMemo(
-    () => scan?.stewards.filter((s) => s.source === 'unknown') ?? [],
-    [scan?.stewards],
+  const unknownEntries = useMemo(
+    () => scan?.entries.filter((e) => e.source === 'unknown') ?? [],
+    [scan?.entries],
   )
-  const followedAccounts = scan?.followedAccounts.filter((a) => a.links?.[0]) ?? []
-  // Merge scanned stewards + resolved dep models so lookup covers deps not in the main scan
-  const allStewardsForLookup = useMemo(
-    () => [...(scan?.stewards ?? []), ...(scan?.referencedStewards ?? [])],
-    [scan?.stewards, scan?.referencedStewards],
+  const networkEntries = useMemo(
+    () => knownEntries.filter(
+      (e) => !e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') &&
+             e.tags.includes('follow') &&
+             e.links?.[0],
+    ),
+    [knownEntries],
+  )
+  const serviceEntries = useMemo(
+    () => knownEntries.filter(
+      (e) => e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed'),
+    ),
+    [knownEntries],
+  )
+  // All entries + referenced dep entries for dependency lookup
+  const allEntriesForLookup = useMemo(
+    () => [...(scan?.entries ?? []), ...(scan?.referencedEntries ?? [])],
+    [scan?.entries, scan?.referencedEntries],
   )
 
   async function login(e: React.FormEvent) {
@@ -129,8 +140,8 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
       .filter(Boolean)
   }
 
-  const stewardCount = scan?.stewards.length ?? 0
-  const followedCount = followedAccounts.length
+  const stewardCount = serviceEntries.length
+  const followedCount = networkEntries.length
   const displayId = scan?.handle ?? scan?.did ?? ''
   const pdsUrl = scan?.pdsUrl
 
@@ -341,14 +352,14 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                     Try again
                   </button>
                 </p>
-              ) : scan.stewards.length === 0 ? (
+              ) : scan.entries.length === 0 ? (
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   We didn&apos;t find any extra tools in your saved data yet. You
                   can add more below if you know them.
                 </p>
               ) : (
                 <>
-                  {knownStewards.length > 0 && (
+                  {serviceEntries.length > 0 && (
                     <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
                       <div className="flex gap-3 border-b border-[var(--support-border)]/50 bg-[var(--support-muted)] px-5 py-4 dark:border-[var(--support-border)]/35">
                         <span
@@ -368,11 +379,11 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                         </div>
                       </div>
                       <div className="flex flex-col gap-4 p-5">
-                        {knownStewards.map((steward) => (
-                          <KnownStewardCard
-                            key={steward.stewardUri}
-                            steward={steward}
-                            allStewards={allStewardsForLookup}
+                        {serviceEntries.map((entry) => (
+                          <StewardCard
+                            key={entry.uri}
+                            entry={entry}
+                            allEntries={allEntriesForLookup}
                           />
                         ))}
                       </div>
@@ -396,12 +407,13 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                         </p>
                       </div>
                     </div>
-                    {followedAccounts.length > 0 ? (
+                    {networkEntries.length > 0 ? (
                       <div className="flex flex-col gap-4 p-5">
-                        {followedAccounts.map((account) => (
-                          <FollowedAccountCard
-                            key={account.did}
-                            account={account}
+                        {networkEntries.map((entry) => (
+                          <StewardCard
+                            key={entry.uri}
+                            entry={entry}
+                            allEntries={allEntriesForLookup}
                           />
                         ))}
                       </div>
@@ -414,7 +426,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                     )}
                   </div>
 
-                  {unknownStewards.length > 0 && (
+                  {unknownEntries.length > 0 && (
                     <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
                       <div className="flex gap-3 border-b border-[var(--discover-border)]/60 bg-[var(--discover-muted)] px-5 py-4 dark:border-amber-500/25">
                         <span
@@ -434,10 +446,11 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                         </div>
                       </div>
                       <div className="flex flex-col gap-4 p-5">
-                        {unknownStewards.map((steward) => (
-                          <UnknownStewardCard
-                            key={steward.stewardUri}
-                            steward={steward}
+                        {unknownEntries.map((entry) => (
+                          <StewardCard
+                            key={entry.uri}
+                            entry={entry}
+                            allEntries={allEntriesForLookup}
                           />
                         ))}
                       </div>

@@ -3,11 +3,11 @@ import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { normalizeStewardUri } from '@/lib/steward-uri'
-import type { StewardCardModel } from '@/lib/steward-model'
+import type { StewardEntry } from '@/lib/steward-model'
 import { logger } from '@/lib/logger'
 
 /**
- * Resolve a single steward URI to its full StewardCardModel.
+ * Resolve a single steward URI to its full StewardEntry.
  * Does not require authentication — all data is public.
  */
 export async function GET(request: NextRequest) {
@@ -51,20 +51,22 @@ export async function GET(request: NextRequest) {
             landingPage: dLanding,
             ...disclosureExtras
           } = fundAt.disclosure
-          const steward: StewardCardModel = {
-            stewardUri,
-            stewardDid: stewardDidOrUndefined,
+          const entry: StewardEntry = {
+            uri: stewardUri,
+            did: stewardDidOrUndefined,
+            tags: ['tool'],
             displayName: dName ?? manual?.displayName ?? stewardUri,
             description: dDesc ?? manual?.description,
             landingPage: dLanding,
             links: fundAt.links,
             dependencies: fundAt.dependencyUris,
+            dependencyNotes: fundAt.dependencyNotes,
             source: 'fund.at',
             ...disclosureExtras,
             contactGeneralHandle:
               fundAt.disclosure.contactGeneralHandle ?? manual?.contactGeneralHandle,
           }
-          return NextResponse.json(steward)
+          return NextResponse.json(entry)
         }
       } catch (e) {
         logger.warn('steward: fund.at fetch failed', {
@@ -76,9 +78,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (manual) {
-      const steward: StewardCardModel = {
-        stewardUri,
-        stewardDid: stewardDidOrUndefined,
+      const entry: StewardEntry = {
+        uri: stewardUri,
+        did: stewardDidOrUndefined,
+        tags: ['tool'],
         displayName: manual.displayName,
         description: manual.description,
         landingPage: manual.landingPage,
@@ -87,16 +90,17 @@ export async function GET(request: NextRequest) {
         dependencies: manual.dependencies,
         source: 'manual',
       }
-      return NextResponse.json(steward)
+      return NextResponse.json(entry)
     }
 
-    const steward: StewardCardModel = {
-      stewardUri,
-      stewardDid: stewardDidOrUndefined,
+    const entry: StewardEntry = {
+      uri: stewardUri,
+      did: stewardDidOrUndefined,
+      tags: ['tool'],
       displayName: stewardUri,
       source: 'unknown',
     }
-    return NextResponse.json(steward)
+    return NextResponse.json(entry)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Failed to resolve steward'
     logger.error('steward: resolve failed', { stewardUri, error: message })
