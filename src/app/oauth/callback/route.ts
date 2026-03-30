@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getOAuthClient } from '@/lib/auth/client'
 import { getPublicUrl } from '@/lib/public-url'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const publicUrl = getPublicUrl()
@@ -9,6 +10,8 @@ export async function GET(request: NextRequest) {
     const client = await getOAuthClient()
 
     const { session } = await client.callback(params)
+
+    logger.info('oauth: callback successful', { did: session.did })
 
     const response = NextResponse.redirect(new URL('/', publicUrl))
 
@@ -22,7 +25,11 @@ export async function GET(request: NextRequest) {
 
     return response
   } catch (error) {
-    console.error('OAuth callback error:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    logger.error('oauth: callback failed', {
+      error: message,
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return NextResponse.redirect(new URL('/?error=login_failed', publicUrl))
   }
 }

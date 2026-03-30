@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { scanRepo } from '@/lib/lexicon-scan'
 import { normalizeStewardUri } from '@/lib/steward-uri'
+import { logger } from '@/lib/logger'
 
 function parseExtraList(raw: string | null): string[] {
   if (!raw?.trim()) return []
@@ -35,9 +36,14 @@ export async function GET(request: NextRequest) {
     const data = await scanRepo(session, normalized)
     return NextResponse.json(data)
   } catch (e) {
-    console.error('scanRepo failed:', e)
+    const message = e instanceof Error ? e.message : 'Failed to read repository'
+    logger.error('scanRepo failed (GET)', {
+      did: session.did,
+      error: message,
+      stack: e instanceof Error ? e.stack : undefined,
+    })
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Failed to read repository' },
+      { error: message, detail: 'The scan could not complete. This may be a temporary issue with your PDS or the ATProto network.' },
       { status: 502 },
     )
   }
@@ -76,9 +82,15 @@ export async function POST(request: NextRequest) {
     const data = await scanRepo(session, normalized)
     return NextResponse.json(data)
   } catch (e) {
-    console.error('scanRepo failed:', e)
+    const message = e instanceof Error ? e.message : 'Failed to read repository'
+    logger.error('scanRepo failed (POST)', {
+      did: session.did,
+      error: message,
+      stack: e instanceof Error ? e.stack : undefined,
+      selfReportedStewards: normalized,
+    })
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Failed to read repository' },
+      { error: message, detail: 'The scan could not complete. This may be a temporary issue with your PDS or the ATProto network.' },
       { status: 502 },
     )
   }
