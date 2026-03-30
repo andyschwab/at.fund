@@ -18,15 +18,6 @@
         }
       }
     },
-    "did:plc:z72i7hdynmk6r22z27h6tvur": {
-      "disclosure": {
-        "meta": {
-          "displayName": "Bluesky",
-          "description": "Official Bluesky Social product (feeds, graphs, embeds, DMs, moderation). Maintained by Bluesky PBLLC.",
-          "landingPage": "https://bsky.app"
-        }
-      }
-    },
     "atproto.com": {
       "disclosure": {
         "meta": {
@@ -166,14 +157,14 @@
     "sprk.so": {
       "disclosure": {
         "meta": {
-          "displayName": "SPRK",
-          "description": "Lexicon tooling and XRPC helpers (Deno/JSR).",
+          "displayName": "Spark Social",
+          "description": "ATProto social client focused on user-controlled timelines and open feeds.",
           "landingPage": "https://sprk.so"
         }
       },
       "contribute": {
         "links": [
-          { "label": "Support SPRK", "url": "https://sprk.so/support" }
+          { "label": "Support Spark Social", "url": "https://sprk.so/support" }
         ]
       }
     },

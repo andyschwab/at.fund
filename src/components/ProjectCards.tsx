@@ -102,6 +102,41 @@ function buildDisclosureSlots(
   ]
 }
 
+function StewardNameHeading({
+  name,
+  websiteUrl,
+  linkVariant,
+}: {
+  name: string
+  websiteUrl?: string
+  linkVariant: 'support' | 'discover' | 'sky'
+}) {
+  const base =
+    'min-w-0 flex-1 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100'
+  if (!websiteUrl) {
+    return <h3 className={`${base} truncate`}>{name}</h3>
+  }
+  const hover =
+    linkVariant === 'support'
+      ? 'hover:text-[var(--support)] hover:decoration-[var(--support-border)]'
+      : linkVariant === 'discover'
+        ? 'hover:text-[var(--discover)] hover:decoration-amber-500/50 dark:hover:text-amber-400'
+        : 'hover:text-sky-700 hover:decoration-sky-500/50 dark:hover:text-sky-400'
+
+  return (
+    <h3 className="min-w-0 flex-1">
+      <a
+        href={websiteUrl}
+        target="_blank"
+        rel="noreferrer"
+        className={`block truncate rounded-sm underline decoration-slate-300 decoration-1 underline-offset-2 transition-colors dark:decoration-slate-600 ${base} ${hover}`}
+      >
+        {name}
+      </a>
+    </h3>
+  )
+}
+
 function DisclosureReportRow({ slots }: { slots: DisclosureSlot[] }) {
   return (
     <div className="flex shrink-0 items-center gap-0.5">
@@ -164,6 +199,7 @@ export function PdsHostSupportCard({
       : `Your account's home server (${pdsHostname}) — support options if published.`)
 
   const disclosureSlots = buildDisclosureSlots(disclosure, websiteFallback)
+  const websiteUrl = disclosure?.landingPage ?? websiteFallback
 
   return (
     <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-sky-400/90 bg-gradient-to-br from-sky-50/90 to-white p-4 shadow-sm dark:border-slate-800 dark:from-sky-950/40 dark:to-slate-950">
@@ -195,9 +231,11 @@ export function PdsHostSupportCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start gap-2">
-            <h3 className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-              {title}
-            </h3>
+            <StewardNameHeading
+              name={title}
+              websiteUrl={websiteUrl}
+              linkVariant="sky"
+            />
             <div className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-x-auto sm:max-w-none">
               <DisclosureReportRow slots={disclosureSlots} />
             </div>
@@ -228,6 +266,7 @@ export function KnownStewardCard({ steward }: { steward: StewardCardModel }) {
   const contributeLink = steward.links?.[0]
   const websiteFallback = websiteFallbackForStewardUri(steward.stewardUri)
   const disclosure = disclosureMetaFromSteward(steward)
+  const websiteUrl = steward.landingPage ?? websiteFallback
 
   const disclosureSlots = buildDisclosureSlots(disclosure, websiteFallback)
 
@@ -261,9 +300,11 @@ export function KnownStewardCard({ steward }: { steward: StewardCardModel }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start gap-2">
-            <h3 className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-              {steward.displayName}
-            </h3>
+            <StewardNameHeading
+              name={steward.displayName}
+              websiteUrl={websiteUrl}
+              linkVariant="support"
+            />
             <div className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-x-auto sm:max-w-none">
               <DisclosureReportRow slots={disclosureSlots} />
             </div>
@@ -289,6 +330,7 @@ export function KnownStewardCard({ steward }: { steward: StewardCardModel }) {
 
 export function UnknownStewardCard({ steward }: { steward: StewardCardModel }) {
   const websiteFallback = websiteFallbackForStewardUri(steward.stewardUri)
+  const websiteUrl = steward.landingPage ?? websiteFallback
   const disclosureSlots = buildDisclosureSlots(undefined, websiteFallback)
 
   return (
@@ -304,9 +346,11 @@ export function UnknownStewardCard({ steward }: { steward: StewardCardModel }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start gap-2">
-            <h3 className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-              {steward.displayName}
-            </h3>
+            <StewardNameHeading
+              name={steward.displayName}
+              websiteUrl={websiteUrl}
+              linkVariant="discover"
+            />
             <div className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-x-auto sm:max-w-none">
               <DisclosureReportRow slots={disclosureSlots} />
             </div>
