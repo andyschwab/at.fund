@@ -7,7 +7,8 @@ import type { NodeSavedSession, NodeSavedState } from '@atproto/oauth-client-nod
 import type { OAuthClientMetadataInput } from '@atproto/oauth-types'
 import { getPublicUrl, isLoopbackPublicUrl } from '@/lib/public-url'
 
-export const SCOPE = 'atproto'
+export const SCOPE =
+  'atproto fund.at.disclosure fund.at.contribute fund.at.dependencies'
 
 const globalAuth = globalThis as unknown as {
   stateStore: Map<string, NodeSavedState>
