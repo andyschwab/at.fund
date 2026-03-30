@@ -1136,6 +1136,76 @@
           }
         }
       }
+    },
+    "skywalker.thereforeiam.eu": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Skywalker",
+          "description": "Feature-rich Android Bluesky client built with Qt/QML. Timeline rewind, bookmarks, drafts, and multi-account support.",
+          "landingPage": "https://github.com/mfnboer/skywalker"
+        },
+        "contact": {
+          "general": {
+            "handle": "skywalker.thereforeiam.eu"
+          }
+        }
+      }
+    },
+    "blueskyfeedcreator.com": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Bluesky Feed Creator",
+          "description": "Design and customize Bluesky feeds without coding.",
+          "landingPage": "https://blueskyfeedcreator.com"
+        },
+        "contact": {
+          "general": {
+            "handle": "blueskyfeedcreator.com"
+          }
+        }
+      }
+    },
+    "mackuba.eu": {
+      "disclosure": {
+        "meta": {
+          "displayName": "mackuba ATProto tools",
+          "description": "Suite of ATProto tools including Label Scanner, Skythread thread viewer, and Skyfall firehose library.",
+          "landingPage": "https://blue.mackuba.eu"
+        },
+        "contact": {
+          "general": {
+            "handle": "mackuba.eu"
+          }
+        }
+      }
+    },
+    "bluesky-labelers.io": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Bluesky Labelers Directory",
+          "description": "Directory of ATProto labelers for discovering and subscribing to moderation and labeling services.",
+          "landingPage": "https://www.bluesky-labelers.io"
+        },
+        "contact": {
+          "general": {
+            "handle": "bluesky-labelers.io"
+          }
+        }
+      }
+    },
+    "atproto-browser.vercel.app": {
+      "disclosure": {
+        "meta": {
+          "displayName": "ATProto Browser",
+          "description": "Web app for browsing AT Protocol data using at:// URIs, handles, or DIDs.",
+          "landingPage": "https://atproto-browser.vercel.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "atproto-browser.vercel.app"
+          }
+        }
+      }
     }
   }
 }
