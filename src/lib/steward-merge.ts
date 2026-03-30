@@ -98,62 +98,65 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
 }
 
 // ---------------------------------------------------------------------------
-// Public: merge stewards + follows into a unified, deduped StewardEntry[]
+// Public: merge stewards + follows + subscriptions into unified StewardEntry[]
 // ---------------------------------------------------------------------------
 
-/**
- * Merges tool stewards (StewardCardModel[]) and followed accounts
- * (FollowedAccountCard[]) into a single deduplicated StewardEntry[].
- * Dedup key: resolved DID. Entries sharing a DID have their tags unioned.
- */
-export function mergeIntoEntries(
-  stewards: StewardCardModel[],
-  followedAccounts: FollowedAccountCard[],
-): StewardEntry[] {
-  const byDid = new Map<string, StewardEntry>()
-  const byUri = new Map<string, StewardEntry>()
+class EntryIndex {
+  private byDid = new Map<string, StewardEntry>()
+  private byUri = new Map<string, StewardEntry>()
 
-  function upsert(entry: StewardEntry) {
-    // Try to merge with an existing entry that shares the same DID
+  upsert(entry: StewardEntry) {
     if (entry.did) {
-      const existing = byDid.get(entry.did)
+      const existing = this.byDid.get(entry.did)
       if (existing) {
         const merged = mergeEntries(existing, entry)
-        byDid.set(entry.did, merged)
-        // Keep byUri in sync: update any uri key that points to this entry
-        if (byUri.get(existing.uri) === existing) byUri.set(existing.uri, merged)
-        if (merged.uri !== existing.uri) byUri.set(merged.uri, merged)
+        this.byDid.set(entry.did, merged)
+        if (this.byUri.get(existing.uri) === existing) this.byUri.set(existing.uri, merged)
+        if (merged.uri !== existing.uri) this.byUri.set(merged.uri, merged)
         return
       }
     }
     // No DID match — try to find by URI (handles entries without a resolved DID)
     if (!entry.did) {
-      const existing = byUri.get(entry.uri)
+      const existing = this.byUri.get(entry.uri)
       if (existing) {
         const merged = mergeEntries(existing, entry)
-        byUri.set(entry.uri, merged)
-        if (merged.did) byDid.set(merged.did, merged)
+        this.byUri.set(entry.uri, merged)
+        if (merged.did) this.byDid.set(merged.did, merged)
         return
       }
     }
-    // New entry
-    if (entry.did) byDid.set(entry.did, entry)
-    byUri.set(entry.uri, entry)
+    if (entry.did) this.byDid.set(entry.did, entry)
+    this.byUri.set(entry.uri, entry)
   }
 
-  for (const s of stewards) {
-    upsert(stewardCardToEntry(s, 'tool'))
+  toArray(): StewardEntry[] {
+    const seen = new Set<StewardEntry>()
+    for (const e of this.byDid.values()) seen.add(e)
+    for (const e of this.byUri.values()) seen.add(e)
+    return [...seen]
   }
-  for (const f of followedAccounts) {
-    upsert(followedAccountToEntry(f))
+}
+
+/**
+ * Merges tool stewards, followed accounts, and any additional StewardEntry[]
+ * arrays (e.g. labelers, feeds) into a single deduplicated list.
+ * Dedup key: resolved DID. Entries sharing a DID have their tags unioned.
+ */
+export function mergeIntoEntries(
+  stewards: StewardCardModel[],
+  followedAccounts: FollowedAccountCard[],
+  ...extraEntryLists: StewardEntry[][]
+): StewardEntry[] {
+  const index = new EntryIndex()
+
+  for (const s of stewards) index.upsert(stewardCardToEntry(s, 'tool'))
+  for (const f of followedAccounts) index.upsert(followedAccountToEntry(f))
+  for (const list of extraEntryLists) {
+    for (const e of list) index.upsert(e)
   }
 
-  // Collect unique entries (byDid is authoritative for DID entries; byUri covers the rest)
-  const seen = new Set<StewardEntry>()
-  for (const e of byDid.values()) seen.add(e)
-  for (const e of byUri.values()) seen.add(e)
-
-  return [...seen]
+  return index.toArray()
 }
 
 /**

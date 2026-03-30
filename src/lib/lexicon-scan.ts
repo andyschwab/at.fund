@@ -11,6 +11,7 @@ import type { StewardCardModel, StewardEntry } from '@/lib/steward-model'
 import { scanFollows } from '@/lib/follow-scan'
 import type { FollowedAccountCard } from '@/lib/follow-scan'
 import { mergeIntoEntries, referencedStewardsToEntries } from '@/lib/steward-merge'
+import { scanSubscriptions } from '@/lib/subscriptions-scan'
 import {
   getBlueskyHandleFallback,
   handleFromDescribeRepo,
@@ -241,9 +242,10 @@ export async function scanRepo(
     return a.stewardUri.localeCompare(b.stewardUri)
   })
 
-  // Run PDS host funding and follow scan in parallel
+  // Run PDS host funding, follow scan, and subscriptions scan in parallel
   let pdsHostFunding: ScanResult['pdsHostFunding']
   let followedAccounts: FollowedAccountCard[] = []
+  let subscriptionEntries: StewardEntry[] = []
 
   const pdsHostPromise = (async () => {
     if (!pdsUrl) return
@@ -269,11 +271,23 @@ export async function scanRepo(
     }
   })()
 
-  await Promise.all([pdsHostPromise, followsPromise])
+  const subscriptionsPromise = (async () => {
+    try {
+      const result = await scanSubscriptions(session)
+      subscriptionEntries = result.entries
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Subscriptions scan failed'
+      logger.warn('scan: subscriptions scan failed', { did: session.did, error: msg })
+      warnings.push({ stewardUri: session.did, step: 'subscriptions-scan', message: msg })
+    }
+  })()
+
+  await Promise.all([pdsHostPromise, followsPromise, subscriptionsPromise])
 
   logger.info('scan: completed', {
     did: session.did,
     stewardCount: stewards.length,
+    subscriptionCount: subscriptionEntries.length,
     warningCount: warnings.length,
     sources: {
       fundAt: stewards.filter((s) => s.source === 'fund.at').length,
@@ -286,7 +300,7 @@ export async function scanRepo(
     did: session.did,
     handle,
     pdsUrl: pdsUrl?.origin,
-    entries: mergeIntoEntries(stewards, followedAccounts),
+    entries: mergeIntoEntries(stewards, followedAccounts, subscriptionEntries),
     referencedEntries: referencedStewardsToEntries(referencedStewards),
     warnings,
     pdsHostFunding,
