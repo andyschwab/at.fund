@@ -177,6 +177,9 @@ export async function POST(request: NextRequest) {
   const effectiveDate = new Date().toISOString()
 
   try {
+    // Warm the DPoP nonce with a lightweight read so that subsequent writes
+    // don't fail from a nonce-retry consuming the request body stream.
+    await agent.com.atproto.repo.describeRepo({ repo: session.did })
     // Build fund.at.disclosure record
     const disclosureRecord: Record<string, unknown> = {
       $type: FUND_DISCLOSURE,
