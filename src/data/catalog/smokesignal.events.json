@@ -10,5 +10,13 @@
         "handle": "nickgerakines.com"
       }
     }
+  },
+  "contribute": {
+    "links": [
+      {
+        "label": "Open Collective",
+        "url": "https://opencollective.com/smoke-signal"
+      }
+    ]
   }
 }

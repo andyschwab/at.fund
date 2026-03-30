@@ -10,5 +10,13 @@
         "handle": "gainforest.app"
       }
     }
+  },
+  "contribute": {
+    "links": [
+      {
+        "label": "Donate to GainForest",
+        "url": "https://gainforest.org/app-donor/"
+      }
+    ]
   }
 }

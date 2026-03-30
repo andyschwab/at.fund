@@ -10,5 +10,13 @@
         "handle": "clearsky.app"
       }
     }
+  },
+  "contribute": {
+    "links": [
+      {
+        "label": "Ko-fi (ClearSky)",
+        "url": "https://ko-fi.com/clearskyapp"
+      }
+    ]
   }
 }

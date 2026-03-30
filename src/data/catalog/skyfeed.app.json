@@ -10,5 +10,10 @@
         "handle": "skyfeed.app"
       }
     }
+  },
+  "dependencies": {
+    "uris": [
+      "redsolver.dev"
+    ]
   }
 }

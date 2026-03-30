@@ -10,5 +10,13 @@
         "handle": "skywalker.thereforeiam.eu"
       }
     }
+  },
+  "contribute": {
+    "links": [
+      {
+        "label": "Buy Me a Coffee",
+        "url": "https://buymeacoffee.com/skywalker.thereforeiam.eu"
+      }
+    ]
   }
 }
