@@ -1,0 +1,22 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Samuel Newman",
+      "description": "Developer of Graysky, an open-source Bluesky client for iOS and Android.",
+      "landingPage": "https://github.com/mozzius"
+    },
+    "contact": {
+      "general": {
+        "handle": "samuel.bsky.team"
+      }
+    }
+  },
+  "contribute": {
+    "links": [
+      {
+        "label": "GitHub Sponsors (@mozzius)",
+        "url": "https://github.com/sponsors/mozzius"
+      }
+    ]
+  }
+}

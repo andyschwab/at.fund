@@ -10,5 +10,13 @@
         "handle": "flashes.blue"
       }
     }
+  },
+  "contribute": {
+    "links": [
+      {
+        "label": "GoFundMe (Flashes for Android)",
+        "url": "https://www.gofundme.com/f/help-bring-flashes-for-bluesky-to-android"
+      }
+    ]
   }
 }

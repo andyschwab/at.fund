@@ -10,5 +10,10 @@
         "handle": "pdsls.dev"
       }
     }
+  },
+  "dependencies": {
+    "uris": [
+      "juli.ee"
+    ]
   }
 }
