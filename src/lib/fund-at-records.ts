@@ -1,6 +1,8 @@
 import { Agent } from '@atproto/api'
 import { extractPdsUrl } from '@atproto/did'
 import type { AtprotoDidDocument } from '@atproto/did'
+import type { OAuthSession } from '@atproto/oauth-client'
+import { Client } from '@atproto/lex'
 
 export const FUND_CONTRIBUTE = 'fund.at.contribute'
 export const FUND_DISCLOSURE = 'fund.at.disclosure'
@@ -25,7 +27,10 @@ export type DisclosureMeta = {
   /** fund.at.disclosure security */
   securityPolicyUri?: string
   securityContactUri?: string
+  securityContactEmail?: string
   /** fund.at.disclosure legal */
+  legalEntityName?: string
+  jurisdiction?: string
   privacyPolicyUri?: string
   termsOfServiceUri?: string
   donorTermsUri?: string
@@ -36,6 +41,7 @@ export type DisclosureMeta = {
 export type FundAtResult = {
   links?: FundLink[]
   dependencyUris?: string[]
+  dependencyNotes?: string
   disclosure: DisclosureMeta
 }
 
@@ -228,6 +234,12 @@ export function extractDisclosureMeta(value: RawValue): DisclosureMeta | null {
       typeof security?.policyUri === 'string' ? security.policyUri : undefined,
     securityContactUri:
       typeof security?.contactUri === 'string' ? security.contactUri : undefined,
+    securityContactEmail:
+      typeof security?.contactEmail === 'string' ? security.contactEmail : undefined,
+    legalEntityName:
+      typeof legal?.legalEntityName === 'string' ? legal.legalEntityName : undefined,
+    jurisdiction:
+      typeof legal?.jurisdiction === 'string' ? legal.jurisdiction : undefined,
     privacyPolicyUri:
       typeof legal?.privacyPolicyUri === 'string' ? legal.privacyPolicyUri : undefined,
     termsOfServiceUri:
@@ -333,6 +345,7 @@ export async function fetchFundAtRecords(
   if (!disclosure) return null
 
   let dependencyUris: string[] | undefined
+  let dependencyNotes: string | undefined
   try {
     const depListed = await agent.com.atproto.repo.listRecords({
       repo: stewardDid,
@@ -344,6 +357,9 @@ export async function fetchFundAtRecords(
     for (const rec of filter(depValues)) {
       if (!isHostScopedDependency(rec)) continue
       for (const u of readDependencyUris(rec)) merged.add(u)
+      if (!dependencyNotes && typeof rec.notes === 'string' && rec.notes.trim()) {
+        dependencyNotes = rec.notes.trim()
+      }
     }
     if (merged.size > 0) {
       dependencyUris = [...merged].sort((a, b) => a.localeCompare(b))
@@ -352,5 +368,65 @@ export async function fetchFundAtRecords(
     // optional
   }
 
-  return { links, dependencyUris, disclosure }
+  return { links, dependencyUris, dependencyNotes, disclosure }
+}
+
+// ---------------------------------------------------------------------------
+// Authenticated read: use the session to list the user's own records directly,
+// bypassing public API identity resolution.
+// ---------------------------------------------------------------------------
+
+type RawRecord = { value: unknown }
+
+export async function fetchOwnFundAtRecords(
+  session: OAuthSession,
+): Promise<FundAtResult | null> {
+  const client = new Client(session)
+
+  let contributeValues: RawValue[] = []
+  try {
+    const res = await client.listRecords(FUND_CONTRIBUTE, { limit: 100 })
+    contributeValues = collectRecordValues(
+      res.body.records as RawRecord[],
+    )
+  } catch {
+    // optional
+  }
+
+  const bestContribute = pickBestContribute(contributeValues)
+  const links = bestContribute ? readLinks(bestContribute) : undefined
+
+  let disclosure: DisclosureMeta | undefined
+  try {
+    const res = await client.listRecords(FUND_DISCLOSURE, { limit: 50 })
+    const discValues = collectRecordValues(res.body.records as RawRecord[])
+    const best = pickBestDisclosure(discValues)
+    if (best) disclosure = extractDisclosureMeta(best) ?? undefined
+  } catch {
+    // optional
+  }
+
+  if (!disclosure) return null
+
+  let dependencyUris: string[] | undefined
+  let dependencyNotes: string | undefined
+  try {
+    const res = await client.listRecords(FUND_DEPENDENCIES, { limit: 100 })
+    const depValues = collectRecordValues(res.body.records as RawRecord[])
+    const merged = new Set<string>()
+    for (const rec of depValues) {
+      if (!isHostScopedDependency(rec)) continue
+      for (const u of readDependencyUris(rec)) merged.add(u)
+      if (!dependencyNotes && typeof rec.notes === 'string' && rec.notes.trim()) {
+        dependencyNotes = rec.notes.trim()
+      }
+    }
+    if (merged.size > 0) {
+      dependencyUris = [...merged].sort((a, b) => a.localeCompare(b))
+    }
+  } catch {
+    // optional
+  }
+
+  return { links, dependencyUris, dependencyNotes, disclosure }
 }

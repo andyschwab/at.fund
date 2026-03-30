@@ -17,20 +17,21 @@
           },
           "links": {
             "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["label", "url"],
-              "properties": {
-                "label": { "type": "string" },
-                "url": { "type": "string", "format": "uri" }
-              }
-            }
+            "items": { "type": "ref", "ref": "#link" }
           },
           "effectiveDate": {
             "type": "string",
             "format": "datetime"
           }
         }
+      }
+    },
+    "link": {
+      "type": "object",
+      "required": ["label", "url"],
+      "properties": {
+        "label": { "type": "string" },
+        "url": { "type": "string", "format": "uri" }
       }
     }
   }
