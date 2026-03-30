@@ -40,10 +40,13 @@ const safeFetch: typeof globalThis.fetch = async (input, init) => {
 
 export const SCOPE = [
   'atproto',
-  'transition:generic',
   'repo:fund.at.disclosure',
   'repo:fund.at.contribute',
   'repo:fund.at.dependencies',
+  // Bluesky AppView RPCs needed for subscriptions scan
+  'rpc:app.bsky.actor.getPreferences?aud=did:web:api.bsky.app%23bsky_appview',
+  'rpc:app.bsky.labeler.getServices?aud=did:web:api.bsky.app%23bsky_appview',
+  'rpc:app.bsky.feed.getFeedGenerators?aud=did:web:api.bsky.app%23bsky_appview',
 ].join(' ')
 
 const globalAuth = globalThis as unknown as {
