@@ -6,6 +6,11 @@
           "displayName": "Bluesky",
           "description": "Official Bluesky Social product (feeds, graphs, embeds, DMs, moderation). Maintained by Bluesky PBLLC.",
           "landingPage": "https://bsky.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "bsky.app"
+          }
         }
       }
     },
@@ -15,6 +20,11 @@
           "displayName": "Bluesky",
           "description": "Official Bluesky Social product (feeds, graphs, embeds, DMs, moderation). Maintained by Bluesky PBLLC.",
           "landingPage": "https://bsky.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "bsky.app"
+          }
         }
       }
     },
@@ -24,6 +34,11 @@
           "displayName": "AT Protocol (core)",
           "description": "Core protocol schemas (repo, identity, sync, moderation primitives, labels). Primarily maintained by Bluesky with community contributions.",
           "landingPage": "https://atproto.com/"
+        },
+        "contact": {
+          "general": {
+            "handle": "atproto.com"
+          }
         }
       }
     },
@@ -33,6 +48,11 @@
           "displayName": "Smoke Signal",
           "description": "Events and RSVPs on ATProto. Creator: Nick Gerakines.",
           "landingPage": "https://smokesignal.events"
+        },
+        "contact": {
+          "general": {
+            "handle": "nickgerakines.com"
+          }
         }
       }
     },
@@ -42,6 +62,11 @@
           "displayName": "Frontpage",
           "description": "Link aggregator built on ATProto.",
           "landingPage": "https://frontpage.fyi"
+        },
+        "contact": {
+          "general": {
+            "handle": "frontpage.fyi"
+          }
         }
       },
       "dependencies": {
@@ -54,6 +79,11 @@
           "displayName": "Unravel",
           "description": "Broader FYI / Unravel ecosystem (includes Frontpage).",
           "landingPage": "https://unravel.fyi"
+        },
+        "contact": {
+          "general": {
+            "handle": "unravel.fyi"
+          }
         }
       }
     },
@@ -63,6 +93,11 @@
           "displayName": "Linkat",
           "description": "Link-in-bio style client. Maintainer: Kizuka (mkizka).",
           "landingPage": "https://linkat.blue"
+        },
+        "contact": {
+          "general": {
+            "handle": "mkizka.xyz"
+          }
         }
       }
     },
@@ -72,6 +107,11 @@
           "displayName": "WhiteWind",
           "description": "Long-form blogging on ATProto. Primary developer: K-NKSM.",
           "landingPage": "https://whtwnd.com"
+        },
+        "contact": {
+          "general": {
+            "handle": "whtwnd.com"
+          }
         }
       }
     },
@@ -81,6 +121,11 @@
           "displayName": "Skylights",
           "description": "Book lists and reading-related records.",
           "landingPage": "https://skylights.my"
+        },
+        "contact": {
+          "general": {
+            "handle": "skylights.my"
+          }
         }
       }
     },
@@ -90,6 +135,11 @@
           "displayName": "PinkSea",
           "description": "Oekaki BBS-style AppView and client.",
           "landingPage": "https://pinksea.art"
+        },
+        "contact": {
+          "general": {
+            "handle": "pinksea.art"
+          }
         }
       }
     },
@@ -98,6 +148,11 @@
         "meta": {
           "displayName": "ATFile",
           "description": "File upload / blob helper records."
+        },
+        "contact": {
+          "general": {
+            "handle": "zio.sh"
+          }
         }
       }
     },
@@ -107,6 +162,11 @@
           "displayName": "PMsky",
           "description": "Proposal and vote records for label-like governance.",
           "landingPage": "https://pmsky.social"
+        },
+        "contact": {
+          "general": {
+            "handle": "pmsky.social"
+          }
         }
       }
     },
@@ -116,6 +176,11 @@
           "displayName": "Flushes",
           "description": "Short ephemeral-style posts. Creator: dame.",
           "landingPage": "https://flushes.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "dame.is"
+          }
         }
       }
     },
@@ -125,6 +190,11 @@
           "displayName": "Flashes",
           "description": "Photo-oriented sharing. Creator: seabass.",
           "landingPage": "https://www.flashes.blue"
+        },
+        "contact": {
+          "general": {
+            "handle": "flashes.blue"
+          }
         }
       }
     },
@@ -133,6 +203,11 @@
         "meta": {
           "displayName": "atmo.lol",
           "description": "Community app by mchal."
+        },
+        "contact": {
+          "general": {
+            "handle": "mchal.xyz"
+          }
         }
       }
     },
@@ -142,6 +217,11 @@
           "displayName": "atmo.rsvp",
           "description": "Community calendar for ATProto events.",
           "landingPage": "https://atmo.rsvp"
+        },
+        "contact": {
+          "general": {
+            "handle": "atmo.rsvp"
+          }
         }
       }
     },
@@ -151,6 +231,11 @@
           "displayName": "Popfeed",
           "description": "Media logging (film, TV, music, games).",
           "landingPage": "https://popfeed.social"
+        },
+        "contact": {
+          "general": {
+            "handle": "popfeed.social"
+          }
         }
       }
     },
@@ -160,6 +245,11 @@
           "displayName": "Spark Social",
           "description": "ATProto social client focused on user-controlled timelines and open feeds.",
           "landingPage": "https://sprk.so"
+        },
+        "contact": {
+          "general": {
+            "handle": "sprk.so"
+          }
         }
       },
       "contribute": {
@@ -174,6 +264,11 @@
           "displayName": "Anisota",
           "description": "Experimental card-deck social client.",
           "landingPage": "https://anisota.net"
+        },
+        "contact": {
+          "general": {
+            "handle": "anisota.net"
+          }
         }
       }
     },
@@ -183,6 +278,11 @@
           "displayName": "Lexicon community schemas",
           "description": "Shared community lexicons and curation (location, bookmarks, interactions, payments). Multi-maintainer.",
           "landingPage": "https://github.com/lexicon-community/lexicon"
+        },
+        "contact": {
+          "general": {
+            "handle": "lexicon.community"
+          }
         }
       }
     },
@@ -192,6 +292,11 @@
           "displayName": "Streamplace",
           "description": "Live streaming on ATProto.",
           "landingPage": "https://stream.place"
+        },
+        "contact": {
+          "general": {
+            "handle": "stream.place"
+          }
         }
       }
     },
@@ -201,6 +306,11 @@
           "displayName": "Keytrace",
           "description": "Cross-platform identity verification claims stored on the PDS.",
           "landingPage": "https://keytrace.dev"
+        },
+        "contact": {
+          "general": {
+            "handle": "orta.dev"
+          }
         }
       },
       "contribute": {
@@ -214,6 +324,11 @@
         "meta": {
           "displayName": "You and Me",
           "landingPage": "https://youandme.at"
+        },
+        "contact": {
+          "general": {
+            "handle": "youandme.at"
+          }
         }
       }
     },
@@ -223,6 +338,11 @@
           "displayName": "Germ Network",
           "description": "E2EE messaging on ATProto.",
           "landingPage": "https://www.germnetwork.com"
+        },
+        "contact": {
+          "general": {
+            "handle": "germnetwork.com"
+          }
         }
       },
       "contribute": {
@@ -237,6 +357,11 @@
           "displayName": "Cosmik (Semble)",
           "description": "Social knowledge network.",
           "landingPage": "https://cosmik.network"
+        },
+        "contact": {
+          "general": {
+            "handle": "cosmik.network"
+          }
         }
       }
     },
@@ -246,6 +371,11 @@
           "displayName": "Leaflet",
           "description": "Block-based publishing on ATProto.",
           "landingPage": "https://leaflet.pub"
+        },
+        "contact": {
+          "general": {
+            "handle": "leaflet.pub"
+          }
         }
       },
       "dependencies": {
@@ -258,6 +388,11 @@
           "displayName": "Standard.site",
           "description": "Standard content type definitions for ATProto sites.",
           "landingPage": "https://standard.site"
+        },
+        "contact": {
+          "general": {
+            "handle": "standard.site"
+          }
         }
       }
     },
@@ -267,6 +402,11 @@
           "displayName": "Sifa",
           "description": "Professional profiles on ATProto.",
           "landingPage": "https://sifa.id"
+        },
+        "contact": {
+          "general": {
+            "handle": "sifa.id"
+          }
         }
       }
     },
@@ -276,6 +416,11 @@
           "displayName": "Roomy",
           "description": "Group chat / community spaces.",
           "landingPage": "https://a.roomy.space"
+        },
+        "contact": {
+          "general": {
+            "handle": "roomy.space"
+          }
         }
       }
     }

@@ -127,6 +127,9 @@ export async function scanRepo(
           dependencies: fundAt.dependencyUris,
           source: 'fund.at',
           ...disclosureExtras,
+          contactGeneralHandle:
+            fundAt.disclosure.contactGeneralHandle ??
+            manual?.contactGeneralHandle,
         })
         continue
       }
@@ -139,6 +142,7 @@ export async function scanRepo(
         displayName: manual.displayName,
         description: manual.description,
         landingPage: manual.landingPage,
+        contactGeneralHandle: manual.contactGeneralHandle,
         links: manual.links.length > 0 ? manual.links : undefined,
         dependencies: manual.dependencies,
         source: 'manual',

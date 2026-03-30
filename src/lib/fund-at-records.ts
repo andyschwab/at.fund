@@ -17,6 +17,7 @@ export type DisclosureMeta = {
   landingPage?: string
   /** fund.at.disclosure contact.general */
   contactGeneralUrl?: string
+  contactGeneralHandle?: string
   contactGeneralEmail?: string
   /** fund.at.disclosure contact.press */
   contactPressUrl?: string
@@ -207,11 +208,19 @@ export function extractDisclosureMeta(value: RawValue): DisclosureMeta | null {
   const security = isObject(value.security) ? (value.security as RawValue) : undefined
   const legal = isObject(value.legal) ? (value.legal as RawValue) : undefined
 
+  const rawHandle = general?.handle
+  let contactGeneralHandle: string | undefined
+  if (typeof rawHandle === 'string') {
+    const t = rawHandle.trim().replace(/^@/, '')
+    if (t) contactGeneralHandle = t
+  }
+
   return {
     displayName,
     description,
     landingPage,
     contactGeneralUrl: typeof general?.url === 'string' ? general.url : undefined,
+    contactGeneralHandle,
     contactGeneralEmail: typeof general?.email === 'string' ? general.email : undefined,
     contactPressUrl: typeof press?.url === 'string' ? press.url : undefined,
     contactPressEmail: typeof press?.email === 'string' ? press.email : undefined,

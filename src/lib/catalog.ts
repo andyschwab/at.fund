@@ -9,6 +9,11 @@ type ManualDisclosure = {
     description?: string
     landingPage?: string
   }
+  contact?: {
+    general?: {
+      handle?: string
+    }
+  }
 }
 
 type ManualContribute = {
@@ -100,6 +105,8 @@ export type ManualStewardRecord = {
   displayName: string
   description?: string
   landingPage?: string
+  /** fund.at.disclosure contact.general.handle */
+  contactGeneralHandle?: string
   links: FundLink[]
   dependencies?: string[]
 }
@@ -117,11 +124,19 @@ export function lookupManualStewardRecord(
   const meta = record.disclosure?.meta
   if (!meta?.displayName) return null
 
+  const rawHandle = record.disclosure?.contact?.general?.handle
+  let contactGeneralHandle: string | undefined
+  if (typeof rawHandle === 'string') {
+    const t = rawHandle.trim().replace(/^@/, '')
+    if (t) contactGeneralHandle = t
+  }
+
   return {
     stewardUri: key,
     displayName: meta.displayName,
     description: meta.description,
     landingPage: meta.landingPage,
+    contactGeneralHandle,
     links: record.contribute?.links ?? [],
     dependencies: record.dependencies?.uris,
   }

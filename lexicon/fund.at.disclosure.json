@@ -52,6 +52,10 @@
                 "type": "object",
                 "description": "General or support contact.",
                 "properties": {
+                  "handle": {
+                    "type": "string",
+                    "description": "Atmosphere handle for the project or maintainer (e.g. example.bsky.social or a verified domain handle)."
+                  },
                   "email": {
                     "type": "string",
                     "description": "Support or general inquiries email."

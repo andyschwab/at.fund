@@ -3,6 +3,7 @@ import type { DisclosureMeta } from '@/lib/fund-at-records'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
 import Link from 'next/link'
 import {
+  AtSign,
   FileText,
   Globe,
   Heart,
@@ -19,6 +20,7 @@ function disclosureMetaFromSteward(s: StewardCardModel): DisclosureMeta {
     description: s.description,
     landingPage: s.landingPage,
     contactGeneralUrl: s.contactGeneralUrl,
+    contactGeneralHandle: s.contactGeneralHandle,
     contactGeneralEmail: s.contactGeneralEmail,
     contactPressUrl: s.contactPressUrl,
     contactPressEmail: s.contactPressEmail,
@@ -48,12 +50,21 @@ type DisclosureSlot = {
   Icon: typeof Globe
 }
 
+/** Public profile URL for an Atmosphere handle (Bluesky Social is the reference app). */
+function atmosphereProfileHref(handle: string | undefined): string | undefined {
+  if (!handle) return undefined
+  const h = handle.trim().replace(/^@/, '')
+  if (!h) return undefined
+  return `https://bsky.app/profile/${encodeURIComponent(h)}`
+}
+
 function buildDisclosureSlots(
   disclosure: DisclosureMeta | undefined,
   websiteFallback: string | undefined,
 ): DisclosureSlot[] {
   const d = disclosure
   const website = d?.landingPage ?? websiteFallback
+  const atmosphereHref = atmosphereProfileHref(d?.contactGeneralHandle)
   const contactHref =
     d?.contactGeneralUrl ??
     (d?.contactGeneralEmail
@@ -66,6 +77,12 @@ function buildDisclosureSlots(
 
   return [
     { key: 'website', label: 'Website', Icon: Globe, href: website },
+    {
+      key: 'handle',
+      label: 'Atmosphere handle',
+      Icon: AtSign,
+      href: atmosphereHref,
+    },
     { key: 'contact', label: 'Contact', Icon: Mail, href: contactHref },
     { key: 'press', label: 'Press', Icon: Megaphone, href: pressHref },
     { key: 'security', label: 'Security', Icon: Shield, href: securityHref },
