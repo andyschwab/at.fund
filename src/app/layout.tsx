@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Contribute to your ATProto tools",
+  title: "AT.fund — We can just pay for things",
   description:
-    "Map lexicon collections in your repo to apps and contribution links.",
+    "Find ways to pay the people who build what you rely on. ATProto sign-in.",
 };
 
 export default function RootLayout({

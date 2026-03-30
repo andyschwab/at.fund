@@ -14,6 +14,7 @@ import {
   ExternalLink,
   HandCoins,
   Heart,
+  HeartHandshake,
   LogIn,
   LogOut,
   Monitor,
@@ -22,6 +23,9 @@ import {
   Sparkles,
   UserRound,
 } from 'lucide-react'
+
+const BURRITO_QUOTE_URL =
+  'https://bsky.app/profile/burrito.space/post/3mi4ymt3lqs2k'
 
 type Props = {
   hasSession: boolean
@@ -122,19 +126,40 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
   return (
     <div className="page-wash min-h-full">
       <div className="mx-auto flex max-w-5xl flex-col gap-12 px-4 py-12">
-        <header className="space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--support-border)] bg-[var(--support-muted)] px-3 py-1 text-xs font-medium text-[var(--support)] dark:text-emerald-400">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden />
-            Free · ATProto sign-in
+        <header className="text-center">
+          <div className="mx-auto flex max-w-2xl flex-col items-center gap-5">
+            <span
+              className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)] shadow-sm dark:text-emerald-400"
+              aria-hidden
+            >
+              <HeartHandshake className="h-11 w-11" strokeWidth={1.75} />
+            </span>
+            <div className="w-full space-y-3">
+              <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
+                <span className="font-mono font-medium text-zinc-500 dark:text-zinc-400">
+                  AT.fund
+                </span>
+                <span className="text-zinc-500 dark:text-zinc-400">: </span>
+                <span className="text-zinc-900 dark:text-zinc-100">
+                  We can just pay for things
+                  <sup className="ml-0.5 align-super text-lg font-normal leading-none">
+                    <a
+                      href={BURRITO_QUOTE_URL}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[var(--support)] underline decoration-[var(--support-border)] underline-offset-2 transition-colors hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                      aria-label="@burrito.space on Bluesky"
+                    >
+                      *
+                    </a>
+                  </sup>
+                </span>
+              </h1>
+              <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                Find ways to pay the people who build what you rely on.
+              </p>
+            </div>
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Give back to tools you use
-          </h1>
-          <p className="max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            We look at what your account has actually saved—not every app
-            you&apos;ve opened. Then we show you where you can support a project,
-            and a few we&apos;re still learning about.
-          </p>
         </header>
 
         {!hasSession ? (
