@@ -3,6 +3,7 @@ import { lookupAtprotoDid, lookupAtprotoDidExact } from '@/lib/atfund-dns'
 import { fetchPdsHostFunding, type PdsHostFunding } from '@/lib/atfund-steward'
 import { resolveDidFromIdentifier, resolveHandleFromDid } from '@/lib/fund-at-records'
 
+
 function hostnameFromUriLike(input: string): string | null {
   const raw = input.trim()
   if (!raw) return null
@@ -59,6 +60,7 @@ async function describeServerStewardFallback(hostname: string): Promise<{
  */
 export async function fetchFundingForUriLike(
   uriLike: string,
+  agent?: Agent,
 ): Promise<PdsHostFunding | null> {
   const hostname = hostnameFromUriLike(uriLike)
   if (!hostname) return null
@@ -81,7 +83,7 @@ export async function fetchFundingForUriLike(
     const hostFunding = await fetchPdsHostFunding(resolvedDid, hostname, {
       pdsStewardUri: resolvedUri,
       pdsStewardHandle: resolvedHandle ?? fallback.pdsStewardHandle,
-    })
+    }, agent)
     if (hostFunding) return hostFunding
 
     return {
@@ -97,7 +99,7 @@ export async function fetchFundingForUriLike(
   const hostFunding = await fetchPdsHostFunding(did, hostname, {
     pdsStewardUri,
     pdsStewardHandle,
-  })
+  }, agent)
   if (hostFunding) return hostFunding
 
   // Return steward identity even when no fund.at.disclosure is published.

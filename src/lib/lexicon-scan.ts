@@ -7,6 +7,8 @@ import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { resolveStewardUri, lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
+import { fetchOwnFundAtRecords } from '@/lib/fund-at-records'
+
 import type { StewardCardModel } from '@/lib/steward-model'
 import { scanFollows } from '@/lib/follow-scan'
 import type { FollowedAccountCard } from '@/lib/follow-scan'
@@ -143,7 +145,13 @@ export async function scanRepo(
 
     if (stewardDid) {
       try {
-        const fundAt = await fetchFundAtForStewardDid(stewardDid)
+        let fundAt
+        if (stewardDid === session.did) {
+          const ownRecords = await fetchOwnFundAtRecords(session)
+          fundAt = ownRecords ? { stewardDid, ...ownRecords } : null
+        } else {
+          fundAt = await fetchFundAtForStewardDid(stewardDid, agent)
+        }
         if (fundAt) {
           const {
             displayName: dName,
@@ -247,7 +255,7 @@ export async function scanRepo(
   const pdsHostPromise = (async () => {
     if (!pdsUrl) return
     try {
-      pdsHostFunding = (await fetchFundingForUriLike(pdsUrl.origin)) ?? undefined
+      pdsHostFunding = (await fetchFundingForUriLike(pdsUrl.origin, agent)) ?? undefined
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'
       logger.warn('scan: PDS host funding lookup failed', {
@@ -260,7 +268,7 @@ export async function scanRepo(
 
   const followsPromise = (async () => {
     try {
-      followedAccounts = await scanFollows(session.did)
+      followedAccounts = await scanFollows(session.did, agent)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Follow scan failed'
       logger.warn('scan: follow scan failed', { did: session.did, error: msg })
