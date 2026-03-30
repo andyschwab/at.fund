@@ -452,7 +452,7 @@
         }
       }
     },
-    "tangled.org": {
+    "tangled.sh": {
       "disclosure": {
         "meta": {
           "displayName": "Tangled",
@@ -643,6 +643,76 @@
         "contact": {
           "general": {
             "handle": "stratos.zone"
+          }
+        }
+      }
+    },
+    "moji.blue": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Bluemoji",
+          "description": "Custom emoji system for ATProto. Stores emoji in user repos.",
+          "landingPage": "https://github.com/aendra-rininsland/bluemoji"
+        },
+        "contact": {
+          "general": {
+            "handle": "aendra.com"
+          }
+        }
+      }
+    },
+    "openmeet.net": {
+      "disclosure": {
+        "meta": {
+          "displayName": "OpenMeet",
+          "description": "Free Meetup alternative on ATProto. Uses community calendar lexicons for interoperability with Smoke Signal.",
+          "landingPage": "https://openmeet.net"
+        },
+        "contact": {
+          "general": {
+            "handle": "openmeet.net"
+          }
+        }
+      }
+    },
+    "markpub.at": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Markpub",
+          "description": "Structured Markdown document lexicon for ATProto. Supports YAML, blobs, facets, CommonMark and GFM.",
+          "landingPage": "https://markpub.at"
+        },
+        "contact": {
+          "general": {
+            "handle": "markpub.at"
+          }
+        }
+      }
+    },
+    "protoimsg.com": {
+      "disclosure": {
+        "meta": {
+          "displayName": "protoimsg",
+          "description": "AIM-inspired group chat on ATProto. Chat rooms and P2P video calls with messages stored as ATProto records.",
+          "landingPage": "https://www.protoimsg.com"
+        },
+        "contact": {
+          "general": {
+            "handle": "protoimsg.com"
+          }
+        }
+      }
+    },
+    "blacksky.community": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Blacksky",
+          "description": "Community platform supporting Black social media users. Custom AppView with algorithmic feeds and community posts.",
+          "landingPage": "https://github.com/blacksky-algorithms"
+        },
+        "contact": {
+          "general": {
+            "handle": "blacksky.community"
           }
         }
       }
