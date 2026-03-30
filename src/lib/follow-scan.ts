@@ -1,6 +1,6 @@
 import { Agent } from '@atproto/api'
 import type { FundLink } from '@/lib/fund-at-records'
-import { lookupManualStewardRecord } from '@/lib/catalog'
+import { lookupManualStewardByHandle } from '@/lib/catalog'
 import { logger } from '@/lib/logger'
 
 const SLINGSHOT = 'https://slingshot.microcosm.blue'
@@ -92,7 +92,7 @@ async function checkFollowForFundAt(follow: FollowRef): Promise<FollowedAccountC
 
   // Fall back to manual catalog by handle
   if (handle) {
-    const manual = lookupManualStewardRecord(handle)
+    const manual = lookupManualStewardByHandle(handle)
     if (manual) {
       return {
         did,
