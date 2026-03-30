@@ -12,7 +12,7 @@ export default function MaintainersPage() {
       <h1 className="mt-6 text-2xl font-semibold tracking-tight">
         Maintainer-native contribution metadata
       </h1>
-      <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+      <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
         Tool authors can publish disclosure, contribution links, and dependency
         pointers as ATProto records. Clients discover these records from either a
         DID directly, or from a hostname by resolving its ATProto DID via DNS{' '}
@@ -20,7 +20,7 @@ export default function MaintainersPage() {
       </p>
 
       <h2 className="mt-10 text-lg font-medium">1. Lexicon records</h2>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
         Define and publish lexicons (see{' '}
         <code className="font-mono text-xs">lexicon/fund.at.contribute.json</code>,{' '}
         <code className="font-mono text-xs">lexicon/fund.at.disclosure.json</code>,{' '}
@@ -57,7 +57,7 @@ export default function MaintainersPage() {
       <h2 className="mt-8 text-lg font-medium">
         2. DNS <code className="font-mono text-base">_atproto</code>
       </h2>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
         Publish a TXT record at <code className="font-mono text-xs">_atproto.&lt;hostname&gt;</code>{' '}
         whose value is your site/service DID. Clients can then resolve the DID to
         a PDS and fetch <code className="font-mono text-xs">fund.at.disclosure</code>{' '}
@@ -69,7 +69,7 @@ export default function MaintainersPage() {
       </p>
 
       <h2 className="mt-8 text-lg font-medium">Catalog PRs</h2>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
         This MVP also ships a curated catalog in{' '}
         <code className="font-mono text-xs">src/data/manual-catalog.json</code>.
         Add or correct entries via pull request if you maintain a service on

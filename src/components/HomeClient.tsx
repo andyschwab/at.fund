@@ -129,25 +129,25 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
         <header className="text-center">
           <div className="mx-auto flex max-w-2xl flex-col items-center gap-5">
             <span
-              className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)] shadow-sm dark:text-emerald-400"
+              className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)] shadow-sm"
               aria-hidden
             >
               <HeartHandshake className="h-11 w-11" strokeWidth={1.75} />
             </span>
             <div className="w-full space-y-3">
               <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
-                <span className="font-mono font-medium text-zinc-500 dark:text-zinc-400">
+                <span className="font-mono font-medium text-slate-500 dark:text-slate-400">
                   AT.fund
                 </span>
-                <span className="text-zinc-500 dark:text-zinc-400">: </span>
-                <span className="text-zinc-900 dark:text-zinc-100">
+                <span className="text-slate-500 dark:text-slate-400">: </span>
+                <span className="text-slate-900 dark:text-slate-100">
                   We can just pay for things
                   <sup className="ml-0.5 align-super text-lg font-normal leading-none">
                     <a
                       href={BURRITO_QUOTE_URL}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[var(--support)] underline decoration-[var(--support-border)] underline-offset-2 transition-colors hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                      className="text-[var(--support)] underline decoration-[var(--support-border)] underline-offset-2 transition-opacity hover:opacity-80"
                       aria-label="@burrito.space on Bluesky"
                     >
                       *
@@ -155,7 +155,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                   </sup>
                 </span>
               </h1>
-              <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+              <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                 Find ways to pay the people who build what you rely on.
               </p>
             </div>
@@ -163,20 +163,20 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
         </header>
 
         {!hasSession ? (
-          <section className="rounded-2xl border border-zinc-200 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
-            <div className="mb-4 flex items-center gap-2 text-lg font-medium text-zinc-900 dark:text-zinc-100">
-              <UserRound className="h-5 w-5 text-[var(--support)] dark:text-emerald-400" aria-hidden />
+          <section className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+            <div className="mb-4 flex items-center gap-2 text-lg font-medium text-slate-900 dark:text-slate-100">
+              <UserRound className="h-5 w-5 text-[var(--support)]" aria-hidden />
               Connect
             </div>
             <form onSubmit={login} className="flex max-w-md flex-col gap-3">
-              <label className="text-sm text-zinc-600 dark:text-zinc-400">
+              <label className="text-sm text-slate-600 dark:text-slate-400">
                 Your handle
                 <input
                   type="text"
                   value={handle}
                   onChange={(e) => setHandle(e.target.value)}
                   placeholder="you.bsky.social"
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   disabled={loading}
                   required
                 />
@@ -195,14 +195,14 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                 <LogIn className="h-4 w-4" aria-hidden />
                 {loading ? 'Redirecting…' : 'Continue'}
               </button>
-              <details className="mt-2 max-w-md rounded-lg border border-zinc-200/80 bg-zinc-50/80 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
+              <details className="mt-2 max-w-md rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
                 <summary className="flex cursor-pointer list-none items-center gap-2 font-medium [&::-webkit-details-marker]:hidden">
                   <Monitor className="h-4 w-4 shrink-0" aria-hidden />
                   Local development
-                  <span className="text-zinc-400">▾</span>
+                  <span className="text-slate-400">▾</span>
                 </summary>
                 <p className="mt-2 pl-6 leading-relaxed">
-                  Use <code className="font-mono text-zinc-700 dark:text-zinc-300">127.0.0.1</code>{' '}
+                  Use <code className="font-mono text-slate-700 dark:text-slate-300">127.0.0.1</code>{' '}
                   (not <code className="font-mono">localhost</code>) so sign-in
                   redirects work.
                 </p>
@@ -211,24 +211,24 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
           </section>
         ) : (
           <>
-            <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white/90 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/90">
-              <div className="flex flex-col gap-4 border-b border-zinc-200/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800">
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white/90 shadow-sm dark:border-slate-800 dark:bg-slate-950/90">
+              <div className="flex flex-col gap-4 border-b border-slate-200/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
                 <div className="flex min-w-0 items-center gap-3">
                   <span
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--support-muted)] text-sm font-semibold text-[var(--support)] dark:text-emerald-400"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--support-muted)] text-sm font-semibold text-[var(--support)]"
                     aria-hidden
                   >
                     {displayId ? userInitial(displayId) : '…'}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       Signed in
                     </p>
-                    <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">
+                    <p className="truncate font-medium text-slate-900 dark:text-slate-100">
                       {displayId || '…'}
                     </p>
                     {pdsUrl && (
-                      <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                      <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
                         PDS: <span className="font-mono">{pdsUrl}</span>
                       </p>
                     )}
@@ -241,7 +241,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                       target="_blank"
                       rel="noreferrer"
                       title="Opens PDSls in a new tab"
-                      className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       <ExternalLink className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
                       <span className="hidden sm:inline">Data explorer</span>
@@ -252,7 +252,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                     type="button"
                     onClick={() => runScan(parseSelfReportInput())}
                     disabled={loading}
-                    className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     <RefreshCw
                       className={`h-4 w-4 shrink-0 ${loading ? 'animate-spin' : ''}`}
@@ -269,7 +269,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                     type="button"
                     onClick={() => logout()}
                     aria-label="Sign out"
-                    className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                    className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                   >
                     <LogOut className="h-4 w-4 shrink-0" aria-hidden />
                     <span className="hidden sm:inline">Sign out</span>
@@ -295,37 +295,37 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
 
             <section className="space-y-10">
               {!scan ? (
-                <p className="text-sm text-zinc-500">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
                   Could not load your projects.{' '}
                   <button
                     type="button"
                     onClick={() => runScan([])}
-                    className="font-medium text-[var(--support)] underline dark:text-emerald-400"
+                    className="font-medium text-[var(--support)] underline"
                   >
                     Try again
                   </button>
                 </p>
               ) : scan.stewards.length === 0 ? (
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
                   We didn&apos;t find any extra tools in your saved data yet. You
                   can add more below if you know them.
                 </p>
               ) : (
                 <>
                   {knownStewards.length > 0 && (
-                    <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white/60 dark:border-zinc-800 dark:bg-zinc-950/40">
-                      <div className="flex gap-3 border-b border-[var(--support-border)]/50 bg-[var(--support-muted)] px-5 py-4 dark:border-emerald-500/20">
+                    <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
+                      <div className="flex gap-3 border-b border-[var(--support-border)]/50 bg-[var(--support-muted)] px-5 py-4 dark:border-[var(--support-border)]/35">
                         <span
-                          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--support)] shadow-sm dark:bg-zinc-900/80 dark:text-emerald-400"
+                          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--support)] shadow-sm dark:bg-slate-900/80"
                           aria-hidden
                         >
                           <HandCoins className="h-5 w-5" strokeWidth={2} />
                         </span>
                         <div>
-                          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                             Tools you use
                           </h2>
-                          <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
+                          <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
                             Services we matched from your saved data. Some have
                             ways to contribute directly.
                           </p>
@@ -343,19 +343,19 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                   )}
 
                   {unknownStewards.length > 0 && (
-                    <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white/60 dark:border-zinc-800 dark:bg-zinc-950/40">
+                    <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
                       <div className="flex gap-3 border-b border-[var(--discover-border)]/60 bg-[var(--discover-muted)] px-5 py-4 dark:border-amber-500/25">
                         <span
-                          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--discover)] shadow-sm dark:bg-zinc-900/80 dark:text-amber-400"
+                          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--discover)] shadow-sm dark:bg-slate-900/80 dark:text-amber-400"
                           aria-hidden
                         >
                           <Sparkles className="h-5 w-5" strokeWidth={2} />
                         </span>
                         <div>
-                          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                             Still learning about these
                           </h2>
-                          <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
+                          <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
                             Your account has something saved from these tools—we
                             don&apos;t have give-back links for them yet.
                           </p>
@@ -375,20 +375,20 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
               )}
               {scan && scan.stewards.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                    <Heart className="h-3.5 w-3.5 text-[var(--support)] dark:text-emerald-400" aria-hidden />
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                    <Heart className="h-3.5 w-3.5 text-[var(--support)]" aria-hidden />
                     {stewardCount} service{stewardCount === 1 ? '' : 's'}
                   </span>
                 </div>
               )}
             </section>
 
-            <section className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/50 p-5 dark:border-zinc-700 dark:bg-zinc-900/30">
-              <div className="mb-3 flex items-center gap-2 font-medium text-zinc-900 dark:text-zinc-100">
-                <PlusCircle className="h-5 w-5 text-[var(--support)] dark:text-emerald-400" aria-hidden />
+            <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-5 dark:border-slate-700 dark:bg-slate-900/30">
+              <div className="mb-3 flex items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
+                <PlusCircle className="h-5 w-5 text-[var(--support)]" aria-hidden />
                 Add more tools
               </div>
-              <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
                 Paste extra names your developer or app gave you, even if
                 they&apos;re not in your saved data yet. Separate with spaces or
                 commas.
@@ -399,7 +399,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                   value={selfReport}
                   onChange={(e) => setSelfReport(e.target.value)}
                   placeholder="e.g. whtwnd.com or did:plc:..."
-                  className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                  className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
                 />
                 <button
                   type="button"
@@ -415,25 +415,25 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
           </>
         )}
 
-        <section className="rounded-2xl border border-zinc-200 bg-gradient-to-br from-zinc-50 to-white p-6 dark:border-zinc-800 dark:from-zinc-900/50 dark:to-zinc-950">
+        <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 dark:border-slate-800 dark:from-slate-900/50 dark:to-slate-950">
           <div className="flex gap-3">
             <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-zinc-600 shadow-sm dark:bg-zinc-800 dark:text-zinc-300"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-300"
               aria-hidden
             >
               <BookOpen className="h-5 w-5" strokeWidth={2} />
             </span>
             <div>
-              <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">
+              <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100">
                 For builders
               </h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                 Building a tool? Add it to the directory so people can find ways
                 to support you—no dependency on this app.
               </p>
               <a
                 href="/maintainers"
-                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--support)] dark:text-emerald-400"
+                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--support)]"
               >
                 How to add your project
                 <ExternalLink className="h-4 w-4" aria-hidden />

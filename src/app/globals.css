@@ -32,16 +32,19 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --support: #34d399;
-    --support-foreground: #022c22;
-    --support-muted: rgba(52, 211, 153, 0.12);
-    --support-border: rgba(52, 211, 153, 0.45);
-    --discover: #fbbf24;
-    --discover-foreground: #fef3c7;
-    --discover-muted: rgba(251, 191, 36, 0.1);
-    --discover-border: rgba(251, 191, 36, 0.35);
+    /* Blue-tinted dark (slate family) — full cool base */
+    --background: oklch(0.17 0.024 260);
+    --foreground: oklch(0.96 0.012 250);
+    /* Support: vivid “alive” green — higher chroma, spring-y, not murky */
+    --support: oklch(0.8 0.2 152);
+    --support-foreground: oklch(0.11 0.05 152);
+    --support-muted: color-mix(in oklch, oklch(0.8 0.2 152) 16%, transparent);
+    --support-border: color-mix(in oklch, oklch(0.8 0.2 152) 48%, transparent);
+    /* Discover stays warm for contrast on cool neutrals */
+    --discover: #fcd34d;
+    --discover-foreground: #422006;
+    --discover-muted: rgba(252, 211, 77, 0.12);
+    --discover-border: rgba(252, 211, 77, 0.4);
   }
 }
 
@@ -64,8 +67,13 @@ body {
   .page-wash {
     background: linear-gradient(
       180deg,
-      color-mix(in oklch, var(--support-muted) 100%, transparent) 0%,
-      transparent 24rem
+      color-mix(
+          in oklch,
+          var(--support-muted) 75%,
+          oklch(0.22 0.035 260) 25%
+        )
+        0%,
+      transparent 28rem
     );
   }
 }

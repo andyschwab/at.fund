@@ -10,7 +10,7 @@ export default async function AdminPage() {
     return (
       <div className="mx-auto max-w-lg px-4 py-16">
         <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
-        <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
           Sign in to continue.
         </p>
         <Link
@@ -28,7 +28,7 @@ export default async function AdminPage() {
     return (
       <div className="mx-auto max-w-lg px-4 py-16">
         <h1 className="text-2xl font-semibold tracking-tight">Not authorized</h1>
-        <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
           This area is only available to administrators.
         </p>
         <Link
@@ -44,17 +44,17 @@ export default async function AdminPage() {
   return (
     <div className="mx-auto max-w-lg px-4 py-16">
       <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
-      <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
         More tools coming soon. For now, use the API helper below to fingerprint
         PDS hosts and see common platforms.
       </p>
-      <div className="mt-8 rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
+      <div className="mt-8 rounded-lg border border-slate-200 p-4 text-sm dark:border-slate-800">
         <div className="font-medium">PDS platform fingerprinting</div>
-        <p className="mt-2 text-zinc-600 dark:text-zinc-400">
+        <p className="mt-2 text-slate-600 dark:text-slate-400">
           POST newline-separated hostnames (or comma-separated) to{' '}
           <code className="font-mono text-xs">/api/admin/pds-platforms</code>.
         </p>
-        <pre className="mt-3 overflow-x-auto rounded-md bg-zinc-100 p-3 text-xs dark:bg-zinc-900">{`curl -s \\
+        <pre className="mt-3 overflow-x-auto rounded-md bg-slate-100 p-3 text-xs dark:bg-slate-900">{`curl -s \\
   -H 'content-type: application/json' \\
   -X POST \\
   -d '{"hosts":"bsky.social\\nexample.com"}' \\
