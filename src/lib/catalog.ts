@@ -120,6 +120,30 @@ export type ManualStewardRecord = {
   dependencies?: string[]
 }
 
+function buildHandleIndex(
+  records: Record<string, ManualRecord>,
+): Map<string, ManualStewardRecord> {
+  const index = new Map<string, ManualStewardRecord>()
+  for (const stewardUri of Object.keys(records)) {
+    const record = lookupManualStewardRecord(stewardUri)
+    if (!record?.contactGeneralHandle) continue
+    index.set(record.contactGeneralHandle.toLowerCase(), record)
+  }
+  return index
+}
+
+const handleIndex = buildHandleIndex(manualCatalogRecords)
+
+/**
+ * Look up a catalog record by the account's Bluesky handle.
+ * Handles the case where the catalog key (steward domain) differs from the handle.
+ */
+export function lookupManualStewardByHandle(handle: string): ManualStewardRecord | null {
+  const normalized = handle.trim().replace(/^@/, '').toLowerCase()
+  if (!normalized) return null
+  return handleIndex.get(normalized) ?? null
+}
+
 /** Manual fallback keyed by steward URI. Returns fund.at-shaped data from our curated catalog. */
 export function lookupManualStewardRecord(
   stewardUri: string,
