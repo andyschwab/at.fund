@@ -423,6 +423,201 @@
           }
         }
       }
+    },
+    "psky.social": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Picosky",
+          "description": "Real-time chat and messaging on ATProto.",
+          "landingPage": "https://psky.social"
+        },
+        "contact": {
+          "general": {
+            "handle": "psky.social"
+          }
+        }
+      }
+    },
+    "recipe.exchange": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Recipe Exchange",
+          "description": "Recipe sharing on ATProto. Creator: Josh Huckabee.",
+          "landingPage": "https://recipe.exchange"
+        },
+        "contact": {
+          "general": {
+            "handle": "joshhuckabee.com"
+          }
+        }
+      }
+    },
+    "tangled.org": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Tangled",
+          "description": "Social coding and Git collaboration on ATProto. Federated repos via atproto-enabled git servers.",
+          "landingPage": "https://tangled.sh"
+        },
+        "contact": {
+          "general": {
+            "handle": "tangled.sh"
+          }
+        }
+      }
+    },
+    "teal.fm": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Teal.fm",
+          "description": "Music scrobbling service on ATProto.",
+          "landingPage": "https://teal.fm"
+        },
+        "contact": {
+          "general": {
+            "handle": "teal.fm"
+          }
+        }
+      }
+    },
+    "grayhaze.live": {
+      "disclosure": {
+        "meta": {
+          "displayName": "GrayHaze",
+          "description": "Live streaming on ATProto.",
+          "landingPage": "https://grayhaze.live"
+        },
+        "contact": {
+          "general": {
+            "handle": "grayhaze.live"
+          }
+        }
+      }
+    },
+    "bookhive.buzz": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Bookhive",
+          "description": "Book tracking and reviews on ATProto.",
+          "landingPage": "https://bookhive.buzz"
+        },
+        "contact": {
+          "general": {
+            "handle": "bookhive.buzz"
+          }
+        }
+      }
+    },
+    "pastesphere.link": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Pastesphere",
+          "description": "Text snippet sharing (pastebin) on ATProto.",
+          "landingPage": "https://pastesphere.link"
+        },
+        "contact": {
+          "general": {
+            "handle": "pastesphere.link"
+          }
+        }
+      }
+    },
+    "place.blue": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Blue Place",
+          "description": "Collaborative pixel canvas on ATProto.",
+          "landingPage": "https://place.blue"
+        },
+        "contact": {
+          "general": {
+            "handle": "place.blue"
+          }
+        }
+      }
+    },
+    "podping.org": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Podping",
+          "description": "Podcast update notification system on ATProto. Signals new episodes to aggregators, reducing speculative polling.",
+          "landingPage": "https://podping.org"
+        },
+        "contact": {
+          "general": {
+            "handle": "podping.org"
+          }
+        }
+      }
+    },
+    "matadisco.org": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Matadisco",
+          "description": "Decentralized data discovery on ATProto. Streams records for satellite imagery, podcasts, research datasets, and GLAM collections.",
+          "landingPage": "https://matadisco.org"
+        },
+        "contact": {
+          "general": {
+            "handle": "matadisco.org"
+          }
+        }
+      }
+    },
+    "sensorthings.dev": {
+      "disclosure": {
+        "meta": {
+          "displayName": "SensorThings",
+          "description": "Environmental sensor data (water levels, ocean conditions, air quality) on ATProto using OGC SensorThings entity model.",
+          "landingPage": "https://sensorthings.dev"
+        },
+        "contact": {
+          "general": {
+            "handle": "sensorthings.dev"
+          }
+        }
+      }
+    },
+    "gainforest.app": {
+      "disclosure": {
+        "meta": {
+          "displayName": "GainForest",
+          "description": "Conservation and biodiversity data using Darwin Core occurrence records on ATProto.",
+          "landingPage": "https://gainforest.app"
+        },
+        "contact": {
+          "general": {
+            "handle": "gainforest.app"
+          }
+        }
+      }
+    },
+    "atcr.io": {
+      "disclosure": {
+        "meta": {
+          "displayName": "ATCR",
+          "description": "Container image registry on ATProto. Stores container layers, tags, and manifests as ATProto records."
+        },
+        "contact": {
+          "general": {
+            "handle": "atcr.io"
+          }
+        }
+      }
+    },
+    "polhem.us": {
+      "disclosure": {
+        "meta": {
+          "displayName": "Polhem",
+          "description": "Blogging platform on ATProto.",
+          "landingPage": "https://polhem.us"
+        },
+        "contact": {
+          "general": {
+            "handle": "polhem.us"
+          }
+        }
+      }
     }
   }
 }

@@ -13,6 +13,8 @@
     { "matchPrefix": "app.anisota.", "stewardUri": "anisota.net" },
     { "matchPrefix": "app.youandme.", "stewardUri": "youandme.at" },
     { "matchPrefix": "lexicon.community.", "stewardUri": "lexicon.community" },
-    { "matchPrefix": "community.lexicon.", "stewardUri": "lexicon.community" }
+    { "matchPrefix": "community.lexicon.", "stewardUri": "lexicon.community" },
+    { "matchPrefix": "at.podping.", "stewardUri": "podping.org" },
+    { "matchPrefix": "cx.vmx.matadisco.", "stewardUri": "matadisco.org" }
   ]
 }
