@@ -7,10 +7,8 @@ import type { NodeSavedSession, NodeSavedState } from '@atproto/oauth-client-nod
 import type { OAuthClientMetadataInput } from '@atproto/oauth-types'
 import { getPublicUrl, isLoopbackPublicUrl } from '@/lib/public-url'
 
-// `transition:generic` grants repo write access on current PDS implementations.
-// Lexicon-scoped write tokens (fund.at.*) are not yet supported by PDSs, so we
-// fall back to the generic scope until the ecosystem adopts granular scopes.
-export const SCOPE = 'atproto transition:generic'
+export const SCOPE =
+  'atproto fund.at.disclosure fund.at.contribute fund.at.dependencies'
 
 const globalAuth = globalThis as unknown as {
   stateStore: Map<string, NodeSavedState>
