@@ -13,8 +13,8 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
-import { KnownStewardCard } from '@/components/ProjectCards'
-import type { StewardCardModel } from '@/lib/steward-model'
+import { StewardCard } from '@/components/ProjectCards'
+import type { StewardEntry } from '@/lib/steward-model'
 import type { FundAtResult } from '@/lib/fund-at-records'
 import { validateUrl, validateEmail, validateHandle } from '@/lib/validate'
 
@@ -330,10 +330,11 @@ export function SetupClient({ did, handle, existing }: Props) {
   const depsFilled = form.dependenciesText.trim() ? 1 : 0
 
   // Live preview model
-  const previewModel: StewardCardModel = useMemo(
+  const previewModel: StewardEntry = useMemo(
     () => ({
-      stewardUri: did,
-      stewardDid: did,
+      uri: did,
+      did: did,
+      tags: ['tool'] as const,
       displayName: form.displayName.trim() || 'Your project name',
       description: form.description.trim() || undefined,
       landingPage: check(form.landingPage, validateUrl) ? undefined : form.landingPage.trim() || undefined,
@@ -464,7 +465,7 @@ export function SetupClient({ did, handle, existing }: Props) {
             Example — how you appear to supporters
           </p>
           <div className="pointer-events-none select-none">
-            <KnownStewardCard steward={previewModel} />
+            <StewardCard entry={previewModel} />
           </div>
         </section>
 

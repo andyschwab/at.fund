@@ -1,21 +1,19 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import type { ScanResult } from '@/lib/lexicon-scan'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import type { ScanStreamEvent, ScanWarning, PdsHostFunding } from '@/lib/lexicon-scan'
+import type { StewardEntry } from '@/lib/steward-model'
+import { EntryIndex } from '@/lib/steward-merge'
 import { pdslsRepoUrl } from '@/lib/pdsls'
 import {
-  FollowedAccountCard,
-  KnownStewardCard,
+  StewardCard,
   PdsHostSupportCard,
-  UnknownStewardCard,
 } from '@/components/ProjectCards'
 import Link from 'next/link'
 import {
   AlertCircle,
   BookOpen,
   ExternalLink,
-  HandCoins,
-  Heart,
   HeartHandshake,
   LogIn,
   LogOut,
@@ -23,17 +21,37 @@ import {
   Pencil,
   PlusCircle,
   RefreshCw,
-  Sparkles,
-  Users,
   UserRound,
 } from 'lucide-react'
 
 const BURRITO_QUOTE_URL =
   'https://bsky.app/profile/burrito.space/post/3mi4ymt3lqs2k'
 
+// ---------------------------------------------------------------------------
+// Module-level scan cache — survives in-app navigation, cleared on Refresh
+// ---------------------------------------------------------------------------
+
+type ScanCache = {
+  meta: { did: string; handle?: string; pdsUrl?: string } | null
+  entries: StewardEntry[]
+  referencedEntries: StewardEntry[]
+  warnings: ScanWarning[]
+  pdsHostFunding: PdsHostFunding | undefined
+}
+
+let _scanCache: ScanCache | null = null
+
+type TagFilter = 'all' | 'tool' | 'labeler' | 'feed' | 'follow'
+
+const TAG_FILTER_LABELS: { tag: TagFilter; label: string }[] = [
+  { tag: 'tool', label: 'Tools' },
+  { tag: 'labeler', label: 'Labelers' },
+  { tag: 'feed', label: 'Feeds' },
+  { tag: 'follow', label: 'Network' },
+]
+
 type Props = {
   hasSession: boolean
-  initialScan: ScanResult | null
   error?: string
 }
 
@@ -43,29 +61,172 @@ function userInitial(handleOrDid: string): string {
   return h.slice(0, 2).toUpperCase()
 }
 
-export function HomeClient({ hasSession, initialScan, error }: Props) {
+function entryTier(e: StewardEntry): number {
+  if (e.source === 'unknown') return 3
+  if (e.links && e.links.length > 0) return 0
+  if (e.dependencies && e.dependencies.length > 0) return 1
+  return 2
+}
+
+export function HomeClient({ hasSession, error }: Props) {
   const [handle, setHandle] = useState('')
   const [loading, setLoading] = useState(false)
-  const [scan, setScan] = useState<ScanResult | null>(initialScan)
   const [selfReport, setSelfReport] = useState('')
   const [err, setErr] = useState<string | null>(
     error ? 'Something went wrong signing in. Try again.' : null,
   )
 
-  const knownStewards = useMemo(
-    () => scan?.stewards.filter((s) => s.source !== 'unknown') ?? [],
-    [scan?.stewards],
+  // Streaming scan state
+  const [meta, setMeta] = useState<{ did: string; handle?: string; pdsUrl?: string } | null>(null)
+  const [entries, setEntries] = useState<StewardEntry[]>([])
+  const [referencedEntries, setReferencedEntries] = useState<StewardEntry[]>([])
+  const [warnings, setWarnings] = useState<ScanWarning[]>([])
+  const [pdsHostFunding, setPdsHostFunding] = useState<PdsHostFunding | undefined>()
+  const [scanDone, setScanDone] = useState(false)
+  const [scanStatus, setScanStatus] = useState<string>('')
+  const [activeTag, setActiveTag] = useState<TagFilter>('all')
+  const entryIndexRef = useRef(new EntryIndex())
+
+  // Inclusion rule: tools/labelers/feeds always; follows only if actionable
+  const visibleEntries = useMemo(() => {
+    const included = entries.filter(
+      (e) =>
+        e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') ||
+        (e.tags.includes('follow') && e.links?.length),
+    )
+    return included.sort((a, b) => {
+      const diff = entryTier(a) - entryTier(b)
+      return diff !== 0 ? diff : a.uri.localeCompare(b.uri)
+    })
+  }, [entries])
+
+  const filteredEntries = useMemo(() => {
+    if (activeTag === 'all') return visibleEntries
+    return visibleEntries.filter((e) => e.tags.includes(activeTag))
+  }, [visibleEntries, activeTag])
+
+  // Which tag filters have at least one entry (to show pills dynamically)
+  const tagCounts = useMemo(() => {
+    const counts: Partial<Record<TagFilter, number>> = {}
+    for (const e of visibleEntries) {
+      for (const t of e.tags) {
+        if (t === 'tool' || t === 'labeler' || t === 'feed' || t === 'follow') {
+          counts[t] = (counts[t] ?? 0) + 1
+        }
+      }
+    }
+    return counts
+  }, [visibleEntries])
+
+  // All entries + referenced dep entries for dependency lookup
+  const allEntriesForLookup = useMemo(
+    () => [...entries, ...referencedEntries],
+    [entries, referencedEntries],
   )
-  const unknownStewards = useMemo(
-    () => scan?.stewards.filter((s) => s.source === 'unknown') ?? [],
-    [scan?.stewards],
-  )
-  const followedAccounts = scan?.followedAccounts.filter((a) => a.links?.[0]) ?? []
-  // Merge scanned stewards + resolved dep models so lookup covers deps not in the main scan
-  const allStewardsForLookup = useMemo(
-    () => [...(scan?.stewards ?? []), ...(scan?.referencedStewards ?? [])],
-    [scan?.stewards, scan?.referencedStewards],
-  )
+
+  const runStreamingScan = useCallback(async (extra: string[]) => {
+    _scanCache = null  // invalidate so navigating away mid-scan doesn't restore stale state
+    setLoading(true)
+    setScanDone(false)
+    setScanStatus('')
+    setMeta(null)
+    setEntries([])
+    setReferencedEntries([])
+    setWarnings([])
+    setPdsHostFunding(undefined)
+    setErr(null)
+    setActiveTag('all')
+    entryIndexRef.current = new EntryIndex()
+
+    try {
+      const params = new URLSearchParams()
+      if (extra.length) params.set('extraStewards', extra.join(','))
+      const res = await fetch(`/api/lexicons/stream?${params}`)
+      if (!res.ok || !res.body) {
+        let msg = 'Scan failed'
+        try {
+          const data = await res.json() as { detail?: string; error?: string }
+          msg = data.detail ?? data.error ?? msg
+        } catch { /* empty body */ }
+        throw new Error(msg)
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()!
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          let event: ScanStreamEvent
+          try {
+            event = JSON.parse(line) as ScanStreamEvent
+          } catch {
+            continue
+          }
+
+          if (event.type === 'meta') {
+            setMeta({ did: event.did, handle: event.handle, pdsUrl: event.pdsUrl })
+          } else if (event.type === 'status') {
+            setScanStatus(event.message)
+          } else if (event.type === 'entry') {
+            entryIndexRef.current.upsert(event.entry)
+            setEntries(entryIndexRef.current.toArray())
+          } else if (event.type === 'referenced') {
+            setReferencedEntries((prev) => [...prev, event.entry])
+          } else if (event.type === 'pds-host') {
+            setPdsHostFunding(event.funding)
+          } else if (event.type === 'warning') {
+            setWarnings((prev) => [...prev, event.warning])
+          } else if (event.type === 'done') {
+            setScanDone(true)
+            setScanStatus('')
+          }
+        }
+      }
+    } catch (x) {
+      setErr(
+        x instanceof Error
+          ? x.message === 'Scan failed'
+            ? 'Could not load your account data. Try again.'
+            : x.message
+          : 'Could not load your account data. Try again.',
+      )
+    } finally {
+      setLoading(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Save completed scan to cache so navigating away and back restores instantly
+  useEffect(() => {
+    if (!scanDone) return
+    _scanCache = { meta, entries, referencedEntries, warnings, pdsHostFunding }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanDone])
+
+  // On mount: restore from cache if available, otherwise start scan
+  useEffect(() => {
+    if (!hasSession) return
+    if (_scanCache) {
+      setMeta(_scanCache.meta)
+      setEntries(_scanCache.entries)
+      setReferencedEntries(_scanCache.referencedEntries)
+      setWarnings(_scanCache.warnings)
+      setPdsHostFunding(_scanCache.pdsHostFunding)
+      setScanDone(true)
+      return
+    }
+    void runStreamingScan([])
+  // hasSession and runStreamingScan don't change after mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSession])
 
   async function login(e: React.FormEvent) {
     e.preventDefault()
@@ -77,9 +238,9 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ handle }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || data.error || 'Login failed')
-      window.location.href = data.redirectUrl
+      const data = await res.json() as { redirectUrl?: string; detail?: string; error?: string }
+      if (!res.ok) throw new Error(data.detail ?? data.error ?? 'Login failed')
+      window.location.href = data.redirectUrl!
     } catch (x) {
       setErr(
         x instanceof Error
@@ -97,31 +258,6 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
     window.location.reload()
   }
 
-  async function runScan(extra: string[]) {
-    setLoading(true)
-    setErr(null)
-    try {
-      const res = await fetch('/api/lexicons', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selfReportedStewards: extra }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || data.error || 'Scan failed')
-      setScan(data)
-    } catch (x) {
-      setErr(
-        x instanceof Error
-          ? x.message === 'Scan failed'
-            ? 'Could not refresh your list. Try again.'
-            : x.message
-          : 'Could not refresh your list. Try again.',
-      )
-    } finally {
-      setLoading(false)
-    }
-  }
-
   function parseSelfReportInput(): string[] {
     return selfReport
       .split(/[\s,]+/)
@@ -129,10 +265,11 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
       .filter(Boolean)
   }
 
-  const stewardCount = scan?.stewards.length ?? 0
-  const followedCount = followedAccounts.length
-  const displayId = scan?.handle ?? scan?.did ?? ''
-  const pdsUrl = scan?.pdsUrl
+  const displayId = meta?.handle ?? meta?.did ?? ''
+  const pdsUrl = meta?.pdsUrl
+
+  // How many distinct tag types have entries (to decide whether to show filter bar)
+  const filterableTagCount = TAG_FILTER_LABELS.filter(({ tag }) => (tagCounts[tag] ?? 0) > 0).length
 
   return (
     <div className="page-wash min-h-full">
@@ -222,6 +359,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
           </section>
         ) : (
           <>
+            {/* Session header */}
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white/90 shadow-sm dark:border-slate-800 dark:bg-slate-950/90">
               <div className="flex flex-col gap-4 border-b border-slate-200/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
                 <div className="flex min-w-0 items-center gap-3">
@@ -256,7 +394,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                   </Link>
                   <button
                     type="button"
-                    onClick={() => runScan(parseSelfReportInput())}
+                    onClick={() => runStreamingScan(parseSelfReportInput())}
                     disabled={loading}
                     className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
@@ -271,9 +409,9 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                       {loading ? '…' : 'Refresh'}
                     </span>
                   </button>
-                  {scan?.did && (
+                  {meta?.did && (
                     <a
-                      href={pdslsRepoUrl(scan.did)}
+                      href={pdslsRepoUrl(meta.did)}
                       target="_blank"
                       rel="noreferrer"
                       title="Opens PDSls in a new tab"
@@ -299,7 +437,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                 <div className="p-4 pt-4">
                   <PdsHostSupportCard
                     pdsHostname={new URL(pdsUrl).hostname}
-                    funding={scan?.pdsHostFunding}
+                    funding={pdsHostFunding}
                   />
                 </div>
               )}
@@ -312,15 +450,15 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
               </p>
             )}
 
-            {scan && scan.warnings && scan.warnings.length > 0 && (
+            {warnings.length > 0 && (
               <details className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
                 <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-amber-800 dark:text-amber-300 [&::-webkit-details-marker]:hidden">
                   <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-                  {scan.warnings.length} lookup{scan.warnings.length === 1 ? '' : 's'} had issues
+                  {warnings.length} lookup{warnings.length === 1 ? '' : 's'} had issues
                   <span className="text-amber-600 dark:text-amber-500">▾</span>
                 </summary>
                 <ul className="mt-2 space-y-1 pl-6 text-amber-700 dark:text-amber-400">
-                  {scan.warnings.map((w, i) => (
+                  {warnings.map((w, i) => (
                     <li key={i}>
                       <span className="font-mono text-xs">{w.stewardUri}</span>: {w.message}
                     </li>
@@ -329,140 +467,86 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
               </details>
             )}
 
-            <section className="space-y-10">
-              {!scan ? (
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Could not load your projects.{' '}
-                  <button
-                    type="button"
-                    onClick={() => runScan([])}
-                    className="font-medium text-[var(--support)] underline"
-                  >
-                    Try again
-                  </button>
-                </p>
-              ) : scan.stewards.length === 0 ? (
+            {/* Steward list */}
+            <section className="space-y-4">
+              {visibleEntries.length === 0 && scanDone ? (
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   We didn&apos;t find any extra tools in your saved data yet. You
                   can add more below if you know them.
                 </p>
               ) : (
                 <>
-                  {knownStewards.length > 0 && (
-                    <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
-                      <div className="flex gap-3 border-b border-[var(--support-border)]/50 bg-[var(--support-muted)] px-5 py-4 dark:border-[var(--support-border)]/35">
-                        <span
-                          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--support)] shadow-sm dark:bg-slate-900/80"
-                          aria-hidden
-                        >
-                          <HandCoins className="h-5 w-5" strokeWidth={2} />
-                        </span>
-                        <div>
-                          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                            Tools you use
-                          </h2>
-                          <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-                            Services we matched from your saved data. Some have
-                            ways to contribute directly.
-                          </p>
+                  {/* Controls row: filter pills left, streaming status right */}
+                  {(filterableTagCount > 1 || (loading && scanStatus)) && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      {filterableTagCount > 1 && (
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setActiveTag('all')}
+                            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                              activeTag === 'all'
+                                ? 'bg-[var(--support)] text-[var(--support-foreground)]'
+                                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            All ({visibleEntries.length})
+                          </button>
+                          {TAG_FILTER_LABELS.map(({ tag, label }) => {
+                            const count = tagCounts[tag] ?? 0
+                            if (count === 0) return null
+                            return (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => setActiveTag(tag)}
+                                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                                  activeTag === tag
+                                    ? 'bg-[var(--support)] text-[var(--support-foreground)]'
+                                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                {label} ({count})
+                              </button>
+                            )
+                          })}
                         </div>
-                      </div>
-                      <div className="flex flex-col gap-4 p-5">
-                        {knownStewards.map((steward) => (
-                          <KnownStewardCard
-                            key={steward.stewardUri}
-                            steward={steward}
-                            allStewards={allStewardsForLookup}
-                          />
-                        ))}
-                      </div>
+                      )}
+                      {loading && scanStatus && (
+                        <div className="ml-auto flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+                          <RefreshCw className="h-3 w-3 animate-spin shrink-0" aria-hidden />
+                          <span>{scanStatus}</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
-                    <div className="flex gap-3 border-b border-[var(--network-border)]/50 bg-[var(--network-muted)] px-5 py-4 dark:border-[var(--network-border)]/35">
-                      <span
-                        className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--network)] shadow-sm dark:bg-slate-900/80"
-                        aria-hidden
-                      >
-                        <Users className="h-5 w-5" strokeWidth={2} />
-                      </span>
-                      <div>
-                        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                          In your network
-                        </h2>
-                        <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-                          People you follow who accept support via at.fund.
-                        </p>
+                  {/* Flat entry list */}
+                  <div className="flex flex-col gap-4">
+                    {filteredEntries.map((entry) => (
+                      <StewardCard
+                        key={entry.uri}
+                        entry={entry}
+                        allEntries={allEntriesForLookup}
+                      />
+                    ))}
+                    {filteredEntries.length === 0 && visibleEntries.length === 0 && loading && (
+                      <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
+                        <span>{scanStatus || 'Scanning…'}</span>
                       </div>
-                    </div>
-                    {followedAccounts.length > 0 ? (
-                      <div className="flex flex-col gap-4 p-5">
-                        {followedAccounts.map((account) => (
-                          <FollowedAccountCard
-                            key={account.did}
-                            account={account}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">
-                        None of the accounts you follow have published at.fund
-                        records yet. As more people adopt at.fund, they&apos;ll
-                        show up here automatically.
+                    )}
+                    {filteredEntries.length === 0 && visibleEntries.length > 0 && (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        No entries match this filter.
                       </p>
                     )}
                   </div>
-
-                  {unknownStewards.length > 0 && (
-                    <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
-                      <div className="flex gap-3 border-b border-[var(--discover-border)]/60 bg-[var(--discover-muted)] px-5 py-4 dark:border-amber-500/25">
-                        <span
-                          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--discover)] shadow-sm dark:bg-slate-900/80 dark:text-amber-400"
-                          aria-hidden
-                        >
-                          <Sparkles className="h-5 w-5" strokeWidth={2} />
-                        </span>
-                        <div>
-                          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                            Still learning about these
-                          </h2>
-                          <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-                            Your account has something saved from these tools—we
-                            don&apos;t have give-back links for them yet.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-4 p-5">
-                        {unknownStewards.map((steward) => (
-                          <UnknownStewardCard
-                            key={steward.stewardUri}
-                            steward={steward}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </>
-              )}
-              {scan && (stewardCount > 0 || followedCount > 0) && (
-                <div className="flex flex-wrap gap-2">
-                  {stewardCount > 0 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                      <Heart className="h-3.5 w-3.5 text-[var(--support)]" aria-hidden />
-                      {stewardCount} service{stewardCount === 1 ? '' : 's'}
-                    </span>
-                  )}
-                  {followedCount > 0 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                      <Users className="h-3.5 w-3.5 text-[var(--network)]" aria-hidden />
-                      {followedCount} in network
-                    </span>
-                  )}
-                </div>
               )}
             </section>
 
+            {/* Add more tools */}
             <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-5 dark:border-slate-700 dark:bg-slate-900/30">
               <div className="mb-3 flex items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
                 <PlusCircle className="h-5 w-5 text-[var(--support)]" aria-hidden />
@@ -483,7 +567,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                 />
                 <button
                   type="button"
-                  onClick={() => runScan(parseSelfReportInput())}
+                  onClick={() => runStreamingScan(parseSelfReportInput())}
                   disabled={loading}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
                 >

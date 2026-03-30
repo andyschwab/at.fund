@@ -1,10 +1,9 @@
 'use client'
 
 import { useState, useRef, useMemo } from 'react'
-import type { StewardCardModel } from '@/lib/steward-model'
+import type { StewardEntry, StewardTag } from '@/lib/steward-model'
 import type { DisclosureMeta } from '@/lib/fund-at-records'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
-import type { FollowedAccountCard as FollowedAccountCardModel } from '@/lib/follow-scan'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -20,31 +19,57 @@ import {
   X,
 } from 'lucide-react'
 
-function disclosureMetaFromSteward(s: StewardCardModel): DisclosureMeta {
+const TAG_LABEL: Partial<Record<StewardTag, string>> = {
+  labeler: 'labeler',
+  feed: 'feed',
+  follow: 'follow',
+}
+
+function TagBadges({ tags }: { tags: StewardTag[] }) {
+  const shown = tags.filter((t) => TAG_LABEL[t])
+  if (shown.length === 0) return null
+  return (
+    <div className="mt-0.5 flex flex-wrap gap-1">
+      {shown.map((t) => (
+        <span
+          key={t}
+          className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-1.5 py-px text-[10px] font-medium leading-4 text-slate-400 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500"
+        >
+          {TAG_LABEL[t]}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function disclosureMetaFromEntry(e: StewardEntry): DisclosureMeta {
   return {
-    displayName: s.displayName,
-    description: s.description,
-    landingPage: s.landingPage,
-    contactGeneralUrl: s.contactGeneralUrl,
-    contactGeneralHandle: s.contactGeneralHandle,
-    contactGeneralEmail: s.contactGeneralEmail,
-    contactPressUrl: s.contactPressUrl,
-    contactPressEmail: s.contactPressEmail,
-    securityPolicyUri: s.securityPolicyUri,
-    securityContactUri: s.securityContactUri,
-    privacyPolicyUri: s.privacyPolicyUri,
-    termsOfServiceUri: s.termsOfServiceUri,
-    donorTermsUri: s.donorTermsUri,
-    taxDisclosureUri: s.taxDisclosureUri,
-    softwareLicenseUri: s.softwareLicenseUri,
+    displayName: e.displayName,
+    description: e.description,
+    landingPage: e.landingPage,
+    contactGeneralUrl: e.contactGeneralUrl,
+    contactGeneralHandle: e.contactGeneralHandle,
+    contactGeneralEmail: e.contactGeneralEmail,
+    contactPressUrl: e.contactPressUrl,
+    contactPressEmail: e.contactPressEmail,
+    securityPolicyUri: e.securityPolicyUri,
+    securityContactUri: e.securityContactUri,
+    securityContactEmail: e.securityContactEmail,
+    legalEntityName: e.legalEntityName,
+    jurisdiction: e.jurisdiction,
+    privacyPolicyUri: e.privacyPolicyUri,
+    termsOfServiceUri: e.termsOfServiceUri,
+    donorTermsUri: e.donorTermsUri,
+    taxDisclosureUri: e.taxDisclosureUri,
+    softwareLicenseUri: e.softwareLicenseUri,
   }
 }
 
-/** Hostname-like steward URI → https URL for globe fallback. */
-function websiteFallbackForStewardUri(stewardUri: string): string | undefined {
-  if (stewardUri.startsWith('did:')) return undefined
-  if (stewardUri.includes('/') || stewardUri.includes(':')) return undefined
-  if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(stewardUri)) return `https://${stewardUri}`
+/** URI → https fallback URL for hostname-shaped URIs (not DIDs). */
+function websiteFallbackForUri(uri: string): string | undefined {
+  if (uri.startsWith('did:')) return undefined
+  if (uri.includes('/') || uri.includes(':')) return undefined
+  if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(uri)) return `https://${uri}`
   return undefined
 }
 
@@ -132,7 +157,7 @@ function StewardNameHeading({
 }: {
   name: string
   websiteUrl?: string
-  linkVariant: 'support' | 'discover' | 'sky'
+  linkVariant: 'support' | 'discover' | 'sky' | 'network'
 }) {
   const base =
     'min-w-0 flex-1 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100'
@@ -142,9 +167,11 @@ function StewardNameHeading({
   const hover =
     linkVariant === 'support'
       ? 'hover:text-[var(--support)] hover:decoration-[var(--support-border)]'
-      : linkVariant === 'discover'
-        ? 'hover:text-[var(--discover)] hover:decoration-amber-500/50 dark:hover:text-amber-400'
-        : 'hover:text-sky-700 hover:decoration-sky-500/50 dark:hover:text-sky-400'
+      : linkVariant === 'network'
+        ? 'hover:text-[var(--network)] hover:decoration-[var(--network-border)]'
+        : linkVariant === 'discover'
+          ? 'hover:text-[var(--discover)] hover:decoration-amber-500/50 dark:hover:text-amber-400'
+          : 'hover:text-sky-700 hover:decoration-sky-500/50 dark:hover:text-sky-400'
 
   return (
     <h3 className="min-w-0 flex-1">
@@ -202,7 +229,7 @@ function DisclosureReportRow({ slots }: { slots: DisclosureSlot[] }) {
 
 type ModalState = {
   uri: string
-  steward: StewardCardModel | null
+  entry: StewardEntry | null
   loading: boolean
   error: string | null
 }
@@ -210,13 +237,13 @@ type ModalState = {
 type HeartState = 'direct' | 'dependency' | 'none'
 
 /**
- * 'dependency' only fires when at least one listed dep resolves to a steward
+ * 'dependency' only fires when at least one listed dep resolves to an entry
  * with a contribution link — so we never imply actionability we can't back up.
  */
 function heartState(
   links: import('@/lib/fund-at-records').FundLink[] | undefined,
   dependencies: string[] | undefined,
-  lookup?: (uri: string) => StewardCardModel | undefined,
+  lookup?: (uri: string) => StewardEntry | undefined,
 ): HeartState {
   if (links?.[0]) return 'direct'
   if (dependencies?.length && lookup) {
@@ -226,15 +253,15 @@ function heartState(
 }
 
 function depRowTier(
-  s: StewardCardModel | undefined,
-  lookup?: (uri: string) => StewardCardModel | undefined,
+  e: StewardEntry | undefined,
+  lookup?: (uri: string) => StewardEntry | undefined,
 ): number {
-  if (!s) return 2
-  if (s.links?.[0]) return 0
+  if (!e) return 2
+  if (e.links?.[0]) return 0
   if (
-    s.dependencies?.length &&
+    e.dependencies?.length &&
     lookup &&
-    s.dependencies.some((uri) => !!(lookup(uri)?.links?.[0]))
+    e.dependencies.some((uri) => !!(lookup(uri)?.links?.[0]))
   )
     return 1
   return 2
@@ -243,18 +270,18 @@ function depRowTier(
 /** A single row in the "Depends on" inset section. */
 function DependencyRow({
   depUri,
-  steward,
+  entry,
   state,
   onExpand,
 }: {
   depUri: string
-  steward?: StewardCardModel
+  entry?: StewardEntry
   state: HeartState
   onExpand: () => void
 }) {
-  const contributeLink = steward?.links?.[0]
-  const name = steward?.displayName ?? depUri
-  const websiteUrl = steward?.landingPage ?? websiteFallbackForStewardUri(depUri)
+  const contributeLink = entry?.links?.[0]
+  const name = entry?.displayName ?? depUri
+  const websiteUrl = entry?.landingPage ?? websiteFallbackForUri(depUri)
 
   return (
     <div className="flex items-center gap-2 py-1.5">
@@ -313,21 +340,21 @@ function DependencyRow({
   )
 }
 
-/** Card content rendered inside the modal — same layout as KnownStewardCard but without the outer article shell. */
+/** Card content rendered inside the modal — same layout as the main card but without the outer article shell. */
 function ModalCardContent({
-  steward,
+  entry,
   onExpandDep,
   lookup,
 }: {
-  steward: StewardCardModel
+  entry: StewardEntry
   onExpandDep: (uri: string) => void
-  lookup?: (uri: string) => StewardCardModel | undefined
+  lookup?: (uri: string) => StewardEntry | undefined
 }) {
-  const contributeLink = steward.links?.[0]
-  const state = heartState(steward.links, steward.dependencies, lookup)
-  const websiteFallback = websiteFallbackForStewardUri(steward.stewardUri)
-  const disclosure = disclosureMetaFromSteward(steward)
-  const websiteUrl = steward.landingPage ?? websiteFallback
+  const contributeLink = entry.links?.[0]
+  const state = heartState(entry.links, entry.dependencies, lookup)
+  const websiteFallback = websiteFallbackForUri(entry.uri)
+  const disclosure = disclosureMetaFromEntry(entry)
+  const websiteUrl = entry.landingPage ?? websiteFallback
   const disclosureSlots = buildDisclosureSlots(disclosure, websiteFallback)
 
   return (
@@ -364,7 +391,7 @@ function ModalCardContent({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start gap-2">
             <StewardNameHeading
-              name={steward.displayName}
+              name={entry.displayName}
               websiteUrl={websiteUrl}
               linkVariant="support"
             />
@@ -372,28 +399,28 @@ function ModalCardContent({
               <DisclosureReportRow slots={disclosureSlots} />
             </div>
           </div>
-          {steward.description && (
+          {entry.description && (
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-              {steward.description}
+              {entry.description}
             </p>
           )}
         </div>
       </div>
 
-      {steward.dependencies && steward.dependencies.length > 0 && (
+      {entry.dependencies && entry.dependencies.length > 0 && (
         <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/30">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
             Depends on
           </p>
           <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-            {steward.dependencies.map((depUri) => {
-              const depSteward = lookup?.(depUri)
+            {entry.dependencies.map((depUri) => {
+              const depEntry = lookup?.(depUri)
               return (
                 <DependencyRow
                   key={depUri}
                   depUri={depUri}
-                  steward={depSteward}
-                  state={heartState(depSteward?.links, depSteward?.dependencies, lookup)}
+                  entry={depEntry}
+                  state={heartState(depEntry?.links, depEntry?.dependencies, lookup)}
                   onExpand={() => onExpandDep(depUri)}
                 />
               )
@@ -407,48 +434,46 @@ function ModalCardContent({
 
 /**
  * Inset "Depends on" rows with a shared drill-down modal.
- * Clicking any row's arrow fetches that dependency and shows it in the modal.
- * Clicking a nested dependency arrow replaces the modal content.
  */
 function DependenciesSection({
   dependencies,
-  allStewards,
+  allEntries,
 }: {
   dependencies: string[]
-  allStewards: StewardCardModel[]
+  allEntries: StewardEntry[]
 }) {
   const [modal, setModal] = useState<ModalState | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
 
-  const stewardByUri = useMemo(
-    () => new Map(allStewards.map((s) => [s.stewardUri, s])),
-    [allStewards],
+  const entryByUri = useMemo(
+    () => new Map(allEntries.map((e) => [e.uri, e])),
+    [allEntries],
   )
 
-  const lookup = (uri: string) => stewardByUri.get(uri)
+  const lookup = (uri: string) => entryByUri.get(uri)
 
   const sortedDependencies = useMemo(
     () =>
       [...dependencies].sort(
-        (a, b) => depRowTier(stewardByUri.get(a), lookup) - depRowTier(stewardByUri.get(b), lookup),
+        (a, b) => depRowTier(entryByUri.get(a), lookup) - depRowTier(entryByUri.get(b), lookup),
       ),
-    [dependencies, stewardByUri],
+    [dependencies, entryByUri],
   )
 
   async function openDep(uri: string) {
-    setModal({ uri, steward: null, loading: true, error: null })
+    setModal({ uri, entry: null, loading: true, error: null })
     if (!dialogRef.current?.open) {
       dialogRef.current?.showModal()
     }
     try {
       const res = await fetch(`/api/steward?uri=${encodeURIComponent(uri)}`)
-      const data = await res.json() as StewardCardModel | { error: string }
+      const data = await res.json() as StewardEntry | { error: string }
       if (!res.ok) throw new Error('error' in data ? data.error : 'Failed to load')
-      setModal({ uri, steward: data as StewardCardModel, loading: false, error: null })
+      setModal({ uri, entry: data as StewardEntry, loading: false, error: null })
     } catch (e) {
       setModal({
         uri,
-        steward: null,
+        entry: null,
         loading: false,
         error: e instanceof Error ? e.message : 'Failed to load details',
       })
@@ -468,13 +493,13 @@ function DependenciesSection({
         </p>
         <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
           {sortedDependencies.map((depUri) => {
-            const depSteward = stewardByUri.get(depUri)
+            const depEntry = entryByUri.get(depUri)
             return (
               <DependencyRow
                 key={depUri}
                 depUri={depUri}
-                steward={depSteward}
-                state={heartState(depSteward?.links, depSteward?.dependencies, lookup)}
+                entry={depEntry}
+                state={heartState(depEntry?.links, depEntry?.dependencies, lookup)}
                 onExpand={() => openDep(depUri)}
               />
             )
@@ -491,7 +516,7 @@ function DependenciesSection({
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-950">
           <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-300">
-            {modal?.steward?.displayName ?? modal?.uri ?? ''}
+            {modal?.entry?.displayName ?? modal?.uri ?? ''}
           </p>
           <button
             type="button"
@@ -509,13 +534,28 @@ function DependenciesSection({
           {modal?.error && (
             <p className="text-sm text-red-600 dark:text-red-400">{modal.error}</p>
           )}
-          {modal?.steward && (
-            <ModalCardContent steward={modal.steward} onExpandDep={openDep} lookup={lookup} />
+          {modal?.entry && (
+            <ModalCardContent entry={modal.entry} onExpandDep={openDep} lookup={lookup} />
           )}
         </div>
       </dialog>
     </>
   )
+}
+
+// ---------------------------------------------------------------------------
+// Card visual variant helpers
+// ---------------------------------------------------------------------------
+
+type CardVariant = 'support' | 'network' | 'discover'
+
+function cardVariant(entry: StewardEntry): CardVariant {
+  if (entry.source === 'unknown') return 'discover'
+  const hasPrimaryTag = entry.tags.some(
+    (t) => t === 'tool' || t === 'labeler' || t === 'feed',
+  )
+  if (!hasPrimaryTag && entry.tags.includes('follow')) return 'network'
+  return 'support'
 }
 
 // ---------------------------------------------------------------------------
@@ -532,7 +572,7 @@ export function PdsHostSupportCard({
   const disclosure = funding?.disclosure
   const pdsStewardLabel = funding?.pdsStewardHandle ?? funding?.pdsStewardUri
   const stewardWebsiteFallback = funding?.pdsStewardUri
-    ? websiteFallbackForStewardUri(funding.pdsStewardUri)
+    ? websiteFallbackForUri(funding.pdsStewardUri)
     : undefined
   const title =
     disclosure?.displayName ??
@@ -611,26 +651,156 @@ export function PdsHostSupportCard({
   )
 }
 
-export function KnownStewardCard({
-  steward,
-  allStewards = [],
+/**
+ * Unified steward card. Renders as one of three visual variants based on the
+ * entry's tags and source:
+ *   - 'support' (tool/labeler/feed): warm contribution-focused style
+ *   - 'network' (follow-only):       network/teal style
+ *   - 'discover' (unknown):          amber discovery style
+ *
+ * When an entry carries both a primary tag (tool/labeler/feed) and a follow
+ * tag, the support variant is used and a Bluesky profile link is shown.
+ */
+export function StewardCard({
+  entry,
+  allEntries = [],
 }: {
-  steward: StewardCardModel
-  allStewards?: StewardCardModel[]
+  entry: StewardEntry
+  allEntries?: StewardEntry[]
 }) {
-  const contributeLink = steward.links?.[0]
-  const stewardByUri = useMemo(
-    () => new Map(allStewards.map((s) => [s.stewardUri, s])),
-    [allStewards],
-  )
-  const lookup = (uri: string) => stewardByUri.get(uri)
-  const state = heartState(steward.links, steward.dependencies, lookup)
-  const websiteFallback = websiteFallbackForStewardUri(steward.stewardUri)
-  const disclosure = disclosureMetaFromSteward(steward)
-  const websiteUrl = steward.landingPage ?? websiteFallback
+  const variant = cardVariant(entry)
+  const isFollow = entry.tags.includes('follow')
+  const contributeLink = entry.links?.[0]
 
+  const entryByUri = useMemo(
+    () => new Map(allEntries.map((e) => [e.uri, e])),
+    [allEntries],
+  )
+  const lookup = (uri: string) => entryByUri.get(uri)
+  const state = heartState(entry.links, entry.dependencies, lookup)
+
+  const websiteFallback = websiteFallbackForUri(entry.uri)
+  const disclosure = disclosureMetaFromEntry(entry)
+  const websiteUrl = entry.landingPage ?? websiteFallback
   const disclosureSlots = buildDisclosureSlots(disclosure, websiteFallback)
 
+  // Profile URL for follow-tagged entries
+  const profileUrl = entry.handle
+    ? `https://bsky.app/profile/${encodeURIComponent(entry.handle)}`
+    : entry.did
+      ? `https://bsky.app/profile/${encodeURIComponent(entry.did)}`
+      : undefined
+
+  if (variant === 'discover') {
+    return (
+      <article className="relative overflow-hidden rounded-xl border border-dashed border-[var(--discover-border)] bg-[var(--discover-muted)] p-4 pl-5 before:absolute before:inset-y-3 before:left-0 before:w-1 before:rounded-full before:bg-[var(--discover)] before:content-[''] dark:border-amber-500/35 dark:bg-amber-500/[0.07]">
+        <div className="flex gap-3">
+          <div className="flex shrink-0 flex-col items-center gap-1">
+            <span
+              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
+              title="No contribution link yet"
+            >
+              <Heart className="h-8 w-8" strokeWidth={1.5} aria-hidden />
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-start gap-2">
+              <StewardNameHeading
+                name={entry.displayName}
+                websiteUrl={websiteUrl}
+                linkVariant="discover"
+              />
+              <div className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-x-auto sm:max-w-none">
+                <DisclosureReportRow slots={disclosureSlots} />
+              </div>
+              <Link
+                href="/maintainers"
+                className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                title="Maintainers"
+                aria-label="Maintainers"
+              >
+                <Cog className="h-5 w-5" strokeWidth={2} aria-hidden />
+              </Link>
+            </div>
+            <TagBadges tags={entry.tags} />
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+              Your account has saved something from this service—we don&apos;t have
+              details about it yet.{' '}
+              <Link
+                href="/maintainers"
+                className="font-medium text-[var(--discover)] underline underline-offset-2 dark:text-amber-400"
+              >
+                How projects get listed
+              </Link>
+            </p>
+          </div>
+        </div>
+      </article>
+    )
+  }
+
+  if (variant === 'network') {
+    return (
+      <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--network-border)] bg-gradient-to-br from-[var(--network-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--network-muted)] dark:to-slate-950">
+        <div className="flex gap-3">
+          <div className="flex shrink-0 flex-col items-center gap-1">
+            {contributeLink ? (
+              <a
+                href={contributeLink.url}
+                target="_blank"
+                rel="noreferrer"
+                title={contributeLink.label}
+                className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--network)] text-white shadow-sm transition-opacity hover:opacity-90"
+              >
+                <Heart className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
+                <span className="sr-only">{contributeLink.label}</span>
+              </a>
+            ) : (
+              <span
+                className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
+                title="No contribution link published"
+              >
+                <Heart className="h-8 w-8" strokeWidth={1.5} aria-hidden />
+              </span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-start gap-2">
+              <h3 className="min-w-0 flex-1">
+                {profileUrl ? (
+                  <a
+                    href={profileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block truncate rounded-sm text-base font-semibold tracking-tight text-slate-900 underline decoration-slate-300 decoration-1 underline-offset-2 transition-colors hover:text-[var(--network)] hover:decoration-[var(--network-border)] dark:text-slate-100 dark:decoration-slate-600"
+                  >
+                    {entry.displayName}
+                  </a>
+                ) : (
+                  <span className="block truncate text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+                    {entry.displayName}
+                  </span>
+                )}
+              </h3>
+              {entry.handle && (
+                <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
+                  @{entry.handle}
+                </span>
+              )}
+            </div>
+            <TagBadges tags={entry.tags} />
+            {entry.description && (
+              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                {entry.description}
+              </p>
+            )}
+          </div>
+        </div>
+      </article>
+    )
+  }
+
+  // variant === 'support'
   return (
     <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--support-border)] bg-gradient-to-br from-[var(--support-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--support-muted)] dark:to-slate-950">
       <div className="flex gap-3">
@@ -643,11 +813,7 @@ export function KnownStewardCard({
               title={contributeLink!.label}
               className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
             >
-              <Heart
-                className="h-8 w-8 fill-current"
-                strokeWidth={0}
-                aria-hidden
-              />
+              <Heart className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
               <span className="sr-only">{contributeLink!.label}</span>
             </a>
           ) : state === 'dependency' ? (
@@ -669,133 +835,26 @@ export function KnownStewardCard({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start gap-2">
             <StewardNameHeading
-              name={steward.displayName}
+              name={entry.displayName}
               websiteUrl={websiteUrl}
               linkVariant="support"
             />
             <div className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-x-auto sm:max-w-none">
               <DisclosureReportRow slots={disclosureSlots} />
             </div>
-            <Link
-              href="/maintainers"
-              className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              title="Maintainers"
-              aria-label="Maintainers"
-            >
-              <Cog className="h-5 w-5" strokeWidth={2} aria-hidden />
-            </Link>
-          </div>
-          {steward.description && (
-            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-              {steward.description}
-            </p>
-          )}
-          {steward.dependencies && steward.dependencies.length > 0 && (
-            <DependenciesSection
-              dependencies={steward.dependencies}
-              allStewards={allStewards}
-            />
-          )}
-        </div>
-      </div>
-    </article>
-  )
-}
-
-export function FollowedAccountCard({
-  account,
-}: {
-  account: FollowedAccountCardModel
-}) {
-  const contributeLink = account.links?.[0]
-  const displayName = account.displayName ?? account.handle ?? account.did
-  const profileUrl = account.handle
-    ? `https://bsky.app/profile/${encodeURIComponent(account.handle)}`
-    : `https://bsky.app/profile/${encodeURIComponent(account.did)}`
-
-  return (
-    <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--network-border)] bg-gradient-to-br from-[var(--network-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--network-muted)] dark:to-slate-950">
-      <div className="flex gap-3">
-        <div className="flex shrink-0 flex-col items-center gap-1">
-          {contributeLink ? (
-            <a
-              href={contributeLink.url}
-              target="_blank"
-              rel="noreferrer"
-              title={contributeLink.label}
-              className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--network)] text-white shadow-sm transition-opacity hover:opacity-90"
-            >
-              <Heart
-                className="h-8 w-8 fill-current"
-                strokeWidth={0}
-                aria-hidden
-              />
-              <span className="sr-only">{contributeLink.label}</span>
-            </a>
-          ) : (
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-              title="No contribution link published"
-            >
-              <Heart className="h-8 w-8" strokeWidth={1.5} aria-hidden />
-            </span>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start gap-2">
-            <h3 className="min-w-0 flex-1">
+            {/* Show Bluesky profile link for entries that are also a follow */}
+            {isFollow && profileUrl && (
               <a
                 href={profileUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="block truncate rounded-sm text-base font-semibold tracking-tight text-slate-900 underline decoration-slate-300 decoration-1 underline-offset-2 transition-colors hover:text-[var(--network)] hover:decoration-[var(--network-border)] dark:text-slate-100 dark:decoration-slate-600"
+                title={`@${entry.handle ?? entry.did} on Bluesky`}
+                className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               >
-                {displayName}
+                <AtSign className="h-5 w-5" strokeWidth={2} aria-hidden />
+                <span className="sr-only">Bluesky profile</span>
               </a>
-            </h3>
-            {account.handle && (
-              <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
-                @{account.handle}
-              </span>
             )}
-          </div>
-          {account.description && (
-            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-              {account.description}
-            </p>
-          )}
-        </div>
-      </div>
-    </article>
-  )
-}
-
-export function UnknownStewardCard({ steward }: { steward: StewardCardModel }) {
-  const websiteFallback = websiteFallbackForStewardUri(steward.stewardUri)
-  const websiteUrl = steward.landingPage ?? websiteFallback
-  const disclosureSlots = buildDisclosureSlots(undefined, websiteFallback)
-
-  return (
-    <article className="relative overflow-hidden rounded-xl border border-dashed border-[var(--discover-border)] bg-[var(--discover-muted)] p-4 pl-5 before:absolute before:inset-y-3 before:left-0 before:w-1 before:rounded-full before:bg-[var(--discover)] before:content-[''] dark:border-amber-500/35 dark:bg-amber-500/[0.07]">
-      <div className="flex gap-3">
-        <div className="flex shrink-0 flex-col items-center gap-1">
-          <span
-            className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-            title="No contribution link yet"
-          >
-            <Heart className="h-8 w-8" strokeWidth={1.5} aria-hidden />
-          </span>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start gap-2">
-            <StewardNameHeading
-              name={steward.displayName}
-              websiteUrl={websiteUrl}
-              linkVariant="discover"
-            />
-            <div className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-x-auto sm:max-w-none">
-              <DisclosureReportRow slots={disclosureSlots} />
-            </div>
             <Link
               href="/maintainers"
               className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
@@ -805,16 +864,18 @@ export function UnknownStewardCard({ steward }: { steward: StewardCardModel }) {
               <Cog className="h-5 w-5" strokeWidth={2} aria-hidden />
             </Link>
           </div>
-          <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-            Your account has saved something from this service—we don&apos;t have
-            details about it yet.{' '}
-            <Link
-              href="/maintainers"
-              className="font-medium text-[var(--discover)] underline underline-offset-2 dark:text-amber-400"
-            >
-              How projects get listed
-            </Link>
-          </p>
+          <TagBadges tags={entry.tags} />
+          {entry.description && (
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+              {entry.description}
+            </p>
+          )}
+          {entry.dependencies && entry.dependencies.length > 0 && (
+            <DependenciesSection
+              dependencies={entry.dependencies}
+              allEntries={allEntries}
+            />
+          )}
         </div>
       </div>
     </article>
