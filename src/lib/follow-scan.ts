@@ -3,7 +3,6 @@ import type { FundLink } from '@/lib/fund-at-records'
 import { lookupManualStewardByHandle } from '@/lib/catalog'
 import { logger } from '@/lib/logger'
 
-const SLINGSHOT = 'https://slingshot.microcosm.blue'
 const PUBLIC_API = 'https://public.api.bsky.app'
 const FUND_DISCLOSURE = 'fund.at.disclosure'
 const FUND_CONTRIBUTE = 'fund.at.contribute'
@@ -18,23 +17,9 @@ export type FollowedAccountCard = {
   links?: FundLink[]
 }
 
-type SlingshotRecord = {
-  value: Record<string, unknown>
-}
-
 type FollowRef = {
   did: string
   handle?: string
-}
-
-async function fetchJson<T>(url: string): Promise<T | null> {
-  try {
-    const res = await fetch(url)
-    if (!res.ok) return null
-    return (await res.json()) as T
-  } catch {
-    return null
-  }
 }
 
 function readLinks(value: Record<string, unknown>): FundLink[] {
@@ -67,27 +52,50 @@ function readDisclosureMeta(value: Record<string, unknown>): {
   }
 }
 
-async function checkFollowForFundAt(follow: FollowRef): Promise<FollowedAccountCard | null> {
+async function checkFollowForFundAt(
+  follow: FollowRef,
+  agent: Agent,
+): Promise<FollowedAccountCard | null> {
   const { did, handle } = follow
 
-  // Try fund.at records on Slingshot first
-  const disclosureUrl = `${SLINGSHOT}/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(did)}&collection=${FUND_DISCLOSURE}&rkey=self`
-  const disclosure = await fetchJson<SlingshotRecord>(disclosureUrl)
-  if (disclosure?.value) {
-    const meta = readDisclosureMeta(disclosure.value)
-    if (meta.displayName || meta.description || meta.landingPage) {
-      const contributeUrl = `${SLINGSHOT}/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(did)}&collection=${FUND_CONTRIBUTE}&rkey=self`
-      const contribute = await fetchJson<SlingshotRecord>(contributeUrl)
-      const links = contribute?.value ? readLinks(contribute.value) : undefined
-      return {
-        did,
-        handle,
-        displayName: meta.displayName,
-        description: meta.description,
-        landingPage: meta.landingPage,
-        links: links && links.length > 0 ? links : undefined,
+  // Try fund.at records via the authenticated agent
+  try {
+    const discRes = await agent.com.atproto.repo.getRecord({
+      repo: did,
+      collection: FUND_DISCLOSURE,
+      rkey: 'self',
+    })
+    const discValue = discRes.data.value as Record<string, unknown> | undefined
+    if (discValue) {
+      const meta = readDisclosureMeta(discValue)
+      if (meta.displayName || meta.description || meta.landingPage) {
+        let links: FundLink[] | undefined
+        try {
+          const contRes = await agent.com.atproto.repo.getRecord({
+            repo: did,
+            collection: FUND_CONTRIBUTE,
+            rkey: 'self',
+          })
+          const contValue = contRes.data.value as Record<string, unknown> | undefined
+          if (contValue) {
+            const l = readLinks(contValue)
+            if (l.length > 0) links = l
+          }
+        } catch {
+          // no contribute record
+        }
+        return {
+          did,
+          handle,
+          displayName: meta.displayName,
+          description: meta.description,
+          landingPage: meta.landingPage,
+          links,
+        }
       }
     }
+  } catch {
+    // no disclosure record or fetch failed
   }
 
   // Fall back to manual catalog by handle
@@ -129,21 +137,25 @@ async function runWithConcurrency<T, R>(
 }
 
 /**
- * Fetches the user's follow list and checks each for fund.at records via Slingshot,
- * falling back to the manual catalog for users identified by their handle.
- * Uses the public Bluesky API for the follow list (no special OAuth scopes needed).
+ * Fetches the user's follow list and checks each for fund.at records using
+ * the provided authenticated agent, falling back to the manual catalog for
+ * users identified by their handle.
  * Returns only followed accounts that have fund.at.disclosure records or a catalog entry.
  */
 export async function scanFollows(
   did: string,
+  agent?: Agent,
 ): Promise<FollowedAccountCard[]> {
-  const agent = new Agent(PUBLIC_API)
+  const readAgent = agent ?? new Agent(PUBLIC_API)
+  // getFollows is a public Bluesky AppView endpoint — always use the public
+  // agent to avoid needing the rpc:app.bsky.graph.getFollows scope.
+  const publicAgent = new Agent(PUBLIC_API)
 
-  // Paginate through follows via public API, keeping handle alongside DID
+  // Paginate through follows, keeping handle alongside DID
   const follows: FollowRef[] = []
   let cursor: string | undefined
   do {
-    const res = await agent.app.bsky.graph.getFollows({
+    const res = await publicAgent.app.bsky.graph.getFollows({
       actor: did,
       limit: 100,
       cursor,
@@ -164,7 +176,7 @@ export async function scanFollows(
   // Check each follow for fund.at records or manual catalog entry
   const results = await runWithConcurrency(follows, CONCURRENCY, async (follow) => {
     try {
-      return await checkFollowForFundAt(follow)
+      return await checkFollowForFundAt(follow, readAgent)
     } catch (e) {
       logger.warn('follow-scan: error checking follow', {
         did: follow.did,

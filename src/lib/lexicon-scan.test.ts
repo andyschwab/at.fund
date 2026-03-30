@@ -69,15 +69,16 @@ vi.mock('@/lib/atfund-uri', () => ({
 }))
 
 // Mock fund-at-records identity resolution
-vi.mock('@/lib/fund-at-records', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./fund-at-records')>()
-  return {
-    ...actual,
-    resolveHandleFromDid: vi.fn().mockResolvedValue(undefined),
-    resolveDidFromIdentifier: vi.fn().mockResolvedValue(undefined),
-    resolvePdsUrl: vi.fn().mockResolvedValue(null),
-  }
-})
+vi.mock('@/lib/fund-at-records', () => ({
+  resolveHandleFromDid: vi.fn().mockResolvedValue(undefined),
+  resolveDidFromIdentifier: vi.fn().mockResolvedValue(undefined),
+  resolvePdsUrl: vi.fn().mockResolvedValue(null),
+  fetchOwnFundAtRecords: vi.fn().mockResolvedValue(null),
+  fetchFundAtRecords: vi.fn().mockResolvedValue(null),
+  extractDisclosureMeta: () => null,
+  isHostScopedDependency: () => true,
+  allowlistedForDomain: () => true,
+}))
 
 import { scanRepo } from './lexicon-scan'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'

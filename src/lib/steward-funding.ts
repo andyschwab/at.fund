@@ -1,3 +1,4 @@
+import { Agent } from '@atproto/api'
 import { fetchFundAtRecords } from '@/lib/fund-at-records'
 import type { FundLink, DisclosureMeta } from '@/lib/fund-at-records'
 
@@ -17,8 +18,9 @@ export type StewardFundAt = {
  */
 export async function fetchFundAtForStewardDid(
   stewardDid: string,
+  agent?: Agent,
 ): Promise<StewardFundAt | null> {
-  const result = await fetchFundAtRecords(stewardDid)
+  const result = await fetchFundAtRecords(stewardDid, undefined, agent)
   if (!result) return null
   return { stewardDid, ...result }
 }

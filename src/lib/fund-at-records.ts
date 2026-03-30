@@ -305,17 +305,23 @@ export async function resolvePdsUrl(stewardDid: string): Promise<URL | null> {
 export async function fetchFundAtRecords(
   stewardDid: string,
   domainFilter?: string,
+  agent?: Agent,
 ): Promise<FundAtResult | null> {
-  const pdsUrl = await resolvePdsUrl(stewardDid)
-  if (!pdsUrl) return null
+  let readAgent: Agent
+  if (agent) {
+    readAgent = agent
+  } else {
+    const pdsUrl = await resolvePdsUrl(stewardDid)
+    if (!pdsUrl) return null
+    readAgent = new Agent(pdsUrl.origin)
+  }
 
-  const agent = new Agent(pdsUrl.origin)
   const filter = (vals: RawValue[]) =>
     domainFilter ? vals.filter((v) => allowlistedForDomain(v, domainFilter)) : vals
 
   let contributeValues: RawValue[] = []
   try {
-    const listed = await agent.com.atproto.repo.listRecords({
+    const listed = await readAgent.com.atproto.repo.listRecords({
       repo: stewardDid,
       collection: FUND_CONTRIBUTE,
       limit: 100,
@@ -330,7 +336,7 @@ export async function fetchFundAtRecords(
 
   let disclosure: DisclosureMeta | undefined
   try {
-    const discListed = await agent.com.atproto.repo.listRecords({
+    const discListed = await readAgent.com.atproto.repo.listRecords({
       repo: stewardDid,
       collection: FUND_DISCLOSURE,
       limit: 50,
@@ -347,7 +353,7 @@ export async function fetchFundAtRecords(
   let dependencyUris: string[] | undefined
   let dependencyNotes: string | undefined
   try {
-    const depListed = await agent.com.atproto.repo.listRecords({
+    const depListed = await readAgent.com.atproto.repo.listRecords({
       repo: stewardDid,
       collection: FUND_DEPENDENCIES,
       limit: 100,
