@@ -167,6 +167,9 @@ export async function POST(request: NextRequest) {
   const client = new Client(session)
   const effectiveDate = l.toDatetimeString(new Date())
 
+  /** Cast a validated string to a branded URI type. */
+  const uri = (v: string) => l.asStringFormat(v, 'uri')
+
   try {
     // Build optional nested objects
     const hasGeneralContact =
@@ -187,7 +190,7 @@ export async function POST(request: NextRequest) {
       meta: {
         ...(payload.displayName && { displayName: payload.displayName }),
         ...(payload.description && { description: payload.description }),
-        ...(payload.landingPage && { landingPage: payload.landingPage }),
+        ...(payload.landingPage && { landingPage: uri(payload.landingPage) }),
       },
       effectiveDate,
       ...((hasGeneralContact || hasPressContact) && {
@@ -196,33 +199,33 @@ export async function POST(request: NextRequest) {
             general: {
               ...(payload.contactHandle && { handle: payload.contactHandle }),
               ...(payload.contactEmail && { email: payload.contactEmail }),
-              ...(payload.contactUrl && { url: payload.contactUrl }),
+              ...(payload.contactUrl && { url: uri(payload.contactUrl) }),
             },
           }),
           ...(hasPressContact && {
             press: {
               ...(payload.pressEmail && { email: payload.pressEmail }),
-              ...(payload.pressUrl && { url: payload.pressUrl }),
+              ...(payload.pressUrl && { url: uri(payload.pressUrl) }),
             },
           }),
         },
       }),
       ...(hasSecurity && {
         security: {
-          ...(payload.securityPolicyUri && { policyUri: payload.securityPolicyUri }),
+          ...(payload.securityPolicyUri && { policyUri: uri(payload.securityPolicyUri) }),
           ...(payload.securityContactEmail && { contactEmail: payload.securityContactEmail }),
-          ...(payload.securityContactUri && { contactUri: payload.securityContactUri }),
+          ...(payload.securityContactUri && { contactUri: uri(payload.securityContactUri) }),
         },
       }),
       ...(hasLegal && {
         legal: {
           ...(payload.jurisdiction && { jurisdiction: payload.jurisdiction }),
           ...(payload.legalEntityName && { legalEntityName: payload.legalEntityName }),
-          ...(payload.termsOfServiceUri && { termsOfServiceUri: payload.termsOfServiceUri }),
-          ...(payload.privacyPolicyUri && { privacyPolicyUri: payload.privacyPolicyUri }),
-          ...(payload.donorTermsUri && { donorTermsUri: payload.donorTermsUri }),
-          ...(payload.taxDisclosureUri && { taxDisclosureUri: payload.taxDisclosureUri }),
-          ...(payload.softwareLicenseUri && { softwareLicenseUri: payload.softwareLicenseUri }),
+          ...(payload.termsOfServiceUri && { termsOfServiceUri: uri(payload.termsOfServiceUri) }),
+          ...(payload.privacyPolicyUri && { privacyPolicyUri: uri(payload.privacyPolicyUri) }),
+          ...(payload.donorTermsUri && { donorTermsUri: uri(payload.donorTermsUri) }),
+          ...(payload.taxDisclosureUri && { taxDisclosureUri: uri(payload.taxDisclosureUri) }),
+          ...(payload.softwareLicenseUri && { softwareLicenseUri: uri(payload.softwareLicenseUri) }),
         },
       }),
     })
@@ -230,7 +233,7 @@ export async function POST(request: NextRequest) {
     // Write fund.at.contribute if links are provided
     if (payload.links && payload.links.length > 0) {
       await client.create(fund.at.contribute, {
-        links: payload.links,
+        links: payload.links.map((lnk) => ({ label: lnk.label, url: uri(lnk.url) })),
         effectiveDate,
       })
     }
