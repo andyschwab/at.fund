@@ -1,9 +1,9 @@
 import { Agent } from '@atproto/api'
-import type { OAuthSession } from '@atproto/oauth-client'
 import type { FundLink } from '@/lib/fund-at-records'
 import { logger } from '@/lib/logger'
 
 const SLINGSHOT = 'https://slingshot.microcosm.blue'
+const PUBLIC_API = 'https://public.api.bsky.app'
 const FUND_DISCLOSURE = 'fund.at.disclosure'
 const FUND_CONTRIBUTE = 'fund.at.contribute'
 const CONCURRENCY = 10
@@ -117,19 +117,20 @@ async function runWithConcurrency<T, R>(
 
 /**
  * Fetches the user's follow list and checks each for fund.at records via Slingshot.
+ * Uses the public Bluesky API for the follow list (no special OAuth scopes needed).
  * Returns only followed accounts that have fund.at.disclosure records.
  */
 export async function scanFollows(
-  session: OAuthSession,
+  did: string,
 ): Promise<FollowedAccountCard[]> {
-  const agent = new Agent(session)
+  const agent = new Agent(PUBLIC_API)
 
-  // Paginate through follows
+  // Paginate through follows via public API
   const followedDids: string[] = []
   let cursor: string | undefined
   do {
     const res = await agent.app.bsky.graph.getFollows({
-      actor: session.did,
+      actor: did,
       limit: 100,
       cursor,
     })
@@ -140,7 +141,7 @@ export async function scanFollows(
   } while (cursor)
 
   logger.info('follow-scan: fetched follows', {
-    did: session.did,
+    did,
     followCount: followedDids.length,
   })
 
@@ -172,7 +173,7 @@ export async function scanFollows(
   })
 
   logger.info('follow-scan: completed', {
-    did: session.did,
+    did,
     followsChecked: followedDids.length,
     withFundAt: cards.length,
   })

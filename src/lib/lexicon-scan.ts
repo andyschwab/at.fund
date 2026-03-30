@@ -231,7 +231,7 @@ export async function scanRepo(
 
   const followsPromise = (async () => {
     try {
-      followedAccounts = await scanFollows(session)
+      followedAccounts = await scanFollows(session.did)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Follow scan failed'
       logger.warn('scan: follow scan failed', { did: session.did, error: msg })
