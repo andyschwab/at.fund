@@ -363,24 +363,24 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                     </div>
                   )}
 
-                  {followedAccounts.length > 0 && (
-                    <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
-                      <div className="flex gap-3 border-b border-[var(--network-border)]/50 bg-[var(--network-muted)] px-5 py-4 dark:border-[var(--network-border)]/35">
-                        <span
-                          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--network)] shadow-sm dark:bg-slate-900/80"
-                          aria-hidden
-                        >
-                          <Users className="h-5 w-5" strokeWidth={2} />
-                        </span>
-                        <div>
-                          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                            In your network
-                          </h2>
-                          <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-                            People you follow who accept support via at.fund.
-                          </p>
-                        </div>
+                  <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
+                    <div className="flex gap-3 border-b border-[var(--network-border)]/50 bg-[var(--network-muted)] px-5 py-4 dark:border-[var(--network-border)]/35">
+                      <span
+                        className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--network)] shadow-sm dark:bg-slate-900/80"
+                        aria-hidden
+                      >
+                        <Users className="h-5 w-5" strokeWidth={2} />
+                      </span>
+                      <div>
+                        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                          In your network
+                        </h2>
+                        <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+                          People you follow who accept support via at.fund.
+                        </p>
                       </div>
+                    </div>
+                    {followedAccounts.length > 0 ? (
                       <div className="flex flex-col gap-4 p-5">
                         {followedAccounts.map((account) => (
                           <FollowedAccountCard
@@ -389,8 +389,14 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                           />
                         ))}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <p className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">
+                        None of the accounts you follow have published at.fund
+                        records yet. As more people adopt at.fund, they&apos;ll
+                        show up here automatically.
+                      </p>
+                    )}
+                  </div>
 
                   {unknownStewards.length > 0 && (
                     <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
