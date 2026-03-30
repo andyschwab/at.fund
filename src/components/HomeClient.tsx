@@ -59,6 +59,11 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
     [scan?.stewards],
   )
   const followedAccounts = scan?.followedAccounts.filter((a) => a.links?.[0]) ?? []
+  // Merge scanned stewards + resolved dep models so lookup covers deps not in the main scan
+  const allStewardsForLookup = useMemo(
+    () => [...(scan?.stewards ?? []), ...(scan?.referencedStewards ?? [])],
+    [scan?.stewards, scan?.referencedStewards],
+  )
 
   async function login(e: React.FormEvent) {
     e.preventDefault()
@@ -357,7 +362,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                           <KnownStewardCard
                             key={steward.stewardUri}
                             steward={steward}
-                            allStewards={scan.stewards}
+                            allStewards={allStewardsForLookup}
                           />
                         ))}
                       </div>
