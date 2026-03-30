@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { Client, l } from '@atproto/lex'
-import * as fund from '@/lexicons/fund.js'
+import * as fund from '@/lexicons/fund'
 import {
   validateUrl,
   validateEmail,
