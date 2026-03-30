@@ -522,34 +522,6 @@
         }
       }
     },
-    "place.blue": {
-      "disclosure": {
-        "meta": {
-          "displayName": "Blue Place",
-          "description": "Collaborative pixel canvas on ATProto.",
-          "landingPage": "https://place.blue"
-        },
-        "contact": {
-          "general": {
-            "handle": "place.blue"
-          }
-        }
-      }
-    },
-    "podping.org": {
-      "disclosure": {
-        "meta": {
-          "displayName": "Podping",
-          "description": "Podcast update notification system on ATProto. Signals new episodes to aggregators, reducing speculative polling.",
-          "landingPage": "https://podping.org"
-        },
-        "contact": {
-          "general": {
-            "handle": "podping.org"
-          }
-        }
-      }
-    },
     "matadisco.org": {
       "disclosure": {
         "meta": {
