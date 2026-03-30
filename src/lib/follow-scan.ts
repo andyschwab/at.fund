@@ -147,12 +147,15 @@ export async function scanFollows(
   agent?: Agent,
 ): Promise<FollowedAccountCard[]> {
   const readAgent = agent ?? new Agent(PUBLIC_API)
+  // getFollows is a public Bluesky AppView endpoint — always use the public
+  // agent to avoid needing the rpc:app.bsky.graph.getFollows scope.
+  const publicAgent = new Agent(PUBLIC_API)
 
   // Paginate through follows, keeping handle alongside DID
   const follows: FollowRef[] = []
   let cursor: string | undefined
   do {
-    const res = await readAgent.app.bsky.graph.getFollows({
+    const res = await publicAgent.app.bsky.graph.getFollows({
       actor: did,
       limit: 100,
       cursor,
