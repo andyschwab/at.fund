@@ -40,6 +40,7 @@ const safeFetch: typeof globalThis.fetch = async (input, init) => {
 
 export const SCOPE = [
   'atproto',
+  'transition:generic',
   'repo:fund.at.disclosure',
   'repo:fund.at.contribute',
   'repo:fund.at.dependencies',
