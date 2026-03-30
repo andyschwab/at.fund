@@ -7,9 +7,36 @@ import type { NodeSavedSession, NodeSavedState } from '@atproto/oauth-client-nod
 import type { OAuthClientMetadataInput } from '@atproto/oauth-types'
 import { getPublicUrl, isLoopbackPublicUrl } from '@/lib/public-url'
 
-// Capture Node's native fetch before Next.js patches globalThis.fetch.
-// The patched version loses POST request bodies during DPoP nonce retries.
-const nativeFetch = globalThis.fetch
+// Work around Next.js dev-mode fetch patch that breaks DPoP POST retries.
+//
+// Next.js's patchFetch (patch-fetch.js:608-617) reconstructs Request objects
+// by extracting `request.body` (a ReadableStream) and passing it to
+// `new Request(url, { body: readableStream })`. When the ATProto DPoP layer
+// retries a POST after receiving a fresh nonce, the ReadableStream from the
+// first attempt has already been consumed, causing:
+//   "expected non-null body source"
+//
+// Fix: materialise the body and pass (url, init) instead of a Request object.
+// This makes Next.js take the `else if (init)` path, which extracts `init.body`
+// directly — a concrete value that can be re-used across retries.
+const _fetch = globalThis.fetch
+const safeFetch: typeof globalThis.fetch = async (input, init) => {
+  // bindFetch() in @atproto-labs/fetch always passes a single Request object
+  if (input instanceof Request && !init) {
+    const newInit: RequestInit & { duplex?: string } = {
+      method: input.method,
+      headers: input.headers,
+      redirect: input.redirect,
+      signal: input.signal,
+    }
+    if (input.body) {
+      newInit.body = await input.arrayBuffer()
+      newInit.duplex = 'half'
+    }
+    return _fetch.call(globalThis, input.url, newInit)
+  }
+  return _fetch.call(globalThis, input, init)
+}
 
 export const SCOPE = [
   'atproto',
@@ -61,7 +88,7 @@ export async function getOAuthClient(): Promise<NodeOAuthClient> {
   clientKey = key
   client = new NodeOAuthClient({
     clientMetadata: buildClientMetadata(),
-    fetch: nativeFetch,
+    fetch: safeFetch,
     stateStore: {
       async get(k: string) {
         return globalAuth.stateStore.get(k)
