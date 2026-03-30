@@ -39,5 +39,5 @@ Design target: ATProto-native social edges for status transparency while keeping
 - `src/lib/steward-model.ts` — `StewardCardModel` type shared between pipeline and UI.
 - `src/lib/repo-inspect.ts` — filter `app.bsky.*`, `com.atproto.*`, `chat.bsky.*`.
 - `src/lib/repo-collection-resolve.ts` — calendar `createdWith` and Standard.site `content.$type` extraction.
-- `src/data/manual-catalog.json` — curated steward URI → fund.at-shaped records; extend via PR.
+- `src/data/catalog/*.json` — one file per steward, keyed by filename; extend by adding a new JSON file via PR.
 - `src/data/resolver-catalog.json` — NSID prefix → steward URI overrides for non-obvious mappings.

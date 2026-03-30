@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "deck.blue",
+      "description": "TweetDeck-style multi-column Bluesky client with multi-account support and post scheduling.",
+      "landingPage": "https://deck.blue"
+    },
+    "contact": {
+      "general": {
+        "handle": "deck.blue"
+      }
+    }
+  }
+}

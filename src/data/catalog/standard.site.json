@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Standard.site",
+      "description": "Standard content type definitions for ATProto sites.",
+      "landingPage": "https://standard.site"
+    },
+    "contact": {
+      "general": {
+        "handle": "standard.site"
+      }
+    }
+  }
+}

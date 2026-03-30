@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Goodfeeds",
+      "description": "Custom feed search, charts, and simple feed creation for Bluesky.",
+      "landingPage": "https://goodfeeds.co"
+    },
+    "contact": {
+      "general": {
+        "handle": "goodfeeds.co"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Deer",
+      "description": "Community-maintained soft fork of the official Bluesky app with toggleable niche features.",
+      "landingPage": "https://deer.social"
+    },
+    "contact": {
+      "general": {
+        "handle": "deer.social"
+      }
+    }
+  }
+}

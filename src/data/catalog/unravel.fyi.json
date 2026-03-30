@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Unravel",
+      "description": "Broader FYI / Unravel ecosystem (includes Frontpage).",
+      "landingPage": "https://unravel.fyi"
+    },
+    "contact": {
+      "general": {
+        "handle": "unravel.fyi"
+      }
+    }
+  }
+}

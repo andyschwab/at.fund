@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Croissant",
+      "description": "Cross-posting client for Bluesky, Mastodon, and Threads.",
+      "landingPage": "https://croissantapp.com"
+    },
+    "contact": {
+      "general": {
+        "handle": "croissantapp.com"
+      }
+    }
+  }
+}

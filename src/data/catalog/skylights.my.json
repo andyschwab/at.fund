@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Skylights",
+      "description": "Book lists and reading-related records.",
+      "landingPage": "https://skylights.my"
+    },
+    "contact": {
+      "general": {
+        "handle": "skylights.my"
+      }
+    }
+  }
+}

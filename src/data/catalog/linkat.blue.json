@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Linkat",
+      "description": "Link-in-bio style client. Maintainer: Kizuka (mkizka).",
+      "landingPage": "https://linkat.blue"
+    },
+    "contact": {
+      "general": {
+        "handle": "mkizka.xyz"
+      }
+    }
+  }
+}

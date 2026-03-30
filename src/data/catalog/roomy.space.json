@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Roomy",
+      "description": "Group chat / community spaces.",
+      "landingPage": "https://a.roomy.space"
+    },
+    "contact": {
+      "general": {
+        "handle": "roomy.space"
+      }
+    }
+  }
+}

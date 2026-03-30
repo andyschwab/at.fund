@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "TOKIMEKI",
+      "description": "Open-source multi-column, multi-account Bluesky web client with PWA support.",
+      "landingPage": "https://tokimeki.blue"
+    },
+    "contact": {
+      "general": {
+        "handle": "tokimeki.blue"
+      }
+    }
+  }
+}

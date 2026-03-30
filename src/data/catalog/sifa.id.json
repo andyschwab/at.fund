@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Sifa",
+      "description": "Professional profiles on ATProto.",
+      "landingPage": "https://sifa.id"
+    },
+    "contact": {
+      "general": {
+        "handle": "sifa.id"
+      }
+    }
+  }
+}

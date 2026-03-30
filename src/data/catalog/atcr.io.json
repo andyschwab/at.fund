@@ -1,0 +1,13 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "ATCR",
+      "description": "Container image registry on ATProto. Stores container layers, tags, and manifests as ATProto records."
+    },
+    "contact": {
+      "general": {
+        "handle": "atcr.io"
+      }
+    }
+  }
+}

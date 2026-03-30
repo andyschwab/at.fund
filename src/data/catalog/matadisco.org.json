@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Matadisco",
+      "description": "Decentralized data discovery on ATProto. Streams records for satellite imagery, podcasts, research datasets, and GLAM collections.",
+      "landingPage": "https://matadisco.org"
+    },
+    "contact": {
+      "general": {
+        "handle": "matadisco.org"
+      }
+    }
+  }
+}

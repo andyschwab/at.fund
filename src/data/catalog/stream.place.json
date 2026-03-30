@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Streamplace",
+      "description": "Live streaming on ATProto.",
+      "landingPage": "https://stream.place"
+    },
+    "contact": {
+      "general": {
+        "handle": "stream.place"
+      }
+    }
+  }
+}

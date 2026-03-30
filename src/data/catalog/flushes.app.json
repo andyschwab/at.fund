@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Flushes",
+      "description": "Short ephemeral-style posts. Creator: dame.",
+      "landingPage": "https://flushes.app"
+    },
+    "contact": {
+      "general": {
+        "handle": "dame.is"
+      }
+    }
+  }
+}

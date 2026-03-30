@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Pastesphere",
+      "description": "Text snippet sharing (pastebin) on ATProto.",
+      "landingPage": "https://pastesphere.link"
+    },
+    "contact": {
+      "general": {
+        "handle": "pastesphere.link"
+      }
+    }
+  }
+}

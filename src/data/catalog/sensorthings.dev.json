@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "SensorThings",
+      "description": "Environmental sensor data (water levels, ocean conditions, air quality) on ATProto using OGC SensorThings entity model.",
+      "landingPage": "https://sensorthings.dev"
+    },
+    "contact": {
+      "general": {
+        "handle": "sensorthings.dev"
+      }
+    }
+  }
+}

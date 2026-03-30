@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Firesky",
+      "description": "Real-time ATProto firehose activity visualizer.",
+      "landingPage": "https://firesky.tv"
+    },
+    "contact": {
+      "general": {
+        "handle": "firesky.tv"
+      }
+    }
+  }
+}

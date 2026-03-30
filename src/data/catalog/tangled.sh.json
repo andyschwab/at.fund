@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Tangled",
+      "description": "Social coding and Git collaboration on ATProto. Federated repos via atproto-enabled git servers.",
+      "landingPage": "https://tangled.sh"
+    },
+    "contact": {
+      "general": {
+        "handle": "tangled.sh"
+      }
+    }
+  }
+}
