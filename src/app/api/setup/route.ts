@@ -6,6 +6,12 @@ import {
   FUND_CONTRIBUTE,
   FUND_DEPENDENCIES,
 } from '@/lib/fund-at-records'
+import {
+  validateUrl,
+  validateEmail,
+  validateHandle,
+  validateIfPresent,
+} from '@/lib/validate'
 import { logger } from '@/lib/logger'
 
 export type SetupPayload = {
@@ -94,6 +100,46 @@ function parsePayload(body: unknown): SetupPayload | null {
   }
 }
 
+/**
+ * Validate all fields in the payload. Returns a map of field → error message,
+ * or null if everything passes.
+ */
+function validatePayload(
+  p: SetupPayload,
+): Record<string, string> | null {
+  const issues: Record<string, string> = {}
+
+  function chk(field: string, value: string | undefined, fn: (v: string) => string | null) {
+    if (!value) return
+    const err = fn(value)
+    if (err) issues[field] = err
+  }
+
+  chk('landingPage', p.landingPage, validateUrl)
+  chk('contactHandle', p.contactHandle, validateHandle)
+  chk('contactEmail', p.contactEmail, validateEmail)
+  chk('contactUrl', p.contactUrl, validateUrl)
+  chk('pressEmail', p.pressEmail, validateEmail)
+  chk('pressUrl', p.pressUrl, validateUrl)
+  chk('securityPolicyUri', p.securityPolicyUri, validateUrl)
+  chk('securityContactUri', p.securityContactUri, validateUrl)
+  chk('securityContactEmail', p.securityContactEmail, validateEmail)
+  chk('privacyPolicyUri', p.privacyPolicyUri, validateUrl)
+  chk('termsOfServiceUri', p.termsOfServiceUri, validateUrl)
+  chk('donorTermsUri', p.donorTermsUri, validateUrl)
+  chk('taxDisclosureUri', p.taxDisclosureUri, validateUrl)
+  chk('softwareLicenseUri', p.softwareLicenseUri, validateUrl)
+
+  if (p.links) {
+    for (let i = 0; i < p.links.length; i++) {
+      const err = validateUrl(p.links[i]!.url)
+      if (err) issues[`links[${i}].url`] = err
+    }
+  }
+
+  return Object.keys(issues).length > 0 ? issues : null
+}
+
 export async function POST(request: NextRequest) {
   const session = await getSession()
   if (!session) {
@@ -111,6 +157,18 @@ export async function POST(request: NextRequest) {
   if (!payload) {
     return NextResponse.json(
       { error: 'displayName is required' },
+      { status: 400 },
+    )
+  }
+
+  const fieldErrors = validatePayload(payload)
+  if (fieldErrors) {
+    return NextResponse.json(
+      {
+        error: 'Some fields have invalid values',
+        detail: 'Fix the highlighted fields and try again.',
+        fields: fieldErrors,
+      },
       { status: 400 },
     )
   }
@@ -226,7 +284,7 @@ export async function POST(request: NextRequest) {
       {
         error: message,
         detail:
-          'Could not publish your records. This may be a permissions issue — make sure you authorized write access when signing in.',
+          'Could not publish your records. This may be a permissions issue — try signing out and back in to refresh your authorization.',
       },
       { status: 502 },
     )

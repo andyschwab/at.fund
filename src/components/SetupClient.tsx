@@ -16,6 +16,7 @@ import {
 import { KnownStewardCard } from '@/components/ProjectCards'
 import type { StewardCardModel } from '@/lib/steward-model'
 import type { FundAtResult } from '@/lib/fund-at-records'
+import { validateUrl, validateEmail, validateHandle } from '@/lib/validate'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -104,6 +105,18 @@ function parseDependencies(text: string): string[] {
     .filter(Boolean)
 }
 
+/**
+ * Run a validator only on non-empty values. Returns null for blank (optional).
+ */
+function check(
+  value: string,
+  validator: (v: string) => string | null,
+): string | null {
+  const t = value.trim()
+  if (!t) return null
+  return validator(t)
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -138,6 +151,7 @@ function TextInput({
   placeholder,
   type = 'text',
   disabled,
+  validate,
 }: {
   id: string
   value: string
@@ -145,17 +159,33 @@ function TextInput({
   placeholder?: string
   type?: string
   disabled?: boolean
+  validate?: (v: string) => string | null
 }) {
+  const trimmed = value.trim()
+  const error = trimmed ? validate?.(trimmed) ?? null : null
+  const valid = trimmed && !error
+
+  const borderColor = error
+    ? 'border-red-400 focus:border-red-500 focus:ring-red-400/30'
+    : valid
+      ? 'border-[var(--support-border)] focus:border-[var(--support)] focus:ring-[var(--support)]/30'
+      : 'border-slate-300 focus:border-[var(--support)] focus:ring-[var(--support)]/30 dark:border-slate-700'
+
   return (
-    <input
-      id={id}
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      disabled={disabled}
-      className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)] disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-    />
+    <div>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        className={`mt-1.5 w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 disabled:opacity-50 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500 ${borderColor}`}
+      />
+      {error && (
+        <p className="mt-1 text-xs text-red-500 dark:text-red-400">{error}</p>
+      )}
+    </div>
   )
 }
 
@@ -164,11 +194,13 @@ function ExpandableSection({
   hint,
   children,
   filledCount,
+  errorCount,
 }: {
   title: string
   hint: string
   children: React.ReactNode
   filledCount: number
+  errorCount: number
 }) {
   return (
     <details className="group rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/60">
@@ -178,7 +210,11 @@ function ExpandableSection({
             {title}
           </span>
           <span className="block text-xs text-slate-500 dark:text-slate-400">
-            {filledCount > 0 ? (
+            {errorCount > 0 ? (
+              <span className="text-red-500 dark:text-red-400">
+                {errorCount} issue{errorCount !== 1 ? 's' : ''} to fix
+              </span>
+            ) : filledCount > 0 ? (
               <span className="text-[var(--support)]">
                 {filledCount} field{filledCount !== 1 ? 's' : ''} filled
               </span>
@@ -233,6 +269,66 @@ export function SetupClient({ did, handle, existing }: Props) {
     set('links', form.links.filter((l) => l.id !== id))
   }
 
+  // ---------------------------------------------------------------------------
+  // Validation (computed from form state — runs on every render, keeps it live)
+  // ---------------------------------------------------------------------------
+
+  const errors = useMemo(() => {
+    const e: Record<string, string | null> = {
+      landingPage: check(form.landingPage, validateUrl),
+      contactHandle: check(form.contactHandle, validateHandle),
+      contactEmail: check(form.contactEmail, validateEmail),
+      contactUrl: check(form.contactUrl, validateUrl),
+      pressEmail: check(form.pressEmail, validateEmail),
+      pressUrl: check(form.pressUrl, validateUrl),
+      securityPolicyUri: check(form.securityPolicyUri, validateUrl),
+      securityContactUri: check(form.securityContactUri, validateUrl),
+      securityContactEmail: check(form.securityContactEmail, validateEmail),
+      privacyPolicyUri: check(form.privacyPolicyUri, validateUrl),
+      termsOfServiceUri: check(form.termsOfServiceUri, validateUrl),
+      donorTermsUri: check(form.donorTermsUri, validateUrl),
+      taxDisclosureUri: check(form.taxDisclosureUri, validateUrl),
+      softwareLicenseUri: check(form.softwareLicenseUri, validateUrl),
+    }
+    return e
+  }, [form])
+
+  const linkErrors = useMemo(
+    () =>
+      form.links.map((l) => ({
+        id: l.id,
+        url: l.url.trim() ? validateUrl(l.url.trim()) : null,
+      })),
+    [form.links],
+  )
+
+  const hasErrors =
+    !form.displayName.trim() ||
+    Object.values(errors).some((e) => e !== null) ||
+    linkErrors.some((l) => l.url !== null)
+
+  // Counts for expandable section badges
+  function countFilled(values: string[]): number {
+    return values.filter((v) => v.trim()).length
+  }
+  function countErrors(keys: string[]): number {
+    return keys.filter((k) => errors[k]).length
+  }
+
+  const contactFields = ['contactHandle', 'contactEmail', 'contactUrl', 'pressEmail', 'pressUrl']
+  const contactFilled = countFilled([form.contactHandle, form.contactEmail, form.contactUrl, form.pressEmail, form.pressUrl])
+  const contactErrors = countErrors(contactFields)
+
+  const securityFields = ['securityPolicyUri', 'securityContactUri', 'securityContactEmail']
+  const securityFilled = countFilled([form.securityPolicyUri, form.securityContactUri, form.securityContactEmail])
+  const securityErrors = countErrors(securityFields)
+
+  const legalFields = ['privacyPolicyUri', 'termsOfServiceUri', 'donorTermsUri', 'taxDisclosureUri', 'softwareLicenseUri']
+  const legalFilled = countFilled([form.legalEntityName, form.jurisdiction, form.privacyPolicyUri, form.termsOfServiceUri, form.donorTermsUri, form.taxDisclosureUri, form.softwareLicenseUri])
+  const legalErrors = countErrors(legalFields)
+
+  const depsFilled = form.dependenciesText.trim() ? 1 : 0
+
   // Live preview model
   const previewModel: StewardCardModel = useMemo(
     () => ({
@@ -240,57 +336,30 @@ export function SetupClient({ did, handle, existing }: Props) {
       stewardDid: did,
       displayName: form.displayName.trim() || 'Your project name',
       description: form.description.trim() || undefined,
-      landingPage: form.landingPage.trim() || undefined,
+      landingPage: check(form.landingPage, validateUrl) ? undefined : form.landingPage.trim() || undefined,
       links: form.links
-        .filter((l) => l.label.trim() && l.url.trim())
+        .filter((l) => l.label.trim() && l.url.trim() && !validateUrl(l.url.trim()))
         .map((l) => ({ label: l.label.trim(), url: l.url.trim() })),
       source: 'fund.at',
-      contactGeneralHandle: form.contactHandle.trim() || undefined,
-      contactGeneralEmail: form.contactEmail.trim() || undefined,
-      contactGeneralUrl: form.contactUrl.trim() || undefined,
-      contactPressEmail: form.pressEmail.trim() || undefined,
-      contactPressUrl: form.pressUrl.trim() || undefined,
-      securityPolicyUri: form.securityPolicyUri.trim() || undefined,
-      securityContactUri: form.securityContactUri.trim() || undefined,
-      privacyPolicyUri: form.privacyPolicyUri.trim() || undefined,
-      termsOfServiceUri: form.termsOfServiceUri.trim() || undefined,
-      donorTermsUri: form.donorTermsUri.trim() || undefined,
-      taxDisclosureUri: form.taxDisclosureUri.trim() || undefined,
-      softwareLicenseUri: form.softwareLicenseUri.trim() || undefined,
+      contactGeneralHandle: check(form.contactHandle, validateHandle) ? undefined : form.contactHandle.trim() || undefined,
+      contactGeneralEmail: check(form.contactEmail, validateEmail) ? undefined : form.contactEmail.trim() || undefined,
+      contactGeneralUrl: check(form.contactUrl, validateUrl) ? undefined : form.contactUrl.trim() || undefined,
+      contactPressEmail: check(form.pressEmail, validateEmail) ? undefined : form.pressEmail.trim() || undefined,
+      contactPressUrl: check(form.pressUrl, validateUrl) ? undefined : form.pressUrl.trim() || undefined,
+      securityPolicyUri: check(form.securityPolicyUri, validateUrl) ? undefined : form.securityPolicyUri.trim() || undefined,
+      securityContactUri: check(form.securityContactUri, validateUrl) ? undefined : form.securityContactUri.trim() || undefined,
+      privacyPolicyUri: check(form.privacyPolicyUri, validateUrl) ? undefined : form.privacyPolicyUri.trim() || undefined,
+      termsOfServiceUri: check(form.termsOfServiceUri, validateUrl) ? undefined : form.termsOfServiceUri.trim() || undefined,
+      donorTermsUri: check(form.donorTermsUri, validateUrl) ? undefined : form.donorTermsUri.trim() || undefined,
+      taxDisclosureUri: check(form.taxDisclosureUri, validateUrl) ? undefined : form.taxDisclosureUri.trim() || undefined,
+      softwareLicenseUri: check(form.softwareLicenseUri, validateUrl) ? undefined : form.softwareLicenseUri.trim() || undefined,
     }),
     [form, did],
   )
 
-  // Counts for expandable section badges
-  const contactFilled = [
-    form.contactHandle,
-    form.contactEmail,
-    form.contactUrl,
-    form.pressEmail,
-    form.pressUrl,
-  ].filter((v) => v.trim()).length
-
-  const securityFilled = [
-    form.securityPolicyUri,
-    form.securityContactUri,
-    form.securityContactEmail,
-  ].filter((v) => v.trim()).length
-
-  const legalFilled = [
-    form.legalEntityName,
-    form.jurisdiction,
-    form.privacyPolicyUri,
-    form.termsOfServiceUri,
-    form.donorTermsUri,
-    form.taxDisclosureUri,
-    form.softwareLicenseUri,
-  ].filter((v) => v.trim()).length
-
-  const depsFilled = form.dependenciesText.trim() ? 1 : 0
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.displayName.trim()) return
+    if (hasErrors) return
 
     setSaving(true)
     setErr(null)
@@ -445,11 +514,11 @@ export function SetupClient({ did, handle, existing }: Props) {
                 </FieldLabel>
                 <TextInput
                   id={f('site')}
-                  type="url"
                   value={form.landingPage}
                   onChange={(v) => set('landingPage', v)}
                   placeholder="https://example.com"
                   disabled={saving}
+                  validate={validateUrl}
                 />
               </div>
             </div>
@@ -470,39 +539,55 @@ export function SetupClient({ did, handle, existing }: Props) {
 
               {form.links.length > 0 && (
                 <ul className="flex flex-col gap-3">
-                  {form.links.map((link, i) => (
-                    <li key={link.id} className="flex items-start gap-2">
-                      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row">
-                        <input
-                          type="text"
-                          value={link.label}
-                          onChange={(e) => updateLink(link.id, 'label', e.target.value)}
-                          placeholder={`Label (e.g. GitHub Sponsors)`}
-                          aria-label={`Link ${i + 1} label`}
-                          disabled={saving}
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)] disabled:opacity-50 sm:w-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-                        />
-                        <input
-                          type="url"
-                          value={link.url}
-                          onChange={(e) => updateLink(link.id, 'url', e.target.value)}
-                          placeholder="https://"
-                          aria-label={`Link ${i + 1} URL`}
-                          disabled={saving}
-                          className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)] disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeLink(link.id)}
-                        disabled={saving}
-                        aria-label="Remove link"
-                        className="mt-2 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 disabled:opacity-50 dark:hover:bg-slate-800"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden />
-                      </button>
-                    </li>
-                  ))}
+                  {form.links.map((link, i) => {
+                    const urlErr = link.url.trim() ? validateUrl(link.url.trim()) : null
+                    const urlBorder = urlErr
+                      ? 'border-red-400 focus:border-red-500 focus:ring-red-400/30'
+                      : link.url.trim()
+                        ? 'border-[var(--support-border)] focus:border-[var(--support)] focus:ring-[var(--support)]/30'
+                        : 'border-slate-300 focus:border-[var(--support)] focus:ring-[var(--support)]/30 dark:border-slate-700'
+
+                    return (
+                      <li key={link.id}>
+                        <div className="flex items-start gap-2">
+                          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row">
+                            <input
+                              type="text"
+                              value={link.label}
+                              onChange={(e) => updateLink(link.id, 'label', e.target.value)}
+                              placeholder={`Label (e.g. GitHub Sponsors)`}
+                              aria-label={`Link ${i + 1} label`}
+                              disabled={saving}
+                              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 disabled:opacity-50 sm:w-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
+                            />
+                            <input
+                              type="url"
+                              value={link.url}
+                              onChange={(e) => updateLink(link.id, 'url', e.target.value)}
+                              placeholder="https://"
+                              aria-label={`Link ${i + 1} URL`}
+                              disabled={saving}
+                              className={`min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 disabled:opacity-50 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500 ${urlBorder}`}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeLink(link.id)}
+                            disabled={saving}
+                            aria-label="Remove link"
+                            className="mt-2 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 disabled:opacity-50 dark:hover:bg-slate-800"
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden />
+                          </button>
+                        </div>
+                        {urlErr && (
+                          <p className="mt-1 pl-0 text-xs text-red-500 sm:pl-[10.5rem] dark:text-red-400">
+                            {urlErr}
+                          </p>
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
 
@@ -522,6 +607,7 @@ export function SetupClient({ did, handle, existing }: Props) {
               title="Contact"
               hint="Your Bluesky handle, email, or contact page."
               filledCount={contactFilled}
+              errorCount={contactErrors}
             >
               <div>
                 <FieldLabel
@@ -536,28 +622,29 @@ export function SetupClient({ did, handle, existing }: Props) {
                   onChange={(v) => set('contactHandle', v)}
                   placeholder="you.bsky.social"
                   disabled={saving}
+                  validate={validateHandle}
                 />
               </div>
               <div>
                 <FieldLabel htmlFor={f('email')}>General contact email</FieldLabel>
                 <TextInput
                   id={f('email')}
-                  type="email"
                   value={form.contactEmail}
                   onChange={(v) => set('contactEmail', v)}
                   placeholder="hello@example.com"
                   disabled={saving}
+                  validate={validateEmail}
                 />
               </div>
               <div>
                 <FieldLabel htmlFor={f('contactUrl')}>Contact page URL</FieldLabel>
                 <TextInput
                   id={f('contactUrl')}
-                  type="url"
                   value={form.contactUrl}
                   onChange={(v) => set('contactUrl', v)}
                   placeholder="https://example.com/contact"
                   disabled={saving}
+                  validate={validateUrl}
                 />
               </div>
               <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
@@ -569,22 +656,22 @@ export function SetupClient({ did, handle, existing }: Props) {
                     <FieldLabel htmlFor={f('pressEmail')}>Press email</FieldLabel>
                     <TextInput
                       id={f('pressEmail')}
-                      type="email"
                       value={form.pressEmail}
                       onChange={(v) => set('pressEmail', v)}
                       placeholder="press@example.com"
                       disabled={saving}
+                      validate={validateEmail}
                     />
                   </div>
                   <div>
                     <FieldLabel htmlFor={f('pressUrl')}>Press page URL</FieldLabel>
                     <TextInput
                       id={f('pressUrl')}
-                      type="url"
                       value={form.pressUrl}
                       onChange={(v) => set('pressUrl', v)}
                       placeholder="https://example.com/press"
                       disabled={saving}
+                      validate={validateUrl}
                     />
                   </div>
                 </div>
@@ -596,6 +683,7 @@ export function SetupClient({ did, handle, existing }: Props) {
               title="Security"
               hint="Security policy and responsible disclosure contact."
               filledCount={securityFilled}
+              errorCount={securityErrors}
             >
               <div>
                 <FieldLabel
@@ -606,11 +694,11 @@ export function SetupClient({ did, handle, existing }: Props) {
                 </FieldLabel>
                 <TextInput
                   id={f('secPolicy')}
-                  type="url"
                   value={form.securityPolicyUri}
                   onChange={(v) => set('securityPolicyUri', v)}
                   placeholder="https://example.com/security"
                   disabled={saving}
+                  validate={validateUrl}
                 />
               </div>
               <div>
@@ -622,22 +710,22 @@ export function SetupClient({ did, handle, existing }: Props) {
                 </FieldLabel>
                 <TextInput
                   id={f('secContact')}
-                  type="url"
                   value={form.securityContactUri}
                   onChange={(v) => set('securityContactUri', v)}
                   placeholder="https://example.com/security#contact"
                   disabled={saving}
+                  validate={validateUrl}
                 />
               </div>
               <div>
                 <FieldLabel htmlFor={f('secEmail')}>Security contact email</FieldLabel>
                 <TextInput
                   id={f('secEmail')}
-                  type="email"
                   value={form.securityContactEmail}
                   onChange={(v) => set('securityContactEmail', v)}
                   placeholder="security@example.com"
                   disabled={saving}
+                  validate={validateEmail}
                 />
               </div>
             </ExpandableSection>
@@ -647,6 +735,7 @@ export function SetupClient({ did, handle, existing }: Props) {
               title="Legal & trust"
               hint="Entity name, jurisdiction, privacy policy, terms, and tax info."
               filledCount={legalFilled}
+              errorCount={legalErrors}
             >
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
@@ -678,22 +767,22 @@ export function SetupClient({ did, handle, existing }: Props) {
                 <FieldLabel htmlFor={f('privacy')}>Privacy policy URL</FieldLabel>
                 <TextInput
                   id={f('privacy')}
-                  type="url"
                   value={form.privacyPolicyUri}
                   onChange={(v) => set('privacyPolicyUri', v)}
                   placeholder="https://example.com/privacy"
                   disabled={saving}
+                  validate={validateUrl}
                 />
               </div>
               <div>
                 <FieldLabel htmlFor={f('terms')}>Terms of service URL</FieldLabel>
                 <TextInput
                   id={f('terms')}
-                  type="url"
                   value={form.termsOfServiceUri}
                   onChange={(v) => set('termsOfServiceUri', v)}
                   placeholder="https://example.com/terms"
                   disabled={saving}
+                  validate={validateUrl}
                 />
               </div>
               <div>
@@ -705,11 +794,11 @@ export function SetupClient({ did, handle, existing }: Props) {
                 </FieldLabel>
                 <TextInput
                   id={f('donorTerms')}
-                  type="url"
                   value={form.donorTermsUri}
                   onChange={(v) => set('donorTermsUri', v)}
                   placeholder="https://example.com/donor-terms"
                   disabled={saving}
+                  validate={validateUrl}
                 />
               </div>
               <div>
@@ -721,11 +810,11 @@ export function SetupClient({ did, handle, existing }: Props) {
                 </FieldLabel>
                 <TextInput
                   id={f('tax')}
-                  type="url"
                   value={form.taxDisclosureUri}
                   onChange={(v) => set('taxDisclosureUri', v)}
                   placeholder="https://example.com/tax-info"
                   disabled={saving}
+                  validate={validateUrl}
                 />
               </div>
               <div>
@@ -737,11 +826,11 @@ export function SetupClient({ did, handle, existing }: Props) {
                 </FieldLabel>
                 <TextInput
                   id={f('license')}
-                  type="url"
                   value={form.softwareLicenseUri}
                   onChange={(v) => set('softwareLicenseUri', v)}
                   placeholder="https://github.com/you/repo/blob/main/LICENSE"
                   disabled={saving}
+                  validate={validateUrl}
                 />
               </div>
             </ExpandableSection>
@@ -751,6 +840,7 @@ export function SetupClient({ did, handle, existing }: Props) {
               title="Your dependencies"
               hint="Projects yours depends on — so contributions can flow through the chain."
               filledCount={depsFilled}
+              errorCount={0}
             >
               <div>
                 <FieldLabel
@@ -766,7 +856,7 @@ export function SetupClient({ did, handle, existing }: Props) {
                   placeholder={'bsky.app\nexample.com\ndid:plc:abc123'}
                   rows={4}
                   disabled={saving}
-                  className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-mono text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)] disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
+                  className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-mono text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
                 />
               </div>
               <div>
@@ -803,7 +893,7 @@ export function SetupClient({ did, handle, existing }: Props) {
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="submit"
-                  disabled={saving || !form.displayName.trim()}
+                  disabled={saving || hasErrors}
                   className="inline-flex items-center gap-2 rounded-lg bg-[var(--support)] px-5 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   <Heart className="h-4 w-4" aria-hidden />
