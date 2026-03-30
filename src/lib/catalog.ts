@@ -1,5 +1,7 @@
 import manualCatalogJson from '@/data/manual-catalog.json'
 import resolverJson from '@/data/resolver-catalog.json'
+import { normalizeStewardUri } from '@/lib/steward-uri'
+import type { FundLink } from '@/lib/fund-at-records'
 
 type ManualDisclosure = {
   meta?: {
@@ -10,7 +12,7 @@ type ManualDisclosure = {
 }
 
 type ManualContribute = {
-  links?: { label: string; url: string }[]
+  links?: FundLink[]
 }
 
 type ManualDependencies = {
@@ -42,24 +44,6 @@ const resolverCatalog = resolverJson as ResolverFile
 function normalizePrefix(prefix: string): string {
   if (prefix.includes('://')) return prefix
   return prefix.endsWith('.') ? prefix : `${prefix}.`
-}
-
-function normalizeStewardUri(uri: string): string | null {
-  const raw = uri.trim()
-  if (!raw) return null
-  if (raw.startsWith('did:')) return raw
-  if (raw.includes('://')) {
-    try {
-      const u = new URL(raw)
-      return u.hostname ? u.hostname.toLowerCase() : null
-    } catch {
-      return null
-    }
-  }
-  const host = raw.toLowerCase().replace(/\.$/, '')
-  if (!host) return null
-  if (host.includes('/') || host.includes(':')) return null
-  return host
 }
 
 function inferHostnameFromNsidLike(value: string): string | null {
@@ -103,13 +87,11 @@ export function resolveStewardUri(observedKey: string): string | null {
     }
   }
 
-  // 3+ dot-separated segments → NSID-like; infer hostname from the authority prefix
   const segments = raw.replace(/\.$/, '').split('.')
   if (segments.length >= 3) {
     return inferHostnameFromNsidLike(raw)
   }
 
-  // 1-2 segments → already a hostname
   return normalizeStewardUri(raw)
 }
 
@@ -118,7 +100,7 @@ export type ManualStewardRecord = {
   displayName: string
   description?: string
   landingPage?: string
-  links: { label: string; url: string }[]
+  links: FundLink[]
   dependencies?: string[]
 }
 

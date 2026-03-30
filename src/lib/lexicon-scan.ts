@@ -24,11 +24,8 @@ export type { PdsHostFunding }
 export type ScanResult = {
   did: string
   handle?: string
-  /** Home PDS URL for the signed-in user (from DID document service discovery). */
   pdsUrl?: string
-  repoCollectionCount: number
   stewards: StewardCardModel[]
-  /** When the user’s PDS hostname resolves to a DID that publishes fund.at.* records. */
   pdsHostFunding?: PdsHostFunding
 }
 
@@ -89,6 +86,7 @@ export async function scanRepo(
       ? stewardUri
       : await lookupAtprotoDid(stewardUri)
     const stewardDidOrUndefined = stewardDid ?? undefined
+    const manual = lookupManualStewardRecord(stewardUri)
 
     if (stewardDid) {
       const fundAt = await fetchFundAtForStewardDid(stewardDid)
@@ -97,10 +95,9 @@ export async function scanRepo(
           stewardUri,
           stewardDid: stewardDidOrUndefined,
           displayName:
-            fundAt.disclosure.displayName ?? lookupManualStewardRecord(stewardUri)?.displayName ?? stewardUri,
+            fundAt.disclosure.displayName ?? manual?.displayName ?? stewardUri,
           description:
-            fundAt.disclosure.description ??
-            lookupManualStewardRecord(stewardUri)?.description,
+            fundAt.disclosure.description ?? manual?.description,
           landingPage: fundAt.disclosure.landingPage,
           links: fundAt.links,
           dependencies: fundAt.dependencyUris,
@@ -110,9 +107,6 @@ export async function scanRepo(
       }
     }
 
-    const manual =
-      (stewardDid ? lookupManualStewardRecord(stewardDid) : null) ??
-      lookupManualStewardRecord(stewardUri)
     if (manual) {
       stewards.push({
         stewardUri,
@@ -144,7 +138,6 @@ export async function scanRepo(
     did: session.did,
     handle,
     pdsUrl: pdsUrl?.origin,
-    repoCollectionCount: collections.length,
     stewards,
     pdsHostFunding,
   }

@@ -313,10 +313,11 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                         </span>
                         <div>
                           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                            Projects you can support
+                            Tools you use
                           </h2>
                           <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
-                            These have links to donate, sponsor, or learn more.
+                            Services we matched from your saved data. Some have
+                            ways to contribute directly.
                           </p>
                         </div>
                       </div>

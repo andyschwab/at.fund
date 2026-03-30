@@ -18,8 +18,7 @@ export async function GET(request: NextRequest) {
   }
 
   const extra =
-    parseExtraList(request.nextUrl.searchParams.get('extraStewards')) ??
-    parseExtraList(request.nextUrl.searchParams.get('extraCollections'))
+    parseExtraList(request.nextUrl.searchParams.get('extraStewards'))
 
   const normalized: string[] = []
   const invalid: string[] = []

@@ -1,6 +1,6 @@
-export type StewardSource = 'fund.at' | 'manual' | 'unknown'
+import type { FundLink } from '@/lib/fund-at-records'
 
-export type StewardLink = { label: string; url: string }
+export type StewardSource = 'fund.at' | 'manual' | 'unknown'
 
 export type StewardCardModel = {
   stewardUri: string
@@ -9,8 +9,7 @@ export type StewardCardModel = {
   displayName: string
   description?: string
   landingPage?: string
-  links?: StewardLink[]
+  links?: FundLink[]
   dependencies?: string[]
   source: StewardSource
 }
-

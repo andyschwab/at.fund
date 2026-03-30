@@ -19,7 +19,7 @@ function isStandardSiteCollection(nsid: string): boolean {
   return nsid === 'site.standard' || nsid.startsWith(STANDARD_COLLECTION_PREFIX)
 }
 
-/** Drop collections we resolve via repo record inspection (see {@link resolveDerivedCatalogKeys}). */
+/** Drop collections we resolve via repo record inspection (calendar, Standard.site). */
 export function stripDerivedCollections(collections: readonly string[]): string[] {
   return collections.filter(
     (c) => !isCalendarCollection(c) && !isStandardSiteCollection(c),
