@@ -4,9 +4,9 @@ import { useState, useMemo } from 'react'
 import type { ScanResult } from '@/lib/lexicon-scan'
 import { pdslsRepoUrl } from '@/lib/pdsls'
 import {
-  KnownProjectCard,
+  KnownStewardCard,
   PdsHostSupportCard,
-  UnknownProjectCard,
+  UnknownStewardCard,
 } from '@/components/ProjectCards'
 import {
   AlertCircle,
@@ -14,7 +14,6 @@ import {
   ExternalLink,
   HandCoins,
   Heart,
-  Layers,
   LogIn,
   LogOut,
   Monitor,
@@ -45,13 +44,13 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
     error ? 'Something went wrong signing in. Try again.' : null,
   )
 
-  const knownGroups = useMemo(
-    () => scan?.appGroups.filter((g) => g.confidence === 'curated') ?? [],
-    [scan?.appGroups],
+  const knownStewards = useMemo(
+    () => scan?.stewards.filter((s) => s.source !== 'unknown') ?? [],
+    [scan?.stewards],
   )
-  const unknownGroups = useMemo(
-    () => scan?.appGroups.filter((g) => g.confidence === 'unknown') ?? [],
-    [scan?.appGroups],
+  const unknownStewards = useMemo(
+    () => scan?.stewards.filter((s) => s.source === 'unknown') ?? [],
+    [scan?.stewards],
   )
 
   async function login(e: React.FormEvent) {
@@ -91,7 +90,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
       const res = await fetch('/api/lexicons', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selfReportedNsids: extra }),
+        body: JSON.stringify({ selfReportedStewards: extra }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Scan failed')
@@ -116,10 +115,9 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
       .filter(Boolean)
   }
 
-  const collectionCount =
-    scan?.appGroups.reduce((n, g) => n + g.collections.length, 0) ?? 0
-  const appCount = scan?.appGroups.length ?? 0
+  const stewardCount = scan?.stewards.length ?? 0
   const displayId = scan?.handle ?? scan?.did ?? ''
+  const pdsUrl = scan?.pdsUrl
 
   return (
     <div className="page-wash min-h-full">
@@ -203,6 +201,11 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                   <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">
                     {displayId || '…'}
                   </p>
+                  {pdsUrl && (
+                    <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                      PDS: <span className="font-mono">{pdsUrl}</span>
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -292,14 +295,14 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                     Try again
                   </button>
                 </p>
-              ) : scan.appGroups.length === 0 ? (
+              ) : scan.stewards.length === 0 ? (
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
                   We didn&apos;t find any extra tools in your saved data yet. You
                   can add more below if you know them.
                 </p>
               ) : (
                 <>
-                  {knownGroups.length > 0 && (
+                  {knownStewards.length > 0 && (
                     <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white/60 dark:border-zinc-800 dark:bg-zinc-950/40">
                       <div className="flex gap-3 border-b border-[var(--support-border)]/50 bg-[var(--support-muted)] px-5 py-4 dark:border-emerald-500/20">
                         <span
@@ -318,18 +321,17 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                         </div>
                       </div>
                       <div className="flex flex-col gap-4 p-5">
-                        {knownGroups.map((group) => (
-                          <KnownProjectCard
-                            key={group.appName}
-                            group={group}
-                            did={scan.did}
+                        {knownStewards.map((steward) => (
+                          <KnownStewardCard
+                            key={steward.stewardUri}
+                            steward={steward}
                           />
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {unknownGroups.length > 0 && (
+                  {unknownStewards.length > 0 && (
                     <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white/60 dark:border-zinc-800 dark:bg-zinc-950/40">
                       <div className="flex gap-3 border-b border-[var(--discover-border)]/60 bg-[var(--discover-muted)] px-5 py-4 dark:border-amber-500/25">
                         <span
@@ -349,11 +351,10 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                         </div>
                       </div>
                       <div className="flex flex-col gap-4 p-5">
-                        {unknownGroups.map((group) => (
-                          <UnknownProjectCard
-                            key={group.appName}
-                            group={group}
-                            did={scan.did}
+                        {unknownStewards.map((steward) => (
+                          <UnknownStewardCard
+                            key={steward.stewardUri}
+                            steward={steward}
                           />
                         ))}
                       </div>
@@ -361,16 +362,11 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                   )}
                 </>
               )}
-              {scan && scan.appGroups.length > 0 && (
+              {scan && scan.stewards.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
                     <Heart className="h-3.5 w-3.5 text-[var(--support)] dark:text-emerald-400" aria-hidden />
-                    {appCount} tool{appCount === 1 ? '' : 's'}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                    <Layers className="h-3.5 w-3.5 text-zinc-500" aria-hidden />
-                    {collectionCount} kind
-                    {collectionCount === 1 ? '' : 's'} of data
+                    {stewardCount} service{stewardCount === 1 ? '' : 's'}
                   </span>
                 </div>
               )}
@@ -391,7 +387,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                   type="text"
                   value={selfReport}
                   onChange={(e) => setSelfReport(e.target.value)}
-                  placeholder="e.g. blue.linkat.post"
+                  placeholder="e.g. whtwnd.com or did:plc:..."
                   className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
                 />
                 <button

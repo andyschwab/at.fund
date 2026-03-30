@@ -1,7 +1,7 @@
-import { isValidNsid } from '@atproto/syntax'
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { scanRepo } from '@/lib/lexicon-scan'
+import { normalizeStewardUri } from '@/lib/steward-uri'
 
 function parseExtraList(raw: string | null): string[] {
   if (!raw?.trim()) return []
@@ -17,17 +17,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
-  const extra = parseExtraList(request.nextUrl.searchParams.get('extraCollections'))
-  const invalid = extra.filter((n) => !isValidNsid(n))
+  const extra =
+    parseExtraList(request.nextUrl.searchParams.get('extraStewards')) ??
+    parseExtraList(request.nextUrl.searchParams.get('extraCollections'))
+
+  const normalized: string[] = []
+  const invalid: string[] = []
+  for (const s of extra) {
+    const n = normalizeStewardUri(s)
+    if (!n) invalid.push(s)
+    else normalized.push(n)
+  }
   if (invalid.length > 0) {
-    return NextResponse.json(
-      { error: 'Invalid NSID(s)', invalid },
-      { status: 400 },
-    )
+    return NextResponse.json({ error: 'Invalid steward URI(s)', invalid }, { status: 400 })
   }
 
   try {
-    const data = await scanRepo(session, extra)
+    const data = await scanRepo(session, normalized)
     return NextResponse.json(data)
   } catch (e) {
     console.error('scanRepo failed:', e)
@@ -44,11 +50,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
-  let selfReportedNsids: string[] = []
+  let selfReportedStewards: string[] = []
   try {
     const body = await request.json()
-    if (Array.isArray(body?.selfReportedNsids)) {
-      selfReportedNsids = body.selfReportedNsids.filter(
+    if (Array.isArray(body?.selfReportedStewards)) {
+      selfReportedStewards = body.selfReportedStewards.filter(
         (x: unknown) => typeof x === 'string',
       ) as string[]
     }
@@ -56,16 +62,19 @@ export async function POST(request: NextRequest) {
     // empty body
   }
 
-  const invalid = selfReportedNsids.filter((n) => !isValidNsid(n))
+  const normalized: string[] = []
+  const invalid: string[] = []
+  for (const s of selfReportedStewards) {
+    const n = normalizeStewardUri(s)
+    if (!n) invalid.push(s)
+    else normalized.push(n)
+  }
   if (invalid.length > 0) {
-    return NextResponse.json(
-      { error: 'Invalid NSID(s)', invalid },
-      { status: 400 },
-    )
+    return NextResponse.json({ error: 'Invalid steward URI(s)', invalid }, { status: 400 })
   }
 
   try {
-    const data = await scanRepo(session, selfReportedNsids)
+    const data = await scanRepo(session, normalized)
     return NextResponse.json(data)
   } catch (e) {
     console.error('scanRepo failed:', e)

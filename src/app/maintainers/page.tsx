@@ -70,10 +70,10 @@ export default function MaintainersPage() {
 
       <h2 className="mt-8 text-lg font-medium">Catalog PRs</h2>
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        This MVP also ships a curated map in{' '}
-        <code className="font-mono text-xs">src/data/lexicon-catalog.json</code>.
-        Add or correct rows via pull request if you maintain a popular lexicon
-        namespace.
+        This MVP also ships a curated catalog in{' '}
+        <code className="font-mono text-xs">src/data/manual-catalog.json</code>.
+        Add or correct entries via pull request if you maintain a service on
+        ATProto.
       </p>
     </div>
   )

@@ -1,0 +1,18 @@
+{
+  "overrides": [
+    { "matchPrefix": "chat.bsky.", "stewardUri": "bsky.app" },
+    { "matchPrefix": "tools.ozone.", "stewardUri": "bsky.app" },
+    { "matchPrefix": "fyi.unravel.frontpage.", "stewardUri": "frontpage.fyi" },
+    { "matchPrefix": "com.shinolabs.pinksea.", "stewardUri": "pinksea.art" },
+    { "matchPrefix": "blue.zio.atfile.", "stewardUri": "zio.sh" },
+    { "matchPrefix": "im.flushing.right.now.", "stewardUri": "flushes.app" },
+    { "matchPrefix": "actor.popfeed.", "stewardUri": "popfeed.social" },
+    { "matchPrefix": "feed.popfeed.", "stewardUri": "popfeed.social" },
+    { "matchPrefix": "actor.sprk.", "stewardUri": "sprk.so" },
+    { "matchPrefix": "feed.sprk.", "stewardUri": "sprk.so" },
+    { "matchPrefix": "app.anisota.", "stewardUri": "anisota.net" },
+    { "matchPrefix": "app.youandme.", "stewardUri": "youandme.at" },
+    { "matchPrefix": "lexicon.community.", "stewardUri": "lexicon.community" },
+    { "matchPrefix": "community.lexicon.", "stewardUri": "lexicon.community" }
+  ]
+}

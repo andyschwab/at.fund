@@ -31,4 +31,4 @@ Set `PUBLIC_URL` to your HTTPS origin (no trailing slash). The app switches from
 
 - `src/lib/auth` — OAuth client and session helpers.
 - `src/lib/repo-inspect.ts` — filter `app.bsky.*`, `com.atproto.*`, `chat.bsky.*`.
-- `src/data/lexicon-catalog.json` — curated NSID prefix → links; extend via PR.
+- `src/data/manual-catalog.json` — curated steward URI → fund.at-shaped records; extend via PR.
