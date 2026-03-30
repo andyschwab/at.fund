@@ -1,5 +1,6 @@
 import { Agent } from '@atproto/api'
 import type { FundLink } from '@/lib/fund-at-records'
+import { lookupManualStewardRecord } from '@/lib/catalog'
 import { logger } from '@/lib/logger'
 
 const SLINGSHOT = 'https://slingshot.microcosm.blue'
@@ -21,7 +22,7 @@ type SlingshotRecord = {
   value: Record<string, unknown>
 }
 
-type MiniDoc = {
+type FollowRef = {
   did: string
   handle?: string
 }
@@ -66,33 +67,45 @@ function readDisclosureMeta(value: Record<string, unknown>): {
   }
 }
 
-async function checkFollowForFundAt(did: string): Promise<FollowedAccountCard | null> {
+async function checkFollowForFundAt(follow: FollowRef): Promise<FollowedAccountCard | null> {
+  const { did, handle } = follow
+
+  // Try fund.at records on Slingshot first
   const disclosureUrl = `${SLINGSHOT}/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(did)}&collection=${FUND_DISCLOSURE}&rkey=self`
   const disclosure = await fetchJson<SlingshotRecord>(disclosureUrl)
-  if (!disclosure?.value) return null
-
-  const meta = readDisclosureMeta(disclosure.value)
-  if (!meta.displayName && !meta.description && !meta.landingPage) return null
-
-  // Fetch contribute links and identity in parallel
-  const contributeUrl = `${SLINGSHOT}/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(did)}&collection=${FUND_CONTRIBUTE}&rkey=self`
-  const identityUrl = `${SLINGSHOT}/xrpc/blue.microcosm.identity.resolveMiniDoc?identifier=${encodeURIComponent(did)}`
-
-  const [contribute, identity] = await Promise.all([
-    fetchJson<SlingshotRecord>(contributeUrl),
-    fetchJson<MiniDoc>(identityUrl),
-  ])
-
-  const links = contribute?.value ? readLinks(contribute.value) : undefined
-
-  return {
-    did,
-    handle: identity?.handle,
-    displayName: meta.displayName,
-    description: meta.description,
-    landingPage: meta.landingPage,
-    links: links && links.length > 0 ? links : undefined,
+  if (disclosure?.value) {
+    const meta = readDisclosureMeta(disclosure.value)
+    if (meta.displayName || meta.description || meta.landingPage) {
+      const contributeUrl = `${SLINGSHOT}/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(did)}&collection=${FUND_CONTRIBUTE}&rkey=self`
+      const contribute = await fetchJson<SlingshotRecord>(contributeUrl)
+      const links = contribute?.value ? readLinks(contribute.value) : undefined
+      return {
+        did,
+        handle,
+        displayName: meta.displayName,
+        description: meta.description,
+        landingPage: meta.landingPage,
+        links: links && links.length > 0 ? links : undefined,
+      }
+    }
   }
+
+  // Fall back to manual catalog by handle
+  if (handle) {
+    const manual = lookupManualStewardRecord(handle)
+    if (manual) {
+      return {
+        did,
+        handle,
+        displayName: manual.displayName,
+        description: manual.description,
+        landingPage: manual.landingPage,
+        links: manual.links.length > 0 ? manual.links : undefined,
+      }
+    }
+  }
+
+  return null
 }
 
 async function runWithConcurrency<T, R>(
@@ -116,17 +129,18 @@ async function runWithConcurrency<T, R>(
 }
 
 /**
- * Fetches the user's follow list and checks each for fund.at records via Slingshot.
+ * Fetches the user's follow list and checks each for fund.at records via Slingshot,
+ * falling back to the manual catalog for users identified by their handle.
  * Uses the public Bluesky API for the follow list (no special OAuth scopes needed).
- * Returns only followed accounts that have fund.at.disclosure records.
+ * Returns only followed accounts that have fund.at.disclosure records or a catalog entry.
  */
 export async function scanFollows(
   did: string,
 ): Promise<FollowedAccountCard[]> {
   const agent = new Agent(PUBLIC_API)
 
-  // Paginate through follows via public API
-  const followedDids: string[] = []
+  // Paginate through follows via public API, keeping handle alongside DID
+  const follows: FollowRef[] = []
   let cursor: string | undefined
   do {
     const res = await agent.app.bsky.graph.getFollows({
@@ -135,25 +149,25 @@ export async function scanFollows(
       cursor,
     })
     for (const follow of res.data.follows) {
-      followedDids.push(follow.did)
+      follows.push({ did: follow.did, handle: follow.handle })
     }
     cursor = res.data.cursor
   } while (cursor)
 
   logger.info('follow-scan: fetched follows', {
     did,
-    followCount: followedDids.length,
+    followCount: follows.length,
   })
 
-  if (followedDids.length === 0) return []
+  if (follows.length === 0) return []
 
-  // Check each follow for fund.at records via Slingshot
-  const results = await runWithConcurrency(followedDids, CONCURRENCY, async (did) => {
+  // Check each follow for fund.at records or manual catalog entry
+  const results = await runWithConcurrency(follows, CONCURRENCY, async (follow) => {
     try {
-      return await checkFollowForFundAt(did)
+      return await checkFollowForFundAt(follow)
     } catch (e) {
       logger.warn('follow-scan: error checking follow', {
-        did,
+        did: follow.did,
         error: e instanceof Error ? e.message : String(e),
       })
       return null
@@ -174,7 +188,7 @@ export async function scanFollows(
 
   logger.info('follow-scan: completed', {
     did,
-    followsChecked: followedDids.length,
+    followsChecked: follows.length,
     withFundAt: cards.length,
   })
 
