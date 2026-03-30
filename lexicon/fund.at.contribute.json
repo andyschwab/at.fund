@@ -1,19 +1,19 @@
 {
   "lexicon": 1,
   "id": "fund.at.contribute",
-  "description": "Declares contribution and funding entry points for an NSID namespace. Canonical schema for at.fund; supersedes com.contribute.tools.funding.",
+  "description": "Declares contribution and funding entry points published by a steward DID. Canonical schema for at.fund",
   "defs": {
     "main": {
       "type": "record",
-      "description": "Maps an NSID prefix to contribution entry points.",
+      "description": "Canonical contribution entry points published by a steward DID. Optionally restricted to specific domains via restrictToDomains.",
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["appliesToNsidPrefix"],
         "properties": {
-          "appliesToNsidPrefix": {
-            "type": "string",
-            "description": "Only collections whose NSID starts with this prefix are described by this record."
+          "restrictToDomains": {
+            "type": "array",
+            "description": "Optional allowlist of domain/hostnames for which these contribution links should be considered applicable (e.g. example.com, pds.example.com). When omitted or empty, the record is open.",
+            "items": { "type": "string" }
           },
           "links": {
             "type": "array",
@@ -25,15 +25,6 @@
                 "url": { "type": "string", "format": "uri" }
               }
             }
-          },
-          "opencollective": {
-            "type": "string",
-            "format": "uri",
-            "description": "Optional Open Collective URL."
-          },
-          "githubSponsors": {
-            "type": "string",
-            "description": "GitHub username or org slug for Sponsors."
           },
           "effectiveDate": {
             "type": "string",

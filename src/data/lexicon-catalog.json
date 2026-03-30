@@ -329,6 +329,26 @@
       "notes": "Community app; lexicon namespace lol.atmo.*"
     },
     {
+      "prefix": "https://atmo.rsvp",
+      "appName": "atmo.rsvp",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://atmo.rsvp"
+        },
+        {
+          "label": "Events",
+          "url": "https://atmo.rsvp/events"
+        },
+        {
+          "label": "Calendar",
+          "url": "https://atmo.rsvp/calendar"
+        }
+      ],
+      "notes": "Calendar `createdWith` identifier used in community calendar records."
+    },
+    {
       "prefix": "actor.popfeed.",
       "appName": "Popfeed",
       "confidence": "curated",
@@ -351,6 +371,18 @@
         }
       ],
       "notes": "Same project as actor.popfeed.* (see Popfeed)."
+    },
+    {
+      "prefix": "https://popfeed.social",
+      "appName": "Popfeed",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://popfeed.social"
+        }
+      ],
+      "notes": "URL-derived identifier (e.g. record metadata) for Popfeed."
     },
     {
       "prefix": "actor.sprk.",
@@ -385,6 +417,30 @@
       "notes": "Same ecosystem as actor.sprk.*."
     },
     {
+      "prefix": "https://sprk.so",
+      "appName": "SPRK (sprk.so)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "sprk.so",
+          "url": "https://sprk.so"
+        },
+        {
+          "label": "Support",
+          "url": "https://sprk.so/support"
+        },
+        {
+          "label": "Downloads / open beta",
+          "url": "https://sprk.so/downloads"
+        },
+        {
+          "label": "JSR (@sprk packages)",
+          "url": "https://jsr.io/@sprk"
+        }
+      ],
+      "notes": "URL-derived identifier for SPRK tooling."
+    },
+    {
       "prefix": "app.anisota.",
       "appName": "Anisota",
       "confidence": "curated",
@@ -401,20 +457,76 @@
       "notes": "Experimental card-deck social client; beta.* and related records."
     },
     {
-      "prefix": "community.lexicon.",
-      "appName": "Lexicon community (shared types)",
+      "prefix": "https://anisota.net",
+      "appName": "Anisota",
       "confidence": "curated",
       "links": [
         {
-          "label": "Calendar event (Lexicon Garden)",
-          "url": "https://lexicon.garden/lexicon/did:plc:2uwoih2htodskvgocarwv5eq/community.lexicon.calendar.event"
+          "label": "Website",
+          "url": "https://anisota.net"
         },
         {
-          "label": "lexicon-community/lexicon",
-          "url": "https://github.com/lexicon-community/lexicon"
+          "label": "Bluesky (@anisota.net)",
+          "url": "https://bsky.app/profile/anisota.net"
+        },
+        {
+          "label": "Maker: @dame.is",
+          "url": "https://bsky.app/profile/dame.is"
+        },
+        {
+          "label": "Maker: @atpota.to",
+          "url": "https://bsky.app/profile/atpota.to"
         }
       ],
-      "notes": "Cross-app schemas such as community.lexicon.calendar.* and location types. Distinct NSID authority from lexicon.community.*."
+      "notes": "URL-derived identifier for Anisota."
+    },
+    {
+      "prefix": "community.lexicon.location.",
+      "appName": "Lexicon community (location types)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "lexicon-community/lexicon",
+          "url": "https://github.com/lexicon-community/lexicon/tree/main/community/lexicon/location"
+        }
+      ],
+      "notes": "Shared location schemas. Distinct NSID authority from lexicon.community.*."
+    },
+    {
+      "prefix": "community.lexicon.bookmarks.",
+      "appName": "Lexicon community (bookmarks)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "lexicon-community/lexicon",
+          "url": "https://github.com/lexicon-community/lexicon/tree/main/community/lexicon/bookmarks"
+        }
+      ],
+      "notes": "Shared bookmark types. Distinct NSID authority from lexicon.community.*."
+    },
+    {
+      "prefix": "community.lexicon.interaction.",
+      "appName": "Lexicon community (interactions)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "lexicon-community/lexicon",
+          "url": "https://github.com/lexicon-community/lexicon/tree/main/community/lexicon/interaction"
+        }
+      ],
+      "notes": "Shared interaction types. Distinct NSID authority from lexicon.community.*."
+    },
+    {
+      "prefix": "community.lexicon.payments.",
+      "appName": "Lexicon community (payments)",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "lexicon-community/lexicon",
+          "url": "https://github.com/lexicon-community/lexicon/tree/main/community/lexicon/payments"
+        }
+      ],
+      "notes": "Shared payment-related types. Distinct NSID authority from lexicon.community.*."
     },
     {
       "prefix": "place.stream.",
@@ -444,6 +556,10 @@
         {
           "label": "Developers (@keytrace/claims)",
           "url": "https://keytrace.dev/developers"
+        },
+        {
+          "label": "GitHub Sponsors (@orta)",
+          "url": "https://github.com/sponsors/orta"
         }
       ],
       "notes": "Cross-platform identity verification claims stored on the PDS (dev.keytrace.claim, etc.)."
@@ -456,9 +572,29 @@
         {
           "label": "Website",
           "url": "https://www.you-and-me.app"
+        },
+        {
+          "label": "Website (youandme.at)",
+          "url": "https://youandme.at"
         }
       ],
       "notes": "If your collections use a different authority than app.youandme.*, open a PR to correct this row."
+    },
+    {
+      "prefix": "https://youandme.at",
+      "appName": "You and Me",
+      "confidence": "curated",
+      "links": [
+        {
+          "label": "Website",
+          "url": "https://youandme.at"
+        },
+        {
+          "label": "Website (alt)",
+          "url": "https://www.you-and-me.app"
+        }
+      ],
+      "notes": "URL-derived identifier for You and Me."
     },
     {
       "prefix": "com.germnetwork.",
@@ -470,31 +606,15 @@
           "url": "https://www.germnetwork.com"
         },
         {
+          "label": "Support Germ",
+          "url": "https://www.germnetwork.com/support-germnetwork"
+        },
+        {
           "label": "ATProto integration",
           "url": "https://www.germnetwork.com/blog/integrating-germ-atproto"
         }
       ],
       "notes": "E2EE messaging; declaration and keypackage records (com.germnetwork.*)."
-    },
-    {
-      "prefix": "site.standard.",
-      "appName": "Standard.site",
-      "confidence": "curated",
-      "links": [
-        {
-          "label": "Standard.site",
-          "url": "https://standard.site"
-        },
-        {
-          "label": "Lexicons (repository)",
-          "url": "https://tangled.org/standard.site/lexicons"
-        },
-        {
-          "label": "site.standard.document (Lexicon Garden)",
-          "url": "https://eu.lexicon.garden/lexicon/did:plc:uqzpqmrjnptsxezjx4xuh2mn/site.standard.document"
-        }
-      ],
-      "notes": "Long-form publishing: site.standard.document, site.standard.publication, site.standard.graph.*, themes."
     },
     {
       "prefix": "network.cosmik.",

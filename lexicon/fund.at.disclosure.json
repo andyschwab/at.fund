@@ -1,0 +1,144 @@
+{
+  "lexicon": 1,
+  "id": "fund.at.disclosure",
+  "description": "Donor-relevant disclosure: identity, contact, security, and legal pointers published by a steward DID. Can be discovered from a DID directly, or from a domain by resolving its DID via DNS _atproto.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Canonical trust and legal disclosure published by a steward DID. Optionally restricted to specific domains via restrictToDomains.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "properties": {
+          "restrictToDomains": {
+            "type": "array",
+            "description": "Optional allowlist of domain/hostnames for which this disclosure should be considered applicable (e.g. example.com, pds.example.com). When omitted or empty, the disclosure is open.",
+            "items": { "type": "string" }
+          },
+          "effectiveDate": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this disclosure was last meaningfully updated (policy, legal, or identity refresh)."
+          },
+          "supersedes": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Optional AT-URI of a prior fund.at.disclosure record this entry replaces."
+          },
+          "meta": {
+            "type": "object",
+            "description": "Public name, description, and landing page for the namespace or product.",
+            "properties": {
+              "displayName": {
+                "type": "string",
+                "description": "Short public name of the project or namespace product."
+              },
+              "description": {
+                "type": "string",
+                "description": "Plain-language, donor-facing summary."
+              },
+              "landingPage": {
+                "type": "string",
+                "format": "uri",
+                "description": "Canonical website or documentation root."
+              }
+            }
+          },
+          "contact": {
+            "type": "object",
+            "description": "Contact channels for support and press.",
+            "properties": {
+              "general": {
+                "type": "object",
+                "description": "General or support contact.",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "description": "Support or general inquiries email."
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Contact form or support page URL."
+                  }
+                }
+              },
+              "press": {
+                "type": "object",
+                "description": "Optional press or media contact, if distinct from general.",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          },
+          "security": {
+            "type": "object",
+            "description": "Security policy and responsible disclosure contact.",
+            "properties": {
+              "policyUri": {
+                "type": "string",
+                "format": "uri",
+                "description": "URL of the security or vulnerability disclosure policy."
+              },
+              "contactEmail": {
+                "type": "string",
+                "description": "Dedicated security contact email."
+              },
+              "contactUri": {
+                "type": "string",
+                "format": "uri",
+                "description": "Security reporting form or page URL."
+              }
+            }
+          },
+          "legal": {
+            "type": "object",
+            "description": "Jurisdiction, entity name, and policy URLs for donors and users.",
+            "properties": {
+              "jurisdiction": {
+                "type": "string",
+                "description": "Human-readable jurisdiction (e.g. region or governing law)."
+              },
+              "legalEntityName": {
+                "type": "string",
+                "description": "Registered legal name of the entity receiving or governing donations, if applicable."
+              },
+              "termsOfServiceUri": {
+                "type": "string",
+                "format": "uri",
+                "description": "Terms governing use of the product or service."
+              },
+              "privacyPolicyUri": {
+                "type": "string",
+                "format": "uri",
+                "description": "Privacy policy covering user and donor data."
+              },
+              "donorTermsUri": {
+                "type": "string",
+                "format": "uri",
+                "description": "Terms specific to making a donation, if separate from general ToS."
+              },
+              "taxDisclosureUri": {
+                "type": "string",
+                "format": "uri",
+                "description": "Page describing tax treatment of donations (e.g. charity registration), varies by region."
+              },
+              "softwareLicenseUri": {
+                "type": "string",
+                "format": "uri",
+                "description": "License for software or lexicon artifacts, if distinct from donation terms."
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

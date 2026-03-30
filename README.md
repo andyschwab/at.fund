@@ -1,6 +1,8 @@
 # Contribute to your ATProto tools (MVP)
 
-Next.js app: sign in with ATProto OAuth, scan **non-Bluesky-app** collections present in your repository, and match them to a curated list of apps and contribution links. Optional self-reported NSIDs are merged in.
+Next.js app: sign in with ATProto OAuth, scan **non-Bluesky-app** collections present in your repository, and match them to a curated list of apps and contribution links. Optional self-reported NSIDs are merged in. If your PDS hostname resolves to a DID (via DNS **`_atproto`**) that publishes `fund.at.*` records, a **Your host** block shows disclosure (and optional ways to support that operator).
+
+Design: [docs/atfund-discovery.md](docs/atfund-discovery.md).
 
 ## Local development
 
@@ -17,7 +19,8 @@ Set `PUBLIC_URL` to your HTTPS origin (no trailing slash). The app switches from
 ## Maintainer docs
 
 - In-app guide: `/maintainers` (see [src/app/maintainers/page.tsx](src/app/maintainers/page.tsx)).
-- Lexicon JSON: [lexicon/fund.at.contribute.json](lexicon/fund.at.contribute.json) (`fund.at.contribute`).
+- Domain/DID discovery: [docs/atfund-discovery.md](docs/atfund-discovery.md).
+- Lexicon JSON: [lexicon/fund.at.contribute.json](lexicon/fund.at.contribute.json) (`fund.at.contribute`), [lexicon/fund.at.disclosure.json](lexicon/fund.at.disclosure.json) (`fund.at.disclosure`), [lexicon/fund.at.dependencies.json](lexicon/fund.at.dependencies.json) (`fund.at.dependencies`).
 
 ## API
 

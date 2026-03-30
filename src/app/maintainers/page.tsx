@@ -13,24 +13,31 @@ export default function MaintainersPage() {
         Maintainer-native contribution metadata
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-        Tool authors can declare funding and contribution URLs in two ways: (1)
-        publish a lexicon record on ATProto, or (2) serve a static JSON file on
-        the domain that owns your NSID namespace. Either approach works without
-        users opening this app.
+        Tool authors can publish disclosure, contribution links, and dependency
+        pointers as ATProto records. Clients discover these records from either a
+        DID directly, or from a hostname by resolving its ATProto DID via DNS{' '}
+        <code className="font-mono text-xs">_atproto</code>.
       </p>
 
-      <h2 className="mt-10 text-lg font-medium">1. Lexicon record</h2>
+      <h2 className="mt-10 text-lg font-medium">1. Lexicon records</h2>
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        Define and publish a lexicon (see{' '}
-        <code className="font-mono text-xs">lexicon/fund.at.contribute.json</code>{' '}
-        in this repo for a starter schema). Commit the schema to your repo as a{' '}
+        Define and publish lexicons (see{' '}
+        <code className="font-mono text-xs">lexicon/fund.at.contribute.json</code>,{' '}
+        <code className="font-mono text-xs">lexicon/fund.at.disclosure.json</code>,{' '}
+        and{' '}
+        <code className="font-mono text-xs">lexicon/fund.at.dependencies.json</code>{' '}
+        in this repo). Commit each schema to your repo as a{' '}
         <code className="font-mono text-xs">com.atproto.lexicon.schema</code>{' '}
-        record, then create one or more{' '}
-        <code className="font-mono text-xs">fund.at.contribute</code> records with
-        fields such as{' '}
-        <code className="font-mono text-xs">appliesToNsidPrefix</code> and{' '}
-        <code className="font-mono text-xs">links</code>. Indexers can resolve
-        your DID and read those records with{' '}
+        record, then create records on your steward DID:{' '}
+        <code className="font-mono text-xs">fund.at.contribute</code> for funding
+        links (with optional{' '}
+        <code className="font-mono text-xs">restrictToDomains</code>),{' '}
+        <code className="font-mono text-xs">fund.at.disclosure</code> for
+        donor-relevant identity, contact, security, and legal pointers, and{' '}
+        <code className="font-mono text-xs">fund.at.dependencies</code> for a
+        list of dependency identifiers (DIDs or hostnames; optionally scoped with{' '}
+        <code className="font-mono text-xs">appliesToNsidPrefix</code>). Indexers
+        resolve your DID and read records with{' '}
         <code className="font-mono text-xs">com.atproto.repo.listRecords</code>.
         The canonical NSID tree is{' '}
         <code className="font-mono text-xs">fund.at.*</code> (see{' '}
@@ -43,29 +50,22 @@ export default function MaintainersPage() {
         ). If you previously published{' '}
         <code className="font-mono text-xs">com.contribute.tools.funding</code>,
         migrate to <code className="font-mono text-xs">fund.at.contribute</code>{' '}
-        (same fields).
+        (domain-scoped <code className="font-mono text-xs">links</code> and{' '}
+        <code className="font-mono text-xs">restrictToDomains</code>).
       </p>
 
-      <h2 className="mt-8 text-lg font-medium">2. Well-known JSON (no lexicon)</h2>
+      <h2 className="mt-8 text-lg font-medium">
+        2. DNS <code className="font-mono text-base">_atproto</code>
+      </h2>
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        On the HTTPS host that matches the authority segment of your NSID (for
-        example NSIDs under <code className="font-mono text-xs">com.example.*</code>{' '}
-        → host <code className="font-mono text-xs">example.com</code>), serve:
-      </p>
-      <pre className="mt-3 overflow-x-auto rounded-lg bg-zinc-100 p-4 text-xs dark:bg-zinc-900">
-        {`GET https://example.com/.well-known/atproto-contribution.json
-
-{
-  "appliesToNsidPrefix": "com.example.myapp.",
-  "links": [
-    { "label": "GitHub Sponsors", "url": "https://github.com/sponsors/your-org" }
-  ],
-  "opencollective": "https://opencollective.com/your-project",
-  "effectiveDate": "2026-03-29"
-}`}
-      </pre>
-      <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-        Clients may cache responses; use HTTPS and stable URLs.
+        Publish a TXT record at <code className="font-mono text-xs">_atproto.&lt;hostname&gt;</code>{' '}
+        whose value is your site/service DID. Clients can then resolve the DID to
+        a PDS and fetch <code className="font-mono text-xs">fund.at.disclosure</code>{' '}
+        (required), plus optional{' '}
+        <code className="font-mono text-xs">fund.at.contribute</code> and{' '}
+        <code className="font-mono text-xs">fund.at.dependencies</code>. Full spec:{' '}
+        <span className="font-mono text-xs">docs/atfund-discovery.md</span> in
+        this repository.
       </p>
 
       <h2 className="mt-8 text-lg font-medium">Catalog PRs</h2>

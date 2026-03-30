@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #fafafa;
   --foreground: #171717;
+  /* Support / donate — emerald */
+  --support: #059669;
+  --support-foreground: #ffffff;
+  --support-muted: rgba(16, 185, 129, 0.08);
+  --support-border: rgba(5, 150, 105, 0.35);
+  /* Discover / still learning — amber */
+  --discover: #d97706;
+  --discover-foreground: #422006;
+  --discover-muted: rgba(245, 158, 11, 0.1);
+  --discover-border: rgba(217, 119, 6, 0.4);
 }
 
 @theme inline {
@@ -10,17 +20,57 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-support: var(--support);
+  --color-support-foreground: var(--support-foreground);
+  --color-support-muted: var(--support-muted);
+  --color-support-border: var(--support-border);
+  --color-discover: var(--discover);
+  --color-discover-foreground: var(--discover-foreground);
+  --color-discover-muted: var(--discover-muted);
+  --color-discover-border: var(--discover-border);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --support: #34d399;
+    --support-foreground: #022c22;
+    --support-muted: rgba(52, 211, 153, 0.12);
+    --support-border: rgba(52, 211, 153, 0.45);
+    --discover: #fbbf24;
+    --discover-foreground: #fef3c7;
+    --discover-muted: rgba(251, 191, 36, 0.1);
+    --discover-border: rgba(251, 191, 36, 0.35);
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Page wash — subtle, works in light and dark */
+.page-wash {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--support-muted) 80%, transparent) 0%,
+    transparent 28rem
+  );
+}
+
+@media (prefers-color-scheme: dark) {
+  .page-wash {
+    background: linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--support-muted) 100%, transparent) 0%,
+      transparent 24rem
+    );
+  }
+}
+
+/* Details chevron rotation (native open state) */
+details.project-disclosure[open] summary .disclosure-chevron {
+  transform: rotate(180deg);
 }

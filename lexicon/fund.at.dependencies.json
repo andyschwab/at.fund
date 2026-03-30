@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "fund.at.dependencies",
+  "description": "Declares dependency pointers (DIDs or hostnames) published by a steward DID. Hostnames can be resolved to DIDs via DNS _atproto; clients may then fetch fund.at.* records from those DIDs.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "List of dependency identifiers (DIDs or hostnames). Optionally scoped with restrictToDomains and/or appliesToNsidPrefix.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["uris"],
+        "properties": {
+          "restrictToDomains": {
+            "type": "array",
+            "description": "Optional allowlist of domain/hostnames for which this record applies (e.g. example.com, pds.example.com). When omitted or empty, the record is open.",
+            "items": { "type": "string" }
+          },
+          "appliesToNsidPrefix": {
+            "type": "string",
+            "description": "Optional NSID prefix this dependency list applies to (e.g. app.bsky.). When omitted, the record applies generally (subject to restrictToDomains). Host-only clients typically ignore NSID-scoped records."
+          },
+          "uris": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Dependency identifiers. Each entry must be either a DID (did:plc:… / did:web:…) or a hostname (example.com, pds.example.com).",
+            "items": { "type": "string" }
+          },
+          "effectiveDate": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional human-readable context for indexers or maintainers."
+          }
+        }
+      }
+    }
+  }
+}
