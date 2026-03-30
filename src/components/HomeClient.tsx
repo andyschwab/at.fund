@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import type { ScanStreamEvent, ScanWarning, PdsHostFunding } from '@/lib/lexicon-scan'
 import type { StewardEntry } from '@/lib/steward-model'
 import { EntryIndex } from '@/lib/steward-merge'
@@ -26,6 +26,20 @@ import {
 
 const BURRITO_QUOTE_URL =
   'https://bsky.app/profile/burrito.space/post/3mi4ymt3lqs2k'
+
+// ---------------------------------------------------------------------------
+// Module-level scan cache — survives in-app navigation, cleared on Refresh
+// ---------------------------------------------------------------------------
+
+type ScanCache = {
+  meta: { did: string; handle?: string; pdsUrl?: string } | null
+  entries: StewardEntry[]
+  referencedEntries: StewardEntry[]
+  warnings: ScanWarning[]
+  pdsHostFunding: PdsHostFunding | undefined
+}
+
+let _scanCache: ScanCache | null = null
 
 type TagFilter = 'all' | 'tool' | 'labeler' | 'feed' | 'follow'
 
@@ -110,7 +124,8 @@ export function HomeClient({ hasSession, error }: Props) {
     [entries, referencedEntries],
   )
 
-  async function runStreamingScan(extra: string[]) {
+  const runStreamingScan = useCallback(async (extra: string[]) => {
+    _scanCache = null  // invalidate so navigating away mid-scan doesn't restore stale state
     setLoading(true)
     setScanDone(false)
     setScanStatus('')
@@ -186,15 +201,31 @@ export function HomeClient({ hasSession, error }: Props) {
     } finally {
       setLoading(false)
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  // Auto-start scan when session is available
+  // Save completed scan to cache so navigating away and back restores instantly
   useEffect(() => {
-    if (hasSession) {
-      void runStreamingScan([])
-    }
-    // hasSession doesn't change after mount
+    if (!scanDone) return
+    _scanCache = { meta, entries, referencedEntries, warnings, pdsHostFunding }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanDone])
+
+  // On mount: restore from cache if available, otherwise start scan
+  useEffect(() => {
+    if (!hasSession) return
+    if (_scanCache) {
+      setMeta(_scanCache.meta)
+      setEntries(_scanCache.entries)
+      setReferencedEntries(_scanCache.referencedEntries)
+      setWarnings(_scanCache.warnings)
+      setPdsHostFunding(_scanCache.pdsHostFunding)
+      setScanDone(true)
+      return
+    }
+    void runStreamingScan([])
+  // hasSession and runStreamingScan don't change after mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasSession])
 
   async function login(e: React.FormEvent) {
