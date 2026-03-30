@@ -5,6 +5,7 @@ import {
 } from '@atproto/oauth-client-node'
 import type { NodeSavedSession, NodeSavedState } from '@atproto/oauth-client-node'
 import type { OAuthClientMetadataInput } from '@atproto/oauth-types'
+import { fetch as undici } from 'undici'
 import { getPublicUrl, isLoopbackPublicUrl } from '@/lib/public-url'
 
 export const SCOPE = [
@@ -57,6 +58,7 @@ export async function getOAuthClient(): Promise<NodeOAuthClient> {
   clientKey = key
   client = new NodeOAuthClient({
     clientMetadata: buildClientMetadata(),
+    fetch: undici as unknown as typeof globalThis.fetch,
     stateStore: {
       async get(k: string) {
         return globalAuth.stateStore.get(k)
