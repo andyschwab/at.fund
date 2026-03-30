@@ -45,8 +45,8 @@ export const SCOPE = [
   'repo:fund.at.dependencies',
   // Bluesky AppView RPCs needed for subscriptions scan
   'rpc:app.bsky.actor.getPreferences?aud=did:web:api.bsky.app%23bsky_appview',
-  'rpc:app.bsky.labeler.getServices?aud=did:web:api.bsky.app%23bsky_appview',
-  'rpc:app.bsky.feed.getFeedGenerators?aud=did:web:api.bsky.app%23bsky_appview',
+  'rpc:app.bsky.labeler.getServices?aud=did:web:api.bsky.app',
+  'rpc:app.bsky.feed.getFeedGenerators?aud=did:web:api.bsky.app',
 ].join(' ')
 
 const globalAuth = globalThis as unknown as {
