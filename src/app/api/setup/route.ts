@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
-import { Agent } from '@atproto/api'
-import {
-  FUND_DISCLOSURE,
-  FUND_CONTRIBUTE,
-  FUND_DEPENDENCIES,
-} from '@/lib/fund-at-records'
+import { Client, l } from '@atproto/lex'
+import * as fund from '@/lexicons/fund.js'
 import {
   validateUrl,
   validateEmail,
   validateHandle,
-  validateIfPresent,
 } from '@/lib/validate'
 import { logger } from '@/lib/logger'
 
@@ -100,10 +95,6 @@ function parsePayload(body: unknown): SetupPayload | null {
   }
 }
 
-/**
- * Validate all fields in the payload. Returns a map of field → error message,
- * or null if everything passes.
- */
 function validatePayload(
   p: SetupPayload,
 ): Record<string, string> | null {
@@ -173,90 +164,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const agent = new Agent(session)
-  const effectiveDate = new Date().toISOString()
-
-  // Resolve PDS URL from the OAuth token audience
-  let pdsUrl: string
-  try {
-    const tokenInfo = await session.getTokenInfo(false)
-    pdsUrl = String(tokenInfo.aud).trim()
-  } catch {
-    return NextResponse.json(
-      { error: 'Could not resolve PDS URL from session' },
-      { status: 500 },
-    )
-  }
-
-  // The XRPC client encodes JSON bodies as Uint8Array with duplex:'half',
-  // which becomes a one-shot ReadableStream. If the DPoP fetch handler retries
-  // after a nonce 401, the stream is consumed and the retry sends an empty body
-  // ("expected non-null body source"). Bypass the XRPC layer and call the
-  // authenticated fetchHandler directly with a plain JSON string body.
-  async function createRecord(
-    collection: string,
-    record: Record<string, unknown>,
-  ) {
-    const response = await agent.fetchHandler(
-      `${pdsUrl}/xrpc/com.atproto.repo.createRecord`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repo: session.did, collection, record }),
-      },
-    )
-    if (!response.ok) {
-      const errBody: Record<string, unknown> = await response
-        .json()
-        .catch(() => ({}))
-      throw new Error(
-        (errBody.message as string) || `PDS returned ${response.status}`,
-      )
-    }
-  }
+  const client = new Client(session)
+  const effectiveDate = l.toDatetimeString(new Date())
 
   try {
-    // Build fund.at.disclosure record
-    const disclosureRecord: Record<string, unknown> = {
-      $type: FUND_DISCLOSURE,
-      meta: {
-        ...(payload.displayName && { displayName: payload.displayName }),
-        ...(payload.description && { description: payload.description }),
-        ...(payload.landingPage && { landingPage: payload.landingPage }),
-      },
-      effectiveDate,
-    }
-
+    // Build optional nested objects
     const hasGeneralContact =
       payload.contactHandle || payload.contactEmail || payload.contactUrl
     const hasPressContact = payload.pressEmail || payload.pressUrl
-    if (hasGeneralContact || hasPressContact) {
-      disclosureRecord.contact = {
-        ...(hasGeneralContact && {
-          general: {
-            ...(payload.contactHandle && { handle: payload.contactHandle }),
-            ...(payload.contactEmail && { email: payload.contactEmail }),
-            ...(payload.contactUrl && { url: payload.contactUrl }),
-          },
-        }),
-        ...(hasPressContact && {
-          press: {
-            ...(payload.pressEmail && { email: payload.pressEmail }),
-            ...(payload.pressUrl && { url: payload.pressUrl }),
-          },
-        }),
-      }
-    }
-
-    const hasSecurity = payload.securityPolicyUri || payload.securityContactUri || payload.securityContactEmail
-    if (hasSecurity) {
-      disclosureRecord.security = {
-        ...(payload.securityPolicyUri && { policyUri: payload.securityPolicyUri }),
-        ...(payload.securityContactEmail && { contactEmail: payload.securityContactEmail }),
-        ...(payload.securityContactUri && { contactUri: payload.securityContactUri }),
-      }
-    }
-
+    const hasSecurity =
+      payload.securityPolicyUri || payload.securityContactUri || payload.securityContactEmail
     const hasLegal =
       payload.legalEntityName ||
       payload.jurisdiction ||
@@ -265,24 +182,54 @@ export async function POST(request: NextRequest) {
       payload.donorTermsUri ||
       payload.taxDisclosureUri ||
       payload.softwareLicenseUri
-    if (hasLegal) {
-      disclosureRecord.legal = {
-        ...(payload.jurisdiction && { jurisdiction: payload.jurisdiction }),
-        ...(payload.legalEntityName && { legalEntityName: payload.legalEntityName }),
-        ...(payload.termsOfServiceUri && { termsOfServiceUri: payload.termsOfServiceUri }),
-        ...(payload.privacyPolicyUri && { privacyPolicyUri: payload.privacyPolicyUri }),
-        ...(payload.donorTermsUri && { donorTermsUri: payload.donorTermsUri }),
-        ...(payload.taxDisclosureUri && { taxDisclosureUri: payload.taxDisclosureUri }),
-        ...(payload.softwareLicenseUri && { softwareLicenseUri: payload.softwareLicenseUri }),
-      }
-    }
 
-    await createRecord(FUND_DISCLOSURE, disclosureRecord)
+    await client.create(fund.at.disclosure, {
+      meta: {
+        ...(payload.displayName && { displayName: payload.displayName }),
+        ...(payload.description && { description: payload.description }),
+        ...(payload.landingPage && { landingPage: payload.landingPage }),
+      },
+      effectiveDate,
+      ...((hasGeneralContact || hasPressContact) && {
+        contact: {
+          ...(hasGeneralContact && {
+            general: {
+              ...(payload.contactHandle && { handle: payload.contactHandle }),
+              ...(payload.contactEmail && { email: payload.contactEmail }),
+              ...(payload.contactUrl && { url: payload.contactUrl }),
+            },
+          }),
+          ...(hasPressContact && {
+            press: {
+              ...(payload.pressEmail && { email: payload.pressEmail }),
+              ...(payload.pressUrl && { url: payload.pressUrl }),
+            },
+          }),
+        },
+      }),
+      ...(hasSecurity && {
+        security: {
+          ...(payload.securityPolicyUri && { policyUri: payload.securityPolicyUri }),
+          ...(payload.securityContactEmail && { contactEmail: payload.securityContactEmail }),
+          ...(payload.securityContactUri && { contactUri: payload.securityContactUri }),
+        },
+      }),
+      ...(hasLegal && {
+        legal: {
+          ...(payload.jurisdiction && { jurisdiction: payload.jurisdiction }),
+          ...(payload.legalEntityName && { legalEntityName: payload.legalEntityName }),
+          ...(payload.termsOfServiceUri && { termsOfServiceUri: payload.termsOfServiceUri }),
+          ...(payload.privacyPolicyUri && { privacyPolicyUri: payload.privacyPolicyUri }),
+          ...(payload.donorTermsUri && { donorTermsUri: payload.donorTermsUri }),
+          ...(payload.taxDisclosureUri && { taxDisclosureUri: payload.taxDisclosureUri }),
+          ...(payload.softwareLicenseUri && { softwareLicenseUri: payload.softwareLicenseUri }),
+        },
+      }),
+    })
 
     // Write fund.at.contribute if links are provided
     if (payload.links && payload.links.length > 0) {
-      await createRecord(FUND_CONTRIBUTE, {
-        $type: FUND_CONTRIBUTE,
+      await client.create(fund.at.contribute, {
         links: payload.links,
         effectiveDate,
       })
@@ -290,8 +237,7 @@ export async function POST(request: NextRequest) {
 
     // Write fund.at.dependencies if provided
     if (payload.dependencyUris && payload.dependencyUris.length > 0) {
-      await createRecord(FUND_DEPENDENCIES, {
-        $type: FUND_DEPENDENCIES,
+      await client.create(fund.at.dependencies, {
         uris: payload.dependencyUris,
         ...(payload.dependencyNotes && { notes: payload.dependencyNotes }),
         effectiveDate,

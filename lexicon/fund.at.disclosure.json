@@ -26,121 +26,151 @@
             "description": "Optional AT-URI of a prior fund.at.disclosure record this entry replaces."
           },
           "meta": {
-            "type": "object",
-            "description": "Public name, description, and landing page for the namespace or product.",
-            "properties": {
-              "displayName": {
-                "type": "string",
-                "description": "Short public name of the project or namespace product."
-              },
-              "description": {
-                "type": "string",
-                "description": "Plain-language, donor-facing summary."
-              },
-              "landingPage": {
-                "type": "string",
-                "format": "uri",
-                "description": "Canonical website or documentation root."
-              }
-            }
+            "type": "ref",
+            "ref": "#meta",
+            "description": "Public name, description, and landing page for the namespace or product."
           },
           "contact": {
-            "type": "object",
-            "description": "Contact channels for support and press.",
-            "properties": {
-              "general": {
-                "type": "object",
-                "description": "General or support contact.",
-                "properties": {
-                  "handle": {
-                    "type": "string",
-                    "description": "Atmosphere handle for the project or maintainer (e.g. example.bsky.social or a verified domain handle)."
-                  },
-                  "email": {
-                    "type": "string",
-                    "description": "Support or general inquiries email."
-                  },
-                  "url": {
-                    "type": "string",
-                    "format": "uri",
-                    "description": "Contact form or support page URL."
-                  }
-                }
-              },
-              "press": {
-                "type": "object",
-                "description": "Optional press or media contact, if distinct from general.",
-                "properties": {
-                  "email": {
-                    "type": "string"
-                  },
-                  "url": {
-                    "type": "string",
-                    "format": "uri"
-                  }
-                }
-              }
-            }
+            "type": "ref",
+            "ref": "#contact",
+            "description": "Contact channels for support and press."
           },
           "security": {
-            "type": "object",
-            "description": "Security policy and responsible disclosure contact.",
-            "properties": {
-              "policyUri": {
-                "type": "string",
-                "format": "uri",
-                "description": "URL of the security or vulnerability disclosure policy."
-              },
-              "contactEmail": {
-                "type": "string",
-                "description": "Dedicated security contact email."
-              },
-              "contactUri": {
-                "type": "string",
-                "format": "uri",
-                "description": "Security reporting form or page URL."
-              }
-            }
+            "type": "ref",
+            "ref": "#security",
+            "description": "Security policy and responsible disclosure contact."
           },
           "legal": {
-            "type": "object",
-            "description": "Jurisdiction, entity name, and policy URLs for donors and users.",
-            "properties": {
-              "jurisdiction": {
-                "type": "string",
-                "description": "Human-readable jurisdiction (e.g. region or governing law)."
-              },
-              "legalEntityName": {
-                "type": "string",
-                "description": "Registered legal name of the entity receiving or governing donations, if applicable."
-              },
-              "termsOfServiceUri": {
-                "type": "string",
-                "format": "uri",
-                "description": "Terms governing use of the product or service."
-              },
-              "privacyPolicyUri": {
-                "type": "string",
-                "format": "uri",
-                "description": "Privacy policy covering user and donor data."
-              },
-              "donorTermsUri": {
-                "type": "string",
-                "format": "uri",
-                "description": "Terms specific to making a donation, if separate from general ToS."
-              },
-              "taxDisclosureUri": {
-                "type": "string",
-                "format": "uri",
-                "description": "Page describing tax treatment of donations (e.g. charity registration), varies by region."
-              },
-              "softwareLicenseUri": {
-                "type": "string",
-                "format": "uri",
-                "description": "License for software or lexicon artifacts, if distinct from donation terms."
-              }
-            }
+            "type": "ref",
+            "ref": "#legal",
+            "description": "Jurisdiction, entity name, and policy URLs for donors and users."
           }
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "description": "Public name, description, and landing page for the namespace or product.",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "description": "Short public name of the project or namespace product."
+        },
+        "description": {
+          "type": "string",
+          "description": "Plain-language, donor-facing summary."
+        },
+        "landingPage": {
+          "type": "string",
+          "format": "uri",
+          "description": "Canonical website or documentation root."
+        }
+      }
+    },
+    "contact": {
+      "type": "object",
+      "description": "Contact channels for support and press.",
+      "properties": {
+        "general": {
+          "type": "ref",
+          "ref": "#contactChannel",
+          "description": "General or support contact."
+        },
+        "press": {
+          "type": "ref",
+          "ref": "#pressChannel",
+          "description": "Optional press or media contact, if distinct from general."
+        }
+      }
+    },
+    "contactChannel": {
+      "type": "object",
+      "description": "General or support contact.",
+      "properties": {
+        "handle": {
+          "type": "string",
+          "description": "Atmosphere handle for the project or maintainer (e.g. example.bsky.social or a verified domain handle)."
+        },
+        "email": {
+          "type": "string",
+          "description": "Support or general inquiries email."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Contact form or support page URL."
+        }
+      }
+    },
+    "pressChannel": {
+      "type": "object",
+      "description": "Optional press or media contact.",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "description": "Security policy and responsible disclosure contact.",
+      "properties": {
+        "policyUri": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the security or vulnerability disclosure policy."
+        },
+        "contactEmail": {
+          "type": "string",
+          "description": "Dedicated security contact email."
+        },
+        "contactUri": {
+          "type": "string",
+          "format": "uri",
+          "description": "Security reporting form or page URL."
+        }
+      }
+    },
+    "legal": {
+      "type": "object",
+      "description": "Jurisdiction, entity name, and policy URLs for donors and users.",
+      "properties": {
+        "jurisdiction": {
+          "type": "string",
+          "description": "Human-readable jurisdiction (e.g. region or governing law)."
+        },
+        "legalEntityName": {
+          "type": "string",
+          "description": "Registered legal name of the entity receiving or governing donations, if applicable."
+        },
+        "termsOfServiceUri": {
+          "type": "string",
+          "format": "uri",
+          "description": "Terms governing use of the product or service."
+        },
+        "privacyPolicyUri": {
+          "type": "string",
+          "format": "uri",
+          "description": "Privacy policy covering user and donor data."
+        },
+        "donorTermsUri": {
+          "type": "string",
+          "format": "uri",
+          "description": "Terms specific to making a donation, if separate from general ToS."
+        },
+        "taxDisclosureUri": {
+          "type": "string",
+          "format": "uri",
+          "description": "Page describing tax treatment of donations (e.g. charity registration), varies by region."
+        },
+        "softwareLicenseUri": {
+          "type": "string",
+          "format": "uri",
+          "description": "License for software or lexicon artifacts, if distinct from donation terms."
         }
       }
     }
