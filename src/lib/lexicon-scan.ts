@@ -64,6 +64,8 @@ export type ScanResult = {
   handle?: string
   pdsUrl?: string
   stewards: StewardCardModel[]
+  /** Resolved models for dependency URIs not in stewards — used for lookup only, not rendered as cards. */
+  referencedStewards: StewardCardModel[]
   followedAccounts: FollowedAccountCard[]
   warnings: ScanWarning[]
   pdsHostFunding?: PdsHostFunding
@@ -200,14 +202,41 @@ export async function scanRepo(
     })
   }
 
-  /** Donation / contribute links first among known stewards; unknown entries stay last. */
+  // Resolve dep URIs that weren't in the main scan (catalog-only, no extra network calls).
+  // These are needed so the UI can determine whether a steward's deps accept contributions.
+  const referencedStewards: StewardCardModel[] = []
+  const resolvedDepUris = new Set<string>()
+  for (const s of stewards) {
+    for (const depUri of s.dependencies ?? []) {
+      if (!stewardUris.has(depUri) && !resolvedDepUris.has(depUri)) {
+        resolvedDepUris.add(depUri)
+        const manual = lookupManualStewardRecord(depUri)
+        if (manual) {
+          referencedStewards.push({
+            stewardUri: depUri,
+            displayName: manual.displayName,
+            description: manual.description,
+            landingPage: manual.landingPage,
+            contactGeneralHandle: manual.contactGeneralHandle,
+            links: manual.links.length > 0 ? manual.links : undefined,
+            dependencies: manual.dependencies,
+            source: 'manual',
+          })
+        }
+      }
+    }
+  }
+
+  /** Sort: direct (has contribute link) → dependency (has deps, no link) → none → unknown */
+  function stewardTier(s: StewardCardModel): number {
+    if (s.source === 'unknown') return 3
+    if (s.links && s.links.length > 0) return 0
+    if (s.dependencies && s.dependencies.length > 0) return 1
+    return 2
+  }
   stewards.sort((a, b) => {
-    const aUnknown = a.source === 'unknown'
-    const bUnknown = b.source === 'unknown'
-    if (aUnknown !== bUnknown) return aUnknown ? 1 : -1
-    const aHasDonate = !!(a.links && a.links.length > 0)
-    const bHasDonate = !!(b.links && b.links.length > 0)
-    if (aHasDonate !== bHasDonate) return aHasDonate ? -1 : 1
+    const diff = stewardTier(a) - stewardTier(b)
+    if (diff !== 0) return diff
     return a.stewardUri.localeCompare(b.stewardUri)
   })
 
@@ -257,6 +286,7 @@ export async function scanRepo(
     handle,
     pdsUrl: pdsUrl?.origin,
     stewards,
+    referencedStewards,
     followedAccounts,
     warnings,
     pdsHostFunding,
