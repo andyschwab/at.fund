@@ -207,6 +207,21 @@ type ModalState = {
   error: string | null
 }
 
+type HeartState = 'direct' | 'dependency' | 'none'
+
+function heartState(links?: { url: string }[], dependencies?: string[]): HeartState {
+  if (links?.[0]) return 'direct'
+  if (dependencies?.length) return 'dependency'
+  return 'none'
+}
+
+function depRowTier(s: StewardCardModel | undefined): number {
+  if (!s) return 2
+  if (s.links?.[0]) return 0
+  if (s.dependencies?.length) return 1
+  return 2
+}
+
 /** A single row in the "Depends on" inset section. */
 function DependencyRow({
   depUri,
@@ -218,23 +233,31 @@ function DependencyRow({
   onExpand: () => void
 }) {
   const contributeLink = steward?.links?.[0]
+  const state = heartState(steward?.links, steward?.dependencies)
   const name = steward?.displayName ?? depUri
   const websiteUrl = steward?.landingPage ?? websiteFallbackForStewardUri(depUri)
 
   return (
     <div className="flex items-center gap-2 py-1.5">
-      {contributeLink ? (
+      {state === 'direct' ? (
         <a
-          href={contributeLink.url}
+          href={contributeLink!.url}
           target="_blank"
           rel="noreferrer"
-          title={contributeLink.label}
+          title={contributeLink!.label}
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
           onClick={(e) => e.stopPropagation()}
         >
           <Heart className="h-3.5 w-3.5 fill-current" strokeWidth={0} aria-hidden />
-          <span className="sr-only">{contributeLink.label}</span>
+          <span className="sr-only">{contributeLink!.label}</span>
         </a>
+      ) : state === 'dependency' ? (
+        <span
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
+          title="No contribution link — has sub-dependencies"
+        >
+          <Heart className="h-3.5 w-3.5 fill-current" strokeWidth={0} aria-hidden />
+        </span>
       ) : (
         <span
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
@@ -280,6 +303,7 @@ function ModalCardContent({
   onExpandDep: (uri: string) => void
 }) {
   const contributeLink = steward.links?.[0]
+  const state = heartState(steward.links, steward.dependencies)
   const websiteFallback = websiteFallbackForStewardUri(steward.stewardUri)
   const disclosure = disclosureMetaFromSteward(steward)
   const websiteUrl = steward.landingPage ?? websiteFallback
@@ -289,17 +313,24 @@ function ModalCardContent({
     <div>
       <div className="flex gap-3">
         <div className="flex shrink-0 flex-col items-center gap-1">
-          {contributeLink ? (
+          {state === 'direct' ? (
             <a
-              href={contributeLink.url}
+              href={contributeLink!.url}
               target="_blank"
               rel="noreferrer"
-              title={contributeLink.label}
+              title={contributeLink!.label}
               className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
             >
               <Heart className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
-              <span className="sr-only">{contributeLink.label}</span>
+              <span className="sr-only">{contributeLink!.label}</span>
             </a>
+          ) : state === 'dependency' ? (
+            <span
+              className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
+              title="No contribution link — has sub-dependencies"
+            >
+              <Heart className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
+            </span>
           ) : (
             <span
               className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
@@ -368,6 +399,11 @@ function DependenciesSection({
     [allStewards],
   )
 
+  const sortedDependencies = useMemo(
+    () => [...dependencies].sort((a, b) => depRowTier(stewardByUri.get(a)) - depRowTier(stewardByUri.get(b))),
+    [dependencies, stewardByUri],
+  )
+
   async function openDep(uri: string) {
     setModal({ uri, steward: null, loading: true, error: null })
     if (!dialogRef.current?.open) {
@@ -400,7 +436,7 @@ function DependenciesSection({
           Depends on
         </p>
         <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-          {dependencies.map((depUri) => (
+          {sortedDependencies.map((depUri) => (
             <DependencyRow
               key={depUri}
               depUri={depUri}
@@ -548,6 +584,7 @@ export function KnownStewardCard({
   allStewards?: StewardCardModel[]
 }) {
   const contributeLink = steward.links?.[0]
+  const state = heartState(steward.links, steward.dependencies)
   const websiteFallback = websiteFallbackForStewardUri(steward.stewardUri)
   const disclosure = disclosureMetaFromSteward(steward)
   const websiteUrl = steward.landingPage ?? websiteFallback
@@ -558,12 +595,12 @@ export function KnownStewardCard({
     <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--support-border)] bg-gradient-to-br from-[var(--support-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--support-muted)] dark:to-slate-950">
       <div className="flex gap-3">
         <div className="flex shrink-0 flex-col items-center gap-1">
-          {contributeLink ? (
+          {state === 'direct' ? (
             <a
-              href={contributeLink.url}
+              href={contributeLink!.url}
               target="_blank"
               rel="noreferrer"
-              title={contributeLink.label}
+              title={contributeLink!.label}
               className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
             >
               <Heart
@@ -571,8 +608,15 @@ export function KnownStewardCard({
                 strokeWidth={0}
                 aria-hidden
               />
-              <span className="sr-only">{contributeLink.label}</span>
+              <span className="sr-only">{contributeLink!.label}</span>
             </a>
+          ) : state === 'dependency' ? (
+            <span
+              className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
+              title="No contribution link — has sub-dependencies"
+            >
+              <Heart className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
+            </span>
           ) : (
             <span
               className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"

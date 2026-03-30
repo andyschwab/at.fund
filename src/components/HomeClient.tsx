@@ -58,7 +58,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
     () => scan?.stewards.filter((s) => s.source === 'unknown') ?? [],
     [scan?.stewards],
   )
-  const followedAccounts = scan?.followedAccounts ?? []
+  const followedAccounts = scan?.followedAccounts.filter((a) => a.links?.[0]) ?? []
 
   async function login(e: React.FormEvent) {
     e.preventDefault()

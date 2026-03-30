@@ -200,14 +200,16 @@ export async function scanRepo(
     })
   }
 
-  /** Donation / contribute links first among known stewards; unknown entries stay last. */
+  /** Sort: direct (has contribute link) → dependency (has deps, no link) → none → unknown */
+  function stewardTier(s: StewardCardModel): number {
+    if (s.source === 'unknown') return 3
+    if (s.links && s.links.length > 0) return 0
+    if (s.dependencies && s.dependencies.length > 0) return 1
+    return 2
+  }
   stewards.sort((a, b) => {
-    const aUnknown = a.source === 'unknown'
-    const bUnknown = b.source === 'unknown'
-    if (aUnknown !== bUnknown) return aUnknown ? 1 : -1
-    const aHasDonate = !!(a.links && a.links.length > 0)
-    const bHasDonate = !!(b.links && b.links.length > 0)
-    if (aHasDonate !== bHasDonate) return aHasDonate ? -1 : 1
+    const diff = stewardTier(a) - stewardTier(b)
+    if (diff !== 0) return diff
     return a.stewardUri.localeCompare(b.stewardUri)
   })
 
