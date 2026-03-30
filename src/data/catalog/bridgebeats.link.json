@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "BridgeBeats",
+      "description": "Lookup and bridging service on ATProto.",
+      "landingPage": "https://bridgebeats.link"
+    },
+    "contact": {
+      "general": {
+        "handle": "bridgebeats.link"
+      }
+    }
+  }
+}

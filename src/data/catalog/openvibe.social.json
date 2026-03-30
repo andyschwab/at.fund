@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "OpenVibe",
+      "description": "Unified timeline client combining Mastodon, Bluesky, Nostr, and Threads in one app.",
+      "landingPage": "https://openvibe.social"
+    },
+    "contact": {
+      "general": {
+        "handle": "openvibe.social"
+      }
+    }
+  }
+}

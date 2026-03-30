@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "OpenMeet",
+      "description": "Free Meetup alternative on ATProto. Uses community calendar lexicons for interoperability with Smoke Signal.",
+      "landingPage": "https://openmeet.net"
+    },
+    "contact": {
+      "general": {
+        "handle": "openmeet.net"
+      }
+    }
+  }
+}

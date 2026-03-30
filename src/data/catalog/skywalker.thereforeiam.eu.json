@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Skywalker",
+      "description": "Feature-rich Android Bluesky client built with Qt/QML. Timeline rewind, bookmarks, drafts, and multi-account support.",
+      "landingPage": "https://github.com/mfnboer/skywalker"
+    },
+    "contact": {
+      "general": {
+        "handle": "skywalker.thereforeiam.eu"
+      }
+    }
+  }
+}

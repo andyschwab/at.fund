@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "RedGazer",
+      "description": "Visual content browser for Bluesky with image-first interface and advanced filtering.",
+      "landingPage": "https://www.redgazer.com"
+    },
+    "contact": {
+      "general": {
+        "handle": "redgazer.com"
+      }
+    }
+  }
+}

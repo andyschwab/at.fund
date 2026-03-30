@@ -15,7 +15,7 @@ User signs in
   → resolver catalog maps each key to a steward URI
   → for each steward URI:
       try fund.at.* records from the steward's PDS
-      fall back to manual-catalog.json
+      fall back to catalog/*.json
       or mark as "unknown"
   → render steward cards
 ```
@@ -165,26 +165,22 @@ If disclosure exists → `StewardCardModel` with `source: 'fund.at'`.
 
 If no fund.at records found, look up `lookupManualStewardRecord(stewardUri)` from `src/lib/catalog.ts`:
 
-Reads `src/data/manual-catalog.json`, which stores curated records shaped like real `fund.at.*` data:
+Reads per-steward JSON files from `src/data/catalog/`, each shaped like a real `fund.at.*` record. For example, `src/data/catalog/whtwnd.com.json`:
 
 ```json
 {
-  "records": {
-    "whtwnd.com": {
-      "disclosure": {
-        "meta": {
-          "displayName": "WhiteWind",
-          "description": "Long-form blogging on ATProto.",
-          "landingPage": "https://whtwnd.com"
-        }
-      },
-      "contribute": {
-        "links": [{ "label": "...", "url": "..." }]
-      },
-      "dependencies": {
-        "uris": ["other-steward.com"]
-      }
+  "disclosure": {
+    "meta": {
+      "displayName": "WhiteWind",
+      "description": "Long-form blogging on ATProto.",
+      "landingPage": "https://whtwnd.com"
     }
+  },
+  "contribute": {
+    "links": [{ "label": "...", "url": "..." }]
+  },
+  "dependencies": {
+    "uris": ["other-steward.com"]
   }
 }
 ```
@@ -260,7 +256,7 @@ src/
 │   ├── HomeClient.tsx              Client shell: login, scan, card layout
 │   └── ProjectCards.tsx            PdsHostSupportCard, KnownStewardCard, UnknownStewardCard
 ├── data/
-│   ├── manual-catalog.json         Curated fund.at-shaped records by steward URI
+│   ├── catalog/*.json               One file per steward — curated fund.at-shaped records
 │   └── resolver-catalog.json       NSID prefix → steward URI overrides
 └── lib/
     ├── catalog.ts                  resolveStewardUri + lookupManualStewardRecord

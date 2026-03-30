@@ -1,0 +1,19 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Frontpage",
+      "description": "Link aggregator built on ATProto.",
+      "landingPage": "https://frontpage.fyi"
+    },
+    "contact": {
+      "general": {
+        "handle": "frontpage.fyi"
+      }
+    }
+  },
+  "dependencies": {
+    "uris": [
+      "unravel.fyi"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Popfeed",
+      "description": "Media logging (film, TV, music, games).",
+      "landingPage": "https://popfeed.social"
+    },
+    "contact": {
+      "general": {
+        "handle": "popfeed.social"
+      }
+    }
+  }
+}

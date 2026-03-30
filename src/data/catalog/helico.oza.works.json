@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Helico",
+      "description": "Native SwiftUI Bluesky client for iPhone, iPad, and Mac with multi-column view and Jetstream support.",
+      "landingPage": "https://helico.oza.works/en/"
+    },
+    "contact": {
+      "general": {
+        "handle": "helico.oza.works"
+      }
+    }
+  }
+}

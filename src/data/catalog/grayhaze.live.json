@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "GrayHaze",
+      "description": "Live streaming on ATProto.",
+      "landingPage": "https://grayhaze.live"
+    },
+    "contact": {
+      "general": {
+        "handle": "grayhaze.live"
+      }
+    }
+  }
+}

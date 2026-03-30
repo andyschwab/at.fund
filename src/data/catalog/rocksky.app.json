@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Rocksky",
+      "description": "Decentralized music scrobbling on ATProto. Scrobble data stored in user repos, enriched with MusicBrainz/Spotify metadata.",
+      "landingPage": "https://rocksky.app"
+    },
+    "contact": {
+      "general": {
+        "handle": "rocksky.app"
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # Manual catalog review process
 
-How to discover and add AT Protocol applications to `src/data/manual-catalog.json`.
+How to discover and add AT Protocol applications to the `src/data/catalog/` directory.
 
 ## Why this matters
 
@@ -77,12 +77,18 @@ Check if NSID hostname inference will produce the correct steward URI:
 - If this matches the steward domain, no resolver override is needed
 - If it doesn't match (e.g., `com.shinolabs.pinksea.*` should map to `pinksea.art`), add an override to `resolver-catalog.json`
 
-### 2. Add to manual-catalog.json
+### 2. Add a catalog file
 
-Add an entry under `records` keyed by the steward URI:
+Create a new JSON file in `src/data/catalog/` named after the steward URI:
+
+```
+src/data/catalog/example.app.json
+```
+
+With contents:
 
 ```json
-"example.app": {
+{
   "disclosure": {
     "meta": {
       "displayName": "Example App",
@@ -109,6 +115,8 @@ Add an entry under `records` keyed by the steward URI:
 - `contribute.links[]` - funding/support links (`{ "label": "...", "url": "..." }`)
 - `dependencies.uris[]` - other steward URIs this app depends on
 
+Each steward is a single file — PRs add one file without touching shared state.
+
 ### 3. Add resolver override if needed
 
 If the NSID prefix doesn't naturally infer to the steward URI, add an entry to `src/data/resolver-catalog.json`:
@@ -122,7 +130,8 @@ The resolver uses longest-prefix matching, so more specific prefixes take priori
 ### 4. Validate
 
 ```bash
-python3 -m json.tool src/data/manual-catalog.json > /dev/null
+# Validate all catalog files
+for f in src/data/catalog/*.json; do python3 -m json.tool "$f" > /dev/null || echo "INVALID: $f"; done
 python3 -m json.tool src/data/resolver-catalog.json > /dev/null
 ```
 

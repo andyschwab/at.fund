@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Bluescreen",
+      "description": "TikTok-style video client for Bluesky. Creator: Sebastian Vogelsang.",
+      "landingPage": "https://www.bluescreen.blue"
+    },
+    "contact": {
+      "general": {
+        "handle": "bluescreen.blue"
+      }
+    }
+  }
+}

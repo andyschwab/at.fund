@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Bridgy Fed",
+      "description": "Bridge between ATProto, ActivityPub (Mastodon), and the IndieWeb. Built by Ryan Barrett.",
+      "landingPage": "https://fed.brid.gy"
+    },
+    "contact": {
+      "general": {
+        "handle": "fed.brid.gy"
+      }
+    }
+  }
+}

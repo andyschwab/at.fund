@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Bookhive",
+      "description": "Book tracking and reviews on ATProto.",
+      "landingPage": "https://bookhive.buzz"
+    },
+    "contact": {
+      "general": {
+        "handle": "bookhive.buzz"
+      }
+    }
+  }
+}

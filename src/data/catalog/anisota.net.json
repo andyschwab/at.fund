@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Anisota",
+      "description": "Experimental card-deck social client.",
+      "landingPage": "https://anisota.net"
+    },
+    "contact": {
+      "general": {
+        "handle": "anisota.net"
+      }
+    }
+  }
+}

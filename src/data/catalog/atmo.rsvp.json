@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "atmo.rsvp",
+      "description": "Community calendar for ATProto events.",
+      "landingPage": "https://atmo.rsvp"
+    },
+    "contact": {
+      "general": {
+        "handle": "atmo.rsvp"
+      }
+    }
+  }
+}

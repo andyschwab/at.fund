@@ -1,0 +1,22 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Keytrace",
+      "description": "Cross-platform identity verification claims stored on the PDS.",
+      "landingPage": "https://keytrace.dev"
+    },
+    "contact": {
+      "general": {
+        "handle": "orta.dev"
+      }
+    }
+  },
+  "contribute": {
+    "links": [
+      {
+        "label": "GitHub Sponsors (@orta)",
+        "url": "https://github.com/sponsors/orta"
+      }
+    ]
+  }
+}

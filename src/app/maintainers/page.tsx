@@ -71,9 +71,9 @@ export default function MaintainersPage() {
       <h2 className="mt-8 text-lg font-medium">Catalog PRs</h2>
       <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
         This MVP also ships a curated catalog in{' '}
-        <code className="font-mono text-xs">src/data/manual-catalog.json</code>.
-        Add or correct entries via pull request if you maintain a service on
-        ATProto.
+        <code className="font-mono text-xs">src/data/catalog/</code> — one JSON
+        file per steward. Add or correct entries via pull request if you
+        maintain a service on ATProto.
       </p>
     </div>
   )

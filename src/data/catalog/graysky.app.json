@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Graysky",
+      "description": "Open source Bluesky client for iOS and Android with inline translations, GIFs, and trending topics.",
+      "landingPage": "https://graysky.app"
+    },
+    "contact": {
+      "general": {
+        "handle": "graysky.app"
+      }
+    }
+  }
+}

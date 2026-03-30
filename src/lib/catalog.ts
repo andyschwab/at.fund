@@ -1,4 +1,5 @@
-import manualCatalogJson from '@/data/manual-catalog.json'
+import fs from 'node:fs'
+import path from 'node:path'
 import resolverJson from '@/data/resolver-catalog.json'
 import { normalizeStewardUri } from '@/lib/steward-uri'
 import type { FundLink } from '@/lib/fund-at-records'
@@ -30,10 +31,6 @@ type ManualRecord = {
   dependencies?: ManualDependencies
 }
 
-type ManualCatalogFile = {
-  records: Record<string, ManualRecord>
-}
-
 type ResolverOverride = {
   matchPrefix: string
   stewardUri: string
@@ -43,7 +40,19 @@ type ResolverFile = {
   overrides: ResolverOverride[]
 }
 
-const manualCatalog = manualCatalogJson as ManualCatalogFile
+function loadCatalogRecords(): Record<string, ManualRecord> {
+  const catalogDir = path.join(process.cwd(), 'src', 'data', 'catalog')
+  const records: Record<string, ManualRecord> = {}
+  for (const file of fs.readdirSync(catalogDir)) {
+    if (!file.endsWith('.json')) continue
+    const stewardUri = file.replace(/\.json$/, '')
+    const content = fs.readFileSync(path.join(catalogDir, file), 'utf-8')
+    records[stewardUri] = JSON.parse(content) as ManualRecord
+  }
+  return records
+}
+
+const manualCatalogRecords = loadCatalogRecords()
 const resolverCatalog = resolverJson as ResolverFile
 
 function normalizePrefix(prefix: string): string {
@@ -118,7 +127,7 @@ export function lookupManualStewardRecord(
   const key = normalizeStewardUri(stewardUri)
   if (!key) return null
 
-  const record = manualCatalog.records[key]
+  const record = manualCatalogRecords[key]
   if (!record) return null
 
   const meta = record.disclosure?.meta

@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Pinksky",
+      "description": "Instagram-style photo sharing client for Bluesky with profiles, feed, and Stories.",
+      "landingPage": "https://pinksky.app"
+    },
+    "contact": {
+      "general": {
+        "handle": "pinksky.app"
+      }
+    }
+  }
+}

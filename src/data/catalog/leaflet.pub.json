@@ -1,0 +1,19 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Leaflet",
+      "description": "Block-based publishing on ATProto.",
+      "landingPage": "https://leaflet.pub"
+    },
+    "contact": {
+      "general": {
+        "handle": "leaflet.pub"
+      }
+    }
+  },
+  "dependencies": {
+    "uris": [
+      "standard.site"
+    ]
+  }
+}

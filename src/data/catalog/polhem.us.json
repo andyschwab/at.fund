@@ -1,0 +1,14 @@
+{
+  "disclosure": {
+    "meta": {
+      "displayName": "Polhem",
+      "description": "Blogging platform on ATProto.",
+      "landingPage": "https://polhem.us"
+    },
+    "contact": {
+      "general": {
+        "handle": "polhem.us"
+      }
+    }
+  }
+}
