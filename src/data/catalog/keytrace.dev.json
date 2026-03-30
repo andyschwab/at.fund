@@ -7,13 +7,13 @@
     },
     "contact": {
       "general": {
-        "handle": "orta.dev"
+        "handle": "orta.io"
       }
     }
   },
   "dependencies": {
     "uris": [
-      "orta.dev"
+      "orta.io"
     ]
   }
 }
