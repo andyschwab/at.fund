@@ -176,10 +176,46 @@ export async function POST(request: NextRequest) {
   const agent = new Agent(session)
   const effectiveDate = new Date().toISOString()
 
+  // Resolve PDS URL from the OAuth token audience
+  let pdsUrl: string
   try {
-    // Warm the DPoP nonce with a lightweight read so that subsequent writes
-    // don't fail from a nonce-retry consuming the request body stream.
-    await agent.com.atproto.repo.describeRepo({ repo: session.did })
+    const tokenInfo = await session.getTokenInfo(false)
+    pdsUrl = String(tokenInfo.aud).trim()
+  } catch {
+    return NextResponse.json(
+      { error: 'Could not resolve PDS URL from session' },
+      { status: 500 },
+    )
+  }
+
+  // The XRPC client encodes JSON bodies as Uint8Array with duplex:'half',
+  // which becomes a one-shot ReadableStream. If the DPoP fetch handler retries
+  // after a nonce 401, the stream is consumed and the retry sends an empty body
+  // ("expected non-null body source"). Bypass the XRPC layer and call the
+  // authenticated fetchHandler directly with a plain JSON string body.
+  async function createRecord(
+    collection: string,
+    record: Record<string, unknown>,
+  ) {
+    const response = await agent.fetchHandler(
+      `${pdsUrl}/xrpc/com.atproto.repo.createRecord`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo: session.did, collection, record }),
+      },
+    )
+    if (!response.ok) {
+      const errBody: Record<string, unknown> = await response
+        .json()
+        .catch(() => ({}))
+      throw new Error(
+        (errBody.message as string) || `PDS returned ${response.status}`,
+      )
+    }
+  }
+
+  try {
     // Build fund.at.disclosure record
     const disclosureRecord: Record<string, unknown> = {
       $type: FUND_DISCLOSURE,
@@ -241,36 +277,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await agent.com.atproto.repo.createRecord({
-      repo: session.did,
-      collection: FUND_DISCLOSURE,
-      record: disclosureRecord,
-    })
+    await createRecord(FUND_DISCLOSURE, disclosureRecord)
 
     // Write fund.at.contribute if links are provided
     if (payload.links && payload.links.length > 0) {
-      await agent.com.atproto.repo.createRecord({
-        repo: session.did,
-        collection: FUND_CONTRIBUTE,
-        record: {
-          $type: FUND_CONTRIBUTE,
-          links: payload.links,
-          effectiveDate,
-        },
+      await createRecord(FUND_CONTRIBUTE, {
+        $type: FUND_CONTRIBUTE,
+        links: payload.links,
+        effectiveDate,
       })
     }
 
     // Write fund.at.dependencies if provided
     if (payload.dependencyUris && payload.dependencyUris.length > 0) {
-      await agent.com.atproto.repo.createRecord({
-        repo: session.did,
-        collection: FUND_DEPENDENCIES,
-        record: {
-          $type: FUND_DEPENDENCIES,
-          uris: payload.dependencyUris,
-          ...(payload.dependencyNotes && { notes: payload.dependencyNotes }),
-          effectiveDate,
-        },
+      await createRecord(FUND_DEPENDENCIES, {
+        $type: FUND_DEPENDENCIES,
+        uris: payload.dependencyUris,
+        ...(payload.dependencyNotes && { notes: payload.dependencyNotes }),
+        effectiveDate,
       })
     }
 
