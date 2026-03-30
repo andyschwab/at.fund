@@ -1,6 +1,11 @@
-import type { FundLink } from '@/lib/fund-at-records'
+import type { DisclosureMeta, FundLink } from '@/lib/fund-at-records'
 
 export type StewardSource = 'fund.at' | 'manual' | 'unknown'
+
+type StewardDisclosureExtras = Omit<
+  DisclosureMeta,
+  'displayName' | 'description' | 'landingPage'
+>
 
 export type StewardCardModel = {
   stewardUri: string
@@ -12,4 +17,4 @@ export type StewardCardModel = {
   links?: FundLink[]
   dependencies?: string[]
   source: StewardSource
-}
+} & Partial<StewardDisclosureExtras>

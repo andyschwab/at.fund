@@ -19,6 +19,34 @@ import {
   stripDerivedCollections,
 } from '@/lib/repo-collection-resolve'
 
+/**
+ * OAuth requests use the token `aud` (resource server) as the PDS base URL.
+ * `extractPdsUrl(didDoc)` can fail on some documents; `aud` matches the live
+ * connection and should always be present for an OAuth session.
+ */
+async function resolveSessionPdsUrl(
+  session: OAuthSession,
+  agent: Agent,
+): Promise<URL | null> {
+  try {
+    const info = await session.getTokenInfo(false)
+    const raw = info.aud?.trim()
+    if (raw && /^https?:\/\//i.test(raw)) {
+      return new URL(raw)
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    const resolved = await agent.com.atproto.identity.resolveIdentity({
+      identifier: session.did,
+    })
+    return extractPdsUrl(resolved.data.didDoc as AtprotoDidDocument)
+  } catch {
+    return null
+  }
+}
+
 export type { PdsHostFunding }
 
 export type ScanResult = {
@@ -35,15 +63,7 @@ export async function scanRepo(
 ): Promise<ScanResult> {
   const agent = new Agent(session)
 
-  let pdsUrl: URL | null = null
-  try {
-    const resolved = await agent.com.atproto.identity.resolveIdentity({
-      identifier: session.did,
-    })
-    pdsUrl = extractPdsUrl(resolved.data.didDoc as AtprotoDidDocument)
-  } catch {
-    pdsUrl = null
-  }
+  const pdsUrl = await resolveSessionPdsUrl(session, agent)
 
   const repoInfo = await agent.com.atproto.repo.describeRepo({
     repo: session.did,
@@ -91,17 +111,22 @@ export async function scanRepo(
     if (stewardDid) {
       const fundAt = await fetchFundAtForStewardDid(stewardDid)
       if (fundAt) {
+        const {
+          displayName: dName,
+          description: dDesc,
+          landingPage: dLanding,
+          ...disclosureExtras
+        } = fundAt.disclosure
         stewards.push({
           stewardUri,
           stewardDid: stewardDidOrUndefined,
-          displayName:
-            fundAt.disclosure.displayName ?? manual?.displayName ?? stewardUri,
-          description:
-            fundAt.disclosure.description ?? manual?.description,
-          landingPage: fundAt.disclosure.landingPage,
+          displayName: dName ?? manual?.displayName ?? stewardUri,
+          description: dDesc ?? manual?.description,
+          landingPage: dLanding,
           links: fundAt.links,
           dependencies: fundAt.dependencyUris,
           source: 'fund.at',
+          ...disclosureExtras,
         })
         continue
       }
@@ -128,6 +153,17 @@ export async function scanRepo(
       source: 'unknown',
     })
   }
+
+  /** Donation / contribute links first among known stewards; unknown entries stay last. */
+  stewards.sort((a, b) => {
+    const aUnknown = a.source === 'unknown'
+    const bUnknown = b.source === 'unknown'
+    if (aUnknown !== bUnknown) return aUnknown ? 1 : -1
+    const aHasDonate = !!(a.links && a.links.length > 0)
+    const bHasDonate = !!(b.links && b.links.length > 0)
+    if (aHasDonate !== bHasDonate) return aHasDonate ? -1 : 1
+    return a.stewardUri.localeCompare(b.stewardUri)
+  })
 
   let pdsHostFunding: ScanResult['pdsHostFunding']
   if (pdsUrl) {

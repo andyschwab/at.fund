@@ -186,69 +186,79 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
           </section>
         ) : (
           <>
-            <section className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white/90 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800 dark:bg-zinc-950/90">
-              <div className="flex min-w-0 items-center gap-3">
-                <span
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--support-muted)] text-sm font-semibold text-[var(--support)] dark:text-emerald-400"
-                  aria-hidden
-                >
-                  {displayId ? userInitial(displayId) : '…'}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                    Signed in
-                  </p>
-                  <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">
-                    {displayId || '…'}
-                  </p>
-                  {pdsUrl && (
-                    <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
-                      PDS: <span className="font-mono">{pdsUrl}</span>
+            <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white/90 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/90">
+              <div className="flex flex-col gap-4 border-b border-zinc-200/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--support-muted)] text-sm font-semibold text-[var(--support)] dark:text-emerald-400"
+                    aria-hidden
+                  >
+                    {displayId ? userInitial(displayId) : '…'}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      Signed in
                     </p>
+                    <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">
+                      {displayId || '…'}
+                    </p>
+                    {pdsUrl && (
+                      <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                        PDS: <span className="font-mono">{pdsUrl}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {scan?.did && (
+                    <a
+                      href={pdslsRepoUrl(scan.did)}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Opens PDSls in a new tab"
+                      className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                      <ExternalLink className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
+                      <span className="hidden sm:inline">Data explorer</span>
+                      <span className="sm:hidden">Explorer</span>
+                    </a>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => runScan(parseSelfReportInput())}
+                    disabled={loading}
+                    className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 shrink-0 ${loading ? 'animate-spin' : ''}`}
+                      aria-hidden
+                    />
+                    <span className="hidden sm:inline">
+                      {loading ? 'Scanning…' : 'Refresh'}
+                    </span>
+                    <span className="sm:hidden">
+                      {loading ? '…' : 'Refresh'}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => logout()}
+                    aria-label="Sign out"
+                    className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                  >
+                    <LogOut className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="hidden sm:inline">Sign out</span>
+                  </button>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {scan?.did && (
-                  <a
-                    href={pdslsRepoUrl(scan.did)}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Opens PDSls in a new tab"
-                    className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                  >
-                    <ExternalLink className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
-                    <span className="hidden sm:inline">Data explorer</span>
-                    <span className="sm:hidden">Explorer</span>
-                  </a>
-                )}
-                <button
-                  type="button"
-                  onClick={() => runScan(parseSelfReportInput())}
-                  disabled={loading}
-                  className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 shrink-0 ${loading ? 'animate-spin' : ''}`}
-                    aria-hidden
+              {pdsUrl && (
+                <div className="p-4 pt-4">
+                  <PdsHostSupportCard
+                    pdsHostname={new URL(pdsUrl).hostname}
+                    funding={scan?.pdsHostFunding}
                   />
-                  <span className="hidden sm:inline">
-                    {loading ? 'Scanning…' : 'Refresh'}
-                  </span>
-                  <span className="sm:hidden">
-                    {loading ? '…' : 'Refresh'}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => logout()}
-                  aria-label="Sign out"
-                  className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                >
-                  <LogOut className="h-4 w-4 shrink-0" aria-hidden />
-                  <span className="hidden sm:inline">Sign out</span>
-                </button>
-              </div>
+                </div>
+              )}
             </section>
 
             {err && (
@@ -259,31 +269,6 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
             )}
 
             <section className="space-y-10">
-              {scan?.pdsHostFunding && (
-                <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white/60 dark:border-zinc-800 dark:bg-zinc-950/40">
-                  <div className="flex gap-3 border-b border-sky-200/80 bg-sky-50/80 px-5 py-4 dark:border-sky-500/20 dark:bg-sky-950/30">
-                    <span
-                      className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/90 text-sky-700 shadow-sm dark:bg-zinc-900/80 dark:text-sky-400"
-                      aria-hidden
-                    >
-                      <Monitor className="h-5 w-5" strokeWidth={2} />
-                    </span>
-                    <div>
-                      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                        Your host
-                      </h2>
-                      <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
-                        Where your account is stored may also accept support—
-                        separate from individual apps below.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="p-5">
-                    <PdsHostSupportCard funding={scan.pdsHostFunding} />
-                  </div>
-                </div>
-              )}
-
               {!scan ? (
                 <p className="text-sm text-zinc-500">
                   Could not load your projects.{' '}

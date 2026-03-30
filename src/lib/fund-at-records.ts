@@ -15,6 +15,21 @@ export type DisclosureMeta = {
   displayName?: string
   description?: string
   landingPage?: string
+  /** fund.at.disclosure contact.general */
+  contactGeneralUrl?: string
+  contactGeneralEmail?: string
+  /** fund.at.disclosure contact.press */
+  contactPressUrl?: string
+  contactPressEmail?: string
+  /** fund.at.disclosure security */
+  securityPolicyUri?: string
+  securityContactUri?: string
+  /** fund.at.disclosure legal */
+  privacyPolicyUri?: string
+  termsOfServiceUri?: string
+  donorTermsUri?: string
+  taxDisclosureUri?: string
+  softwareLicenseUri?: string
 }
 
 export type FundAtResult = {
@@ -135,7 +150,37 @@ export function extractDisclosureMeta(value: RawValue): DisclosureMeta | null {
   const description = typeof m.description === 'string' ? m.description : undefined
   const landingPage = typeof m.landingPage === 'string' ? m.landingPage : undefined
   if (!displayName && !description && !landingPage) return null
-  return { displayName, description, landingPage }
+
+  const contact = isObject(value.contact) ? (value.contact as RawValue) : undefined
+  const general =
+    contact && isObject(contact.general) ? (contact.general as RawValue) : undefined
+  const press =
+    contact && isObject(contact.press) ? (contact.press as RawValue) : undefined
+  const security = isObject(value.security) ? (value.security as RawValue) : undefined
+  const legal = isObject(value.legal) ? (value.legal as RawValue) : undefined
+
+  return {
+    displayName,
+    description,
+    landingPage,
+    contactGeneralUrl: typeof general?.url === 'string' ? general.url : undefined,
+    contactGeneralEmail: typeof general?.email === 'string' ? general.email : undefined,
+    contactPressUrl: typeof press?.url === 'string' ? press.url : undefined,
+    contactPressEmail: typeof press?.email === 'string' ? press.email : undefined,
+    securityPolicyUri:
+      typeof security?.policyUri === 'string' ? security.policyUri : undefined,
+    securityContactUri:
+      typeof security?.contactUri === 'string' ? security.contactUri : undefined,
+    privacyPolicyUri:
+      typeof legal?.privacyPolicyUri === 'string' ? legal.privacyPolicyUri : undefined,
+    termsOfServiceUri:
+      typeof legal?.termsOfServiceUri === 'string' ? legal.termsOfServiceUri : undefined,
+    donorTermsUri: typeof legal?.donorTermsUri === 'string' ? legal.donorTermsUri : undefined,
+    taxDisclosureUri:
+      typeof legal?.taxDisclosureUri === 'string' ? legal.taxDisclosureUri : undefined,
+    softwareLicenseUri:
+      typeof legal?.softwareLicenseUri === 'string' ? legal.softwareLicenseUri : undefined,
+  }
 }
 
 export function isHostScopedDependency(value: RawValue): boolean {
