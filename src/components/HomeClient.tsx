@@ -68,7 +68,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
         body: JSON.stringify({ handle }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Login failed')
+      if (!res.ok) throw new Error(data.detail || data.error || 'Login failed')
       window.location.href = data.redirectUrl
     } catch (x) {
       setErr(
@@ -97,7 +97,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
         body: JSON.stringify({ selfReportedStewards: extra }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Scan failed')
+      if (!res.ok) throw new Error(data.detail || data.error || 'Scan failed')
       setScan(data)
     } catch (x) {
       setErr(
@@ -291,6 +291,23 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                 {err}
               </p>
+            )}
+
+            {scan && scan.warnings && scan.warnings.length > 0 && (
+              <details className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
+                <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-amber-800 dark:text-amber-300 [&::-webkit-details-marker]:hidden">
+                  <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
+                  {scan.warnings.length} lookup{scan.warnings.length === 1 ? '' : 's'} had issues
+                  <span className="text-amber-600 dark:text-amber-500">▾</span>
+                </summary>
+                <ul className="mt-2 space-y-1 pl-6 text-amber-700 dark:text-amber-400">
+                  {scan.warnings.map((w, i) => (
+                    <li key={i}>
+                      <span className="font-mono text-xs">{w.stewardUri}</span>: {w.message}
+                    </li>
+                  ))}
+                </ul>
+              </details>
             )}
 
             <section className="space-y-10">

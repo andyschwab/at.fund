@@ -18,6 +18,7 @@ import {
   resolveSiteStandardPairs,
   stripDerivedCollections,
 } from '@/lib/repo-collection-resolve'
+import { logger } from '@/lib/logger'
 
 /**
  * OAuth requests use the token `aud` (resource server) as the PDS base URL.
@@ -49,11 +50,18 @@ async function resolveSessionPdsUrl(
 
 export type { PdsHostFunding }
 
+export type ScanWarning = {
+  stewardUri: string
+  step: string
+  message: string
+}
+
 export type ScanResult = {
   did: string
   handle?: string
   pdsUrl?: string
   stewards: StewardCardModel[]
+  warnings: ScanWarning[]
   pdsHostFunding?: PdsHostFunding
 }
 
@@ -99,39 +107,69 @@ export async function scanRepo(
     if (resolved) stewardUris.add(resolved)
   }
 
+  logger.info('scan: resolved steward URIs', {
+    did: session.did,
+    stewardCount: stewardUris.size,
+    stewardUris: [...stewardUris].sort(),
+  })
+
   const stewards: StewardCardModel[] = []
+  const warnings: ScanWarning[] = []
+
   for (const stewardUri of [...stewardUris].sort((a, b) => a.localeCompare(b))) {
     const isDid = stewardUri.startsWith('did:')
-    const stewardDid: string | null = isDid
-      ? stewardUri
-      : await lookupAtprotoDid(stewardUri)
+    let stewardDid: string | null = null
+
+    if (isDid) {
+      stewardDid = stewardUri
+    } else {
+      try {
+        stewardDid = await lookupAtprotoDid(stewardUri)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'DNS lookup failed'
+        logger.warn('scan: DNS lookup failed for steward', { stewardUri, error: msg })
+        warnings.push({ stewardUri, step: 'dns-lookup', message: msg })
+      }
+    }
+
     const stewardDidOrUndefined = stewardDid ?? undefined
     const manual = lookupManualStewardRecord(stewardUri)
 
     if (stewardDid) {
-      const fundAt = await fetchFundAtForStewardDid(stewardDid)
-      if (fundAt) {
-        const {
-          displayName: dName,
-          description: dDesc,
-          landingPage: dLanding,
-          ...disclosureExtras
-        } = fundAt.disclosure
-        stewards.push({
+      try {
+        const fundAt = await fetchFundAtForStewardDid(stewardDid)
+        if (fundAt) {
+          const {
+            displayName: dName,
+            description: dDesc,
+            landingPage: dLanding,
+            ...disclosureExtras
+          } = fundAt.disclosure
+          stewards.push({
+            stewardUri,
+            stewardDid: stewardDidOrUndefined,
+            displayName: dName ?? manual?.displayName ?? stewardUri,
+            description: dDesc ?? manual?.description,
+            landingPage: dLanding,
+            links: fundAt.links,
+            dependencies: fundAt.dependencyUris,
+            source: 'fund.at',
+            ...disclosureExtras,
+            contactGeneralHandle:
+              fundAt.disclosure.contactGeneralHandle ??
+              manual?.contactGeneralHandle,
+          })
+          continue
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Failed to fetch fund.at records'
+        logger.warn('scan: fund.at fetch failed for steward', {
           stewardUri,
-          stewardDid: stewardDidOrUndefined,
-          displayName: dName ?? manual?.displayName ?? stewardUri,
-          description: dDesc ?? manual?.description,
-          landingPage: dLanding,
-          links: fundAt.links,
-          dependencies: fundAt.dependencyUris,
-          source: 'fund.at',
-          ...disclosureExtras,
-          contactGeneralHandle:
-            fundAt.disclosure.contactGeneralHandle ??
-            manual?.contactGeneralHandle,
+          stewardDid,
+          error: msg,
         })
-        continue
+        warnings.push({ stewardUri, step: 'fund-at-fetch', message: msg })
+        // Fall through to manual catalog
       }
     }
 
@@ -171,14 +209,35 @@ export async function scanRepo(
 
   let pdsHostFunding: ScanResult['pdsHostFunding']
   if (pdsUrl) {
-    pdsHostFunding = (await fetchFundingForUriLike(pdsUrl.origin)) ?? undefined
+    try {
+      pdsHostFunding = (await fetchFundingForUriLike(pdsUrl.origin)) ?? undefined
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'
+      logger.warn('scan: PDS host funding lookup failed', {
+        pdsUrl: pdsUrl.origin,
+        error: msg,
+      })
+      warnings.push({ stewardUri: pdsUrl.origin, step: 'pds-host-funding', message: msg })
+    }
   }
+
+  logger.info('scan: completed', {
+    did: session.did,
+    stewardCount: stewards.length,
+    warningCount: warnings.length,
+    sources: {
+      fundAt: stewards.filter((s) => s.source === 'fund.at').length,
+      manual: stewards.filter((s) => s.source === 'manual').length,
+      unknown: stewards.filter((s) => s.source === 'unknown').length,
+    },
+  })
 
   return {
     did: session.did,
     handle,
     pdsUrl: pdsUrl?.origin,
     stewards,
+    warnings,
     pdsHostFunding,
   }
 }

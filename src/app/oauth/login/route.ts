@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getOAuthClient, SCOPE } from '@/lib/auth/client'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,11 +16,16 @@ export async function POST(request: NextRequest) {
       scope: SCOPE,
     })
 
+    logger.info('oauth: login initiated', { handle: handle.trim() })
     return NextResponse.json({ redirectUrl: authUrl.toString() })
   } catch (error) {
-    console.error('OAuth login error:', error)
+    const message = error instanceof Error ? error.message : 'Login failed'
+    logger.error('oauth: login failed', {
+      error: message,
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Login failed' },
+      { error: message, detail: 'Could not start the login flow. Check your handle and try again.' },
       { status: 500 },
     )
   }
