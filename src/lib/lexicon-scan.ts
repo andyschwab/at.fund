@@ -7,6 +7,7 @@ import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { resolveStewardUri, lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
+import { fetchOwnFundAtRecords } from '@/lib/fund-at-records'
 import type { StewardCardModel } from '@/lib/steward-model'
 import { scanFollows } from '@/lib/follow-scan'
 import type { FollowedAccountCard } from '@/lib/follow-scan'
@@ -143,7 +144,13 @@ export async function scanRepo(
 
     if (stewardDid) {
       try {
-        const fundAt = await fetchFundAtForStewardDid(stewardDid)
+        let fundAt
+        if (stewardDid === session.did) {
+          const ownRecords = await fetchOwnFundAtRecords(session)
+          fundAt = ownRecords ? { stewardDid, ...ownRecords } : null
+        } else {
+          fundAt = await fetchFundAtForStewardDid(stewardDid)
+        }
         if (fundAt) {
           const {
             displayName: dName,
