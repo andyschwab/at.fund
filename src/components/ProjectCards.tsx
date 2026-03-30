@@ -209,16 +209,34 @@ type ModalState = {
 
 type HeartState = 'direct' | 'dependency' | 'none'
 
-function heartState(links?: { url: string }[], dependencies?: string[]): HeartState {
+/**
+ * 'dependency' only fires when at least one listed dep resolves to a steward
+ * with a contribution link — so we never imply actionability we can't back up.
+ */
+function heartState(
+  links: import('@/lib/fund-at-records').FundLink[] | undefined,
+  dependencies: string[] | undefined,
+  lookup?: (uri: string) => StewardCardModel | undefined,
+): HeartState {
   if (links?.[0]) return 'direct'
-  if (dependencies?.length) return 'dependency'
+  if (dependencies?.length && lookup) {
+    if (dependencies.some((uri) => !!(lookup(uri)?.links?.[0]))) return 'dependency'
+  }
   return 'none'
 }
 
-function depRowTier(s: StewardCardModel | undefined): number {
+function depRowTier(
+  s: StewardCardModel | undefined,
+  lookup?: (uri: string) => StewardCardModel | undefined,
+): number {
   if (!s) return 2
   if (s.links?.[0]) return 0
-  if (s.dependencies?.length) return 1
+  if (
+    s.dependencies?.length &&
+    lookup &&
+    s.dependencies.some((uri) => !!(lookup(uri)?.links?.[0]))
+  )
+    return 1
   return 2
 }
 
@@ -226,14 +244,15 @@ function depRowTier(s: StewardCardModel | undefined): number {
 function DependencyRow({
   depUri,
   steward,
+  state,
   onExpand,
 }: {
   depUri: string
   steward?: StewardCardModel
+  state: HeartState
   onExpand: () => void
 }) {
   const contributeLink = steward?.links?.[0]
-  const state = heartState(steward?.links, steward?.dependencies)
   const name = steward?.displayName ?? depUri
   const websiteUrl = steward?.landingPage ?? websiteFallbackForStewardUri(depUri)
 
@@ -298,12 +317,14 @@ function DependencyRow({
 function ModalCardContent({
   steward,
   onExpandDep,
+  lookup,
 }: {
   steward: StewardCardModel
   onExpandDep: (uri: string) => void
+  lookup?: (uri: string) => StewardCardModel | undefined
 }) {
   const contributeLink = steward.links?.[0]
-  const state = heartState(steward.links, steward.dependencies)
+  const state = heartState(steward.links, steward.dependencies, lookup)
   const websiteFallback = websiteFallbackForStewardUri(steward.stewardUri)
   const disclosure = disclosureMetaFromSteward(steward)
   const websiteUrl = steward.landingPage ?? websiteFallback
@@ -365,13 +386,18 @@ function ModalCardContent({
             Depends on
           </p>
           <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-            {steward.dependencies.map((depUri) => (
-              <DependencyRow
-                key={depUri}
-                depUri={depUri}
-                onExpand={() => onExpandDep(depUri)}
-              />
-            ))}
+            {steward.dependencies.map((depUri) => {
+              const depSteward = lookup?.(depUri)
+              return (
+                <DependencyRow
+                  key={depUri}
+                  depUri={depUri}
+                  steward={depSteward}
+                  state={heartState(depSteward?.links, depSteward?.dependencies, lookup)}
+                  onExpand={() => onExpandDep(depUri)}
+                />
+              )
+            })}
           </div>
         </div>
       )}
@@ -399,8 +425,13 @@ function DependenciesSection({
     [allStewards],
   )
 
+  const lookup = (uri: string) => stewardByUri.get(uri)
+
   const sortedDependencies = useMemo(
-    () => [...dependencies].sort((a, b) => depRowTier(stewardByUri.get(a)) - depRowTier(stewardByUri.get(b))),
+    () =>
+      [...dependencies].sort(
+        (a, b) => depRowTier(stewardByUri.get(a), lookup) - depRowTier(stewardByUri.get(b), lookup),
+      ),
     [dependencies, stewardByUri],
   )
 
@@ -436,14 +467,18 @@ function DependenciesSection({
           Depends on
         </p>
         <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-          {sortedDependencies.map((depUri) => (
-            <DependencyRow
-              key={depUri}
-              depUri={depUri}
-              steward={stewardByUri.get(depUri)}
-              onExpand={() => openDep(depUri)}
-            />
-          ))}
+          {sortedDependencies.map((depUri) => {
+            const depSteward = stewardByUri.get(depUri)
+            return (
+              <DependencyRow
+                key={depUri}
+                depUri={depUri}
+                steward={depSteward}
+                state={heartState(depSteward?.links, depSteward?.dependencies, lookup)}
+                onExpand={() => openDep(depUri)}
+              />
+            )
+          })}
         </div>
       </div>
 
@@ -475,7 +510,7 @@ function DependenciesSection({
             <p className="text-sm text-red-600 dark:text-red-400">{modal.error}</p>
           )}
           {modal?.steward && (
-            <ModalCardContent steward={modal.steward} onExpandDep={openDep} />
+            <ModalCardContent steward={modal.steward} onExpandDep={openDep} lookup={lookup} />
           )}
         </div>
       </dialog>
@@ -584,7 +619,12 @@ export function KnownStewardCard({
   allStewards?: StewardCardModel[]
 }) {
   const contributeLink = steward.links?.[0]
-  const state = heartState(steward.links, steward.dependencies)
+  const stewardByUri = useMemo(
+    () => new Map(allStewards.map((s) => [s.stewardUri, s])),
+    [allStewards],
+  )
+  const lookup = (uri: string) => stewardByUri.get(uri)
+  const state = heartState(steward.links, steward.dependencies, lookup)
   const websiteFallback = websiteFallbackForStewardUri(steward.stewardUri)
   const disclosure = disclosureMetaFromSteward(steward)
   const websiteUrl = steward.landingPage ?? websiteFallback
