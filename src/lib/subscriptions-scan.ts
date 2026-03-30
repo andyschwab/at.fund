@@ -233,9 +233,18 @@ export async function scanSubscriptions(
     fetchFeedDisplayInfo(agent, feedUris),
   ])
 
-  // Extract feed DIDs from GeneratorView results
-  // (feedInfo is keyed by DID, so we use its keys, not the raw AT-URIs)
-  const feedDids = [...feedInfo.keys()]
+  // Build feed DID list: start with DIDs parsed directly from the saved AT-URIs
+  // so feeds that getFeedGenerators failed to resolve still produce entries.
+  // feedInfo is used for display enrichment only — not as the source of truth.
+  const feedDids = [
+    ...new Set([
+      ...feedUris.flatMap((uri) => {
+        const m = uri.match(/^at:\/\/(did:[^/]+)\//)
+        return m ? [m[1]!] : []
+      }),
+      ...feedInfo.keys(),
+    ]),
+  ]
 
   // Resolve all entries concurrently (fund.at calls)
   const [labelerEntries, feedEntries] = await Promise.all([
