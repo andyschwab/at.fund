@@ -63,6 +63,7 @@ export type ScanWarning = {
 
 export type ScanStreamEvent =
   | { type: 'meta'; did: string; handle?: string; pdsUrl?: string }
+  | { type: 'status'; message: string }
   | { type: 'entry'; entry: StewardEntry }
   | { type: 'referenced'; entry: StewardEntry }
   | { type: 'pds-host'; funding: PdsHostFunding }
@@ -327,6 +328,9 @@ export async function scanRepoStreaming(
   emit: (event: ScanStreamEvent) => void,
 ): Promise<void> {
   const agent = new Agent(session)
+
+  emit({ type: 'status', message: 'Reading your repository…' })
+
   const pdsUrl = await resolveSessionPdsUrl(session, agent)
 
   const repoInfo = await agent.com.atproto.repo.describeRepo({ repo: session.did })
@@ -361,6 +365,10 @@ export async function scanRepoStreaming(
     stewardCount: stewardUris.size,
     stewardUris: [...stewardUris].sort(),
   })
+
+  if (stewardUris.size > 0) {
+    emit({ type: 'status', message: `Resolving ${stewardUris.size} steward${stewardUris.size === 1 ? '' : 's'}…` })
+  }
 
   // Track emitted URIs so dep entries aren't duplicated
   const emittedUris = new Set<string>()
@@ -470,6 +478,7 @@ export async function scanRepoStreaming(
   }
 
   // PDS host funding, follows, and subscriptions all in parallel
+  emit({ type: 'status', message: 'Loading follows and subscriptions…' })
   await Promise.all([
     (async () => {
       if (!pdsUrl) return

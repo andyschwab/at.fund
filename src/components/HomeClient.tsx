@@ -69,6 +69,7 @@ export function HomeClient({ hasSession, error }: Props) {
   const [warnings, setWarnings] = useState<ScanWarning[]>([])
   const [pdsHostFunding, setPdsHostFunding] = useState<PdsHostFunding | undefined>()
   const [scanDone, setScanDone] = useState(false)
+  const [scanStatus, setScanStatus] = useState<string>('')
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
   const entryIndexRef = useRef(new EntryIndex())
 
@@ -112,6 +113,7 @@ export function HomeClient({ hasSession, error }: Props) {
   async function runStreamingScan(extra: string[]) {
     setLoading(true)
     setScanDone(false)
+    setScanStatus('')
     setMeta(null)
     setEntries([])
     setReferencedEntries([])
@@ -156,6 +158,8 @@ export function HomeClient({ hasSession, error }: Props) {
 
           if (event.type === 'meta') {
             setMeta({ did: event.did, handle: event.handle, pdsUrl: event.pdsUrl })
+          } else if (event.type === 'status') {
+            setScanStatus(event.message)
           } else if (event.type === 'entry') {
             entryIndexRef.current.upsert(event.entry)
             setEntries(entryIndexRef.current.toArray())
@@ -167,6 +171,7 @@ export function HomeClient({ hasSession, error }: Props) {
             setWarnings((prev) => [...prev, event.warning])
           } else if (event.type === 'done') {
             setScanDone(true)
+            setScanStatus('')
           }
         }
       }
@@ -433,52 +438,55 @@ export function HomeClient({ hasSession, error }: Props) {
 
             {/* Steward list */}
             <section className="space-y-4">
-              {visibleEntries.length === 0 && !scanDone ? (
-                loading ? (
-                  <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
-                    <RefreshCw className="h-4 w-4 animate-spin shrink-0" aria-hidden />
-                    Scanning your account…
-                  </div>
-                ) : null
-              ) : visibleEntries.length === 0 && scanDone ? (
+              {visibleEntries.length === 0 && scanDone ? (
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   We didn&apos;t find any extra tools in your saved data yet. You
                   can add more below if you know them.
                 </p>
               ) : (
                 <>
-                  {/* Filter pills — only shown when more than one tag type is present */}
-                  {filterableTagCount > 1 && (
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setActiveTag('all')}
-                        className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                          activeTag === 'all'
-                            ? 'bg-[var(--support)] text-[var(--support-foreground)]'
-                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        All ({visibleEntries.length})
-                      </button>
-                      {TAG_FILTER_LABELS.map(({ tag, label }) => {
-                        const count = tagCounts[tag] ?? 0
-                        if (count === 0) return null
-                        return (
+                  {/* Controls row: filter pills left, streaming status right */}
+                  {(filterableTagCount > 1 || (loading && scanStatus)) && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      {filterableTagCount > 1 && (
+                        <div className="flex flex-wrap gap-2">
                           <button
-                            key={tag}
                             type="button"
-                            onClick={() => setActiveTag(tag)}
+                            onClick={() => setActiveTag('all')}
                             className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                              activeTag === tag
+                              activeTag === 'all'
                                 ? 'bg-[var(--support)] text-[var(--support-foreground)]'
                                 : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
                             }`}
                           >
-                            {label} ({count})
+                            All ({visibleEntries.length})
                           </button>
-                        )
-                      })}
+                          {TAG_FILTER_LABELS.map(({ tag, label }) => {
+                            const count = tagCounts[tag] ?? 0
+                            if (count === 0) return null
+                            return (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => setActiveTag(tag)}
+                                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                                  activeTag === tag
+                                    ? 'bg-[var(--support)] text-[var(--support-foreground)]'
+                                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                {label} ({count})
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {loading && scanStatus && (
+                        <div className="ml-auto flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+                          <RefreshCw className="h-3 w-3 animate-spin shrink-0" aria-hidden />
+                          <span>{scanStatus}</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -491,7 +499,13 @@ export function HomeClient({ hasSession, error }: Props) {
                         allEntries={allEntriesForLookup}
                       />
                     ))}
-                    {filteredEntries.length === 0 && (
+                    {filteredEntries.length === 0 && visibleEntries.length === 0 && loading && (
+                      <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
+                        <span>{scanStatus || 'Scanning…'}</span>
+                      </div>
+                    )}
+                    {filteredEntries.length === 0 && visibleEntries.length > 0 && (
                       <p className="text-sm text-slate-500 dark:text-slate-400">
                         No entries match this filter.
                       </p>
