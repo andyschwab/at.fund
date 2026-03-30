@@ -5,8 +5,11 @@ import {
 } from '@atproto/oauth-client-node'
 import type { NodeSavedSession, NodeSavedState } from '@atproto/oauth-client-node'
 import type { OAuthClientMetadataInput } from '@atproto/oauth-types'
-import { fetch as undici } from 'undici'
 import { getPublicUrl, isLoopbackPublicUrl } from '@/lib/public-url'
+
+// Capture Node's native fetch before Next.js patches globalThis.fetch.
+// The patched version loses POST request bodies during DPoP nonce retries.
+const nativeFetch = globalThis.fetch
 
 export const SCOPE = [
   'atproto',
@@ -58,7 +61,7 @@ export async function getOAuthClient(): Promise<NodeOAuthClient> {
   clientKey = key
   client = new NodeOAuthClient({
     clientMetadata: buildClientMetadata(),
-    fetch: undici as unknown as typeof globalThis.fetch,
+    fetch: nativeFetch,
     stateStore: {
       async get(k: string) {
         return globalAuth.stateStore.get(k)
