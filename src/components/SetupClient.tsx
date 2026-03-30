@@ -389,11 +389,22 @@ export function SetupClient({ did, handle, existing }: Props) {
           </button>
         </header>
 
-        {/* Two-column layout */}
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
+        {/* Preview */}
+        <section className="flex flex-col gap-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Example — how you appear to supporters
+          </p>
+          <div className="pointer-events-none select-none">
+            <KnownStewardCard steward={previewModel} />
+          </div>
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            Updates live as you fill in fields. The icon row lights up as you
+            add more details.
+          </p>
+        </section>
 
-          {/* ---- Form ---- */}
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
             {/* Core */}
             <div className="flex flex-col gap-5 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/60">
@@ -815,22 +826,6 @@ export function SetupClient({ did, handle, existing }: Props) {
               </p>
             </div>
           </form>
-
-          {/* ---- Preview ---- */}
-          <aside className="flex flex-col gap-3 lg:sticky lg:top-8 lg:self-start">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Preview — how you appear to supporters
-            </p>
-            <div className="pointer-events-none select-none">
-              <KnownStewardCard steward={previewModel} />
-            </div>
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              Updates live as you fill in fields. The icon row lights up as you
-              add more details.
-            </p>
-          </aside>
-
-        </div>
       </div>
     </div>
   )
