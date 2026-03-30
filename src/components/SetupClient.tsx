@@ -85,16 +85,16 @@ function initialFormState(existing: FundAtResult | null): FormState {
     pressUrl: d?.contactPressUrl ?? '',
     securityPolicyUri: d?.securityPolicyUri ?? '',
     securityContactUri: d?.securityContactUri ?? '',
-    securityContactEmail: '',
-    legalEntityName: '',
-    jurisdiction: '',
+    securityContactEmail: d?.securityContactEmail ?? '',
+    legalEntityName: d?.legalEntityName ?? '',
+    jurisdiction: d?.jurisdiction ?? '',
     privacyPolicyUri: d?.privacyPolicyUri ?? '',
     termsOfServiceUri: d?.termsOfServiceUri ?? '',
     donorTermsUri: d?.donorTermsUri ?? '',
     taxDisclosureUri: d?.taxDisclosureUri ?? '',
     softwareLicenseUri: d?.softwareLicenseUri ?? '',
     dependenciesText: existing?.dependencyUris?.join('\n') ?? '',
-    dependencyNotes: '',
+    dependencyNotes: existing?.dependencyNotes ?? '',
   }
 }
 

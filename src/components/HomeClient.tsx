@@ -8,6 +8,7 @@ import {
   PdsHostSupportCard,
   UnknownStewardCard,
 } from '@/components/ProjectCards'
+import Link from 'next/link'
 import {
   AlertCircle,
   BookOpen,
@@ -18,6 +19,7 @@ import {
   LogIn,
   LogOut,
   Monitor,
+  Pencil,
   PlusCircle,
   RefreshCw,
   Sparkles,
@@ -235,19 +237,14 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {scan?.did && (
-                    <a
-                      href={pdslsRepoUrl(scan.did)}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Opens PDSls in a new tab"
-                      className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                    >
-                      <ExternalLink className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
-                      <span className="hidden sm:inline">Data explorer</span>
-                      <span className="sm:hidden">Explorer</span>
-                    </a>
-                  )}
+                  <Link
+                    href="/setup"
+                    className="inline-flex items-center gap-2 rounded-lg bg-[var(--support)] px-3 py-2 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90"
+                  >
+                    <Pencil className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="hidden sm:inline">Edit profile</span>
+                    <span className="sm:hidden">Setup</span>
+                  </Link>
                   <button
                     type="button"
                     onClick={() => runScan(parseSelfReportInput())}
@@ -265,6 +262,19 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                       {loading ? '…' : 'Refresh'}
                     </span>
                   </button>
+                  {scan?.did && (
+                    <a
+                      href={pdslsRepoUrl(scan.did)}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Opens PDSls in a new tab"
+                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                    >
+                      <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+                      <span className="hidden sm:inline">Data explorer</span>
+                      <span className="sm:hidden">Explorer</span>
+                    </a>
+                  )}
                   <button
                     type="button"
                     onClick={() => logout()}

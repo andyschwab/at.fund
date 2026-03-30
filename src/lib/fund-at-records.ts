@@ -25,7 +25,10 @@ export type DisclosureMeta = {
   /** fund.at.disclosure security */
   securityPolicyUri?: string
   securityContactUri?: string
+  securityContactEmail?: string
   /** fund.at.disclosure legal */
+  legalEntityName?: string
+  jurisdiction?: string
   privacyPolicyUri?: string
   termsOfServiceUri?: string
   donorTermsUri?: string
@@ -36,6 +39,7 @@ export type DisclosureMeta = {
 export type FundAtResult = {
   links?: FundLink[]
   dependencyUris?: string[]
+  dependencyNotes?: string
   disclosure: DisclosureMeta
 }
 
@@ -228,6 +232,12 @@ export function extractDisclosureMeta(value: RawValue): DisclosureMeta | null {
       typeof security?.policyUri === 'string' ? security.policyUri : undefined,
     securityContactUri:
       typeof security?.contactUri === 'string' ? security.contactUri : undefined,
+    securityContactEmail:
+      typeof security?.contactEmail === 'string' ? security.contactEmail : undefined,
+    legalEntityName:
+      typeof legal?.legalEntityName === 'string' ? legal.legalEntityName : undefined,
+    jurisdiction:
+      typeof legal?.jurisdiction === 'string' ? legal.jurisdiction : undefined,
     privacyPolicyUri:
       typeof legal?.privacyPolicyUri === 'string' ? legal.privacyPolicyUri : undefined,
     termsOfServiceUri:
@@ -333,6 +343,7 @@ export async function fetchFundAtRecords(
   if (!disclosure) return null
 
   let dependencyUris: string[] | undefined
+  let dependencyNotes: string | undefined
   try {
     const depListed = await agent.com.atproto.repo.listRecords({
       repo: stewardDid,
@@ -344,6 +355,9 @@ export async function fetchFundAtRecords(
     for (const rec of filter(depValues)) {
       if (!isHostScopedDependency(rec)) continue
       for (const u of readDependencyUris(rec)) merged.add(u)
+      if (!dependencyNotes && typeof rec.notes === 'string' && rec.notes.trim()) {
+        dependencyNotes = rec.notes.trim()
+      }
     }
     if (merged.size > 0) {
       dependencyUris = [...merged].sort((a, b) => a.localeCompare(b))
@@ -352,5 +366,5 @@ export async function fetchFundAtRecords(
     // optional
   }
 
-  return { links, dependencyUris, disclosure }
+  return { links, dependencyUris, dependencyNotes, disclosure }
 }
