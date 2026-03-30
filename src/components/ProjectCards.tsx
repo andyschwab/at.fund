@@ -1,6 +1,7 @@
 import type { StewardCardModel } from '@/lib/steward-model'
 import type { DisclosureMeta } from '@/lib/fund-at-records'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
+import type { FollowedAccountCard as FollowedAccountCardModel } from '@/lib/follow-scan'
 import Link from 'next/link'
 import {
   AtSign,
@@ -337,6 +338,74 @@ export function KnownStewardCard({ steward }: { steward: StewardCardModel }) {
           {steward.description && (
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               {steward.description}
+            </p>
+          )}
+        </div>
+      </div>
+    </article>
+  )
+}
+
+export function FollowedAccountCard({
+  account,
+}: {
+  account: FollowedAccountCardModel
+}) {
+  const contributeLink = account.links?.[0]
+  const displayName = account.displayName ?? account.handle ?? account.did
+  const profileUrl = account.handle
+    ? `https://bsky.app/profile/${encodeURIComponent(account.handle)}`
+    : `https://bsky.app/profile/${encodeURIComponent(account.did)}`
+
+  return (
+    <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--network-border)] bg-gradient-to-br from-[var(--network-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--network-muted)] dark:to-slate-950">
+      <div className="flex gap-3">
+        <div className="flex shrink-0 flex-col items-center gap-1">
+          {contributeLink ? (
+            <a
+              href={contributeLink.url}
+              target="_blank"
+              rel="noreferrer"
+              title={contributeLink.label}
+              className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--network)] text-white shadow-sm transition-opacity hover:opacity-90"
+            >
+              <Heart
+                className="h-8 w-8 fill-current"
+                strokeWidth={0}
+                aria-hidden
+              />
+              <span className="sr-only">{contributeLink.label}</span>
+            </a>
+          ) : (
+            <span
+              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
+              title="No contribution link published"
+            >
+              <Heart className="h-8 w-8" strokeWidth={1.5} aria-hidden />
+            </span>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-start gap-2">
+            <h3 className="min-w-0 flex-1">
+              <a
+                href={profileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="block truncate rounded-sm text-base font-semibold tracking-tight text-slate-900 underline decoration-slate-300 decoration-1 underline-offset-2 transition-colors hover:text-[var(--network)] hover:decoration-[var(--network-border)] dark:text-slate-100 dark:decoration-slate-600"
+              >
+                {displayName}
+              </a>
+            </h3>
+            {account.handle && (
+              <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
+                @{account.handle}
+              </span>
+            )}
+          </div>
+          {account.description && (
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+              {account.description}
             </p>
           )}
         </div>

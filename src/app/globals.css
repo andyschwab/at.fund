@@ -13,6 +13,11 @@
   --discover-foreground: #422006;
   --discover-muted: rgba(245, 158, 11, 0.1);
   --discover-border: rgba(217, 119, 6, 0.4);
+  /* Network / followed accounts — violet */
+  --network: #7c3aed;
+  --network-foreground: #ffffff;
+  --network-muted: rgba(139, 92, 246, 0.08);
+  --network-border: rgba(124, 58, 237, 0.35);
 }
 
 @theme inline {
@@ -28,6 +33,10 @@
   --color-discover-foreground: var(--discover-foreground);
   --color-discover-muted: var(--discover-muted);
   --color-discover-border: var(--discover-border);
+  --color-network: var(--network);
+  --color-network-foreground: var(--network-foreground);
+  --color-network-muted: var(--network-muted);
+  --color-network-border: var(--network-border);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -45,6 +54,11 @@
     --discover-foreground: #422006;
     --discover-muted: rgba(252, 211, 77, 0.12);
     --discover-border: rgba(252, 211, 77, 0.4);
+    /* Network — lighter violet for dark backgrounds */
+    --network: #a78bfa;
+    --network-foreground: #1e1b4b;
+    --network-muted: rgba(167, 139, 250, 0.12);
+    --network-border: rgba(167, 139, 250, 0.4);
   }
 }
 

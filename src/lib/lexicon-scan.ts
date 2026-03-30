@@ -8,6 +8,8 @@ import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { resolveStewardUri, lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import type { StewardCardModel } from '@/lib/steward-model'
+import { scanFollows } from '@/lib/follow-scan'
+import type { FollowedAccountCard } from '@/lib/follow-scan'
 import {
   getBlueskyHandleFallback,
   handleFromDescribeRepo,
@@ -49,6 +51,7 @@ async function resolveSessionPdsUrl(
 }
 
 export type { PdsHostFunding }
+export type { FollowedAccountCard }
 
 export type ScanWarning = {
   stewardUri: string
@@ -61,6 +64,7 @@ export type ScanResult = {
   handle?: string
   pdsUrl?: string
   stewards: StewardCardModel[]
+  followedAccounts: FollowedAccountCard[]
   warnings: ScanWarning[]
   pdsHostFunding?: PdsHostFunding
 }
@@ -207,8 +211,12 @@ export async function scanRepo(
     return a.stewardUri.localeCompare(b.stewardUri)
   })
 
+  // Run PDS host funding and follow scan in parallel
   let pdsHostFunding: ScanResult['pdsHostFunding']
-  if (pdsUrl) {
+  let followedAccounts: FollowedAccountCard[] = []
+
+  const pdsHostPromise = (async () => {
+    if (!pdsUrl) return
     try {
       pdsHostFunding = (await fetchFundingForUriLike(pdsUrl.origin)) ?? undefined
     } catch (e) {
@@ -219,7 +227,19 @@ export async function scanRepo(
       })
       warnings.push({ stewardUri: pdsUrl.origin, step: 'pds-host-funding', message: msg })
     }
-  }
+  })()
+
+  const followsPromise = (async () => {
+    try {
+      followedAccounts = await scanFollows(session.did)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Follow scan failed'
+      logger.warn('scan: follow scan failed', { did: session.did, error: msg })
+      warnings.push({ stewardUri: session.did, step: 'follow-scan', message: msg })
+    }
+  })()
+
+  await Promise.all([pdsHostPromise, followsPromise])
 
   logger.info('scan: completed', {
     did: session.did,
@@ -237,6 +257,7 @@ export async function scanRepo(
     handle,
     pdsUrl: pdsUrl?.origin,
     stewards,
+    followedAccounts,
     warnings,
     pdsHostFunding,
   }
