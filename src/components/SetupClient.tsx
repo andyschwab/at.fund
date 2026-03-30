@@ -389,18 +389,14 @@ export function SetupClient({ did, handle, existing }: Props) {
           </button>
         </header>
 
-        {/* Preview */}
-        <section className="flex flex-col gap-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {/* Preview — sticky at top while scrolling */}
+        <section className="sticky top-0 z-10 -mx-4 border-b border-slate-200/80 bg-[var(--background)]/95 px-4 pb-4 pt-2 backdrop-blur dark:border-slate-800">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Example — how you appear to supporters
           </p>
           <div className="pointer-events-none select-none">
             <KnownStewardCard steward={previewModel} />
           </div>
-          <p className="text-xs text-slate-400 dark:text-slate-500">
-            Updates live as you fill in fields. The icon row lights up as you
-            add more details.
-          </p>
         </section>
 
         {/* Form */}
