@@ -14,8 +14,6 @@ import {
   AlertCircle,
   BookOpen,
   ExternalLink,
-  HandCoins,
-  Heart,
   HeartHandshake,
   LogIn,
   LogOut,
@@ -23,13 +21,20 @@ import {
   Pencil,
   PlusCircle,
   RefreshCw,
-  Sparkles,
-  Users,
   UserRound,
 } from 'lucide-react'
 
 const BURRITO_QUOTE_URL =
   'https://bsky.app/profile/burrito.space/post/3mi4ymt3lqs2k'
+
+type TagFilter = 'all' | 'tool' | 'labeler' | 'feed' | 'follow'
+
+const TAG_FILTER_LABELS: { tag: TagFilter; label: string }[] = [
+  { tag: 'tool', label: 'Tools' },
+  { tag: 'labeler', label: 'Labelers' },
+  { tag: 'feed', label: 'Feeds' },
+  { tag: 'follow', label: 'Network' },
+]
 
 type Props = {
   hasSession: boolean
@@ -64,38 +69,40 @@ export function HomeClient({ hasSession, error }: Props) {
   const [warnings, setWarnings] = useState<ScanWarning[]>([])
   const [pdsHostFunding, setPdsHostFunding] = useState<PdsHostFunding | undefined>()
   const [scanDone, setScanDone] = useState(false)
+  const [activeTag, setActiveTag] = useState<TagFilter>('all')
   const entryIndexRef = useRef(new EntryIndex())
 
-  const knownEntries = useMemo(
-    () => entries.filter((e) => e.source !== 'unknown'),
-    [entries],
-  )
-  const unknownEntries = useMemo(
-    () => entries.filter((e) => e.source === 'unknown').sort((a, b) => a.uri.localeCompare(b.uri)),
-    [entries],
-  )
-  const networkEntries = useMemo(
-    () =>
-      knownEntries
-        .filter(
-          (e) =>
-            !e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') &&
-            e.tags.includes('follow') &&
-            e.links?.[0],
-        )
-        .sort((a, b) => a.uri.localeCompare(b.uri)),
-    [knownEntries],
-  )
-  const serviceEntries = useMemo(
-    () =>
-      knownEntries
-        .filter((e) => e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed'))
-        .sort((a, b) => {
-          const diff = entryTier(a) - entryTier(b)
-          return diff !== 0 ? diff : a.uri.localeCompare(b.uri)
-        }),
-    [knownEntries],
-  )
+  // Inclusion rule: tools/labelers/feeds always; follows only if actionable
+  const visibleEntries = useMemo(() => {
+    const included = entries.filter(
+      (e) =>
+        e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') ||
+        (e.tags.includes('follow') && e.links?.length),
+    )
+    return included.sort((a, b) => {
+      const diff = entryTier(a) - entryTier(b)
+      return diff !== 0 ? diff : a.uri.localeCompare(b.uri)
+    })
+  }, [entries])
+
+  const filteredEntries = useMemo(() => {
+    if (activeTag === 'all') return visibleEntries
+    return visibleEntries.filter((e) => e.tags.includes(activeTag))
+  }, [visibleEntries, activeTag])
+
+  // Which tag filters have at least one entry (to show pills dynamically)
+  const tagCounts = useMemo(() => {
+    const counts: Partial<Record<TagFilter, number>> = {}
+    for (const e of visibleEntries) {
+      for (const t of e.tags) {
+        if (t === 'tool' || t === 'labeler' || t === 'feed' || t === 'follow') {
+          counts[t] = (counts[t] ?? 0) + 1
+        }
+      }
+    }
+    return counts
+  }, [visibleEntries])
+
   // All entries + referenced dep entries for dependency lookup
   const allEntriesForLookup = useMemo(
     () => [...entries, ...referencedEntries],
@@ -111,6 +118,7 @@ export function HomeClient({ hasSession, error }: Props) {
     setWarnings([])
     setPdsHostFunding(undefined)
     setErr(null)
+    setActiveTag('all')
     entryIndexRef.current = new EntryIndex()
 
     try {
@@ -221,10 +229,11 @@ export function HomeClient({ hasSession, error }: Props) {
       .filter(Boolean)
   }
 
-  const stewardCount = serviceEntries.length
-  const followedCount = networkEntries.length
   const displayId = meta?.handle ?? meta?.did ?? ''
   const pdsUrl = meta?.pdsUrl
+
+  // How many distinct tag types have entries (to decide whether to show filter bar)
+  const filterableTagCount = TAG_FILTER_LABELS.filter(({ tag }) => (tagCounts[tag] ?? 0) > 0).length
 
   return (
     <div className="page-wash min-h-full">
@@ -314,6 +323,7 @@ export function HomeClient({ hasSession, error }: Props) {
           </section>
         ) : (
           <>
+            {/* Session header */}
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white/90 shadow-sm dark:border-slate-800 dark:bg-slate-950/90">
               <div className="flex flex-col gap-4 border-b border-slate-200/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
                 <div className="flex min-w-0 items-center gap-3">
@@ -421,138 +431,77 @@ export function HomeClient({ hasSession, error }: Props) {
               </details>
             )}
 
-            <section className="space-y-10">
-              {entries.length === 0 && !scanDone ? (
+            {/* Steward list */}
+            <section className="space-y-4">
+              {visibleEntries.length === 0 && !scanDone ? (
                 loading ? (
                   <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
                     <RefreshCw className="h-4 w-4 animate-spin shrink-0" aria-hidden />
                     Scanning your account…
                   </div>
                 ) : null
-              ) : entries.length === 0 && scanDone ? (
+              ) : visibleEntries.length === 0 && scanDone ? (
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   We didn&apos;t find any extra tools in your saved data yet. You
                   can add more below if you know them.
                 </p>
               ) : (
                 <>
-                  {serviceEntries.length > 0 && (
-                    <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
-                      <div className="flex gap-3 border-b border-[var(--support-border)]/50 bg-[var(--support-muted)] px-5 py-4 dark:border-[var(--support-border)]/35">
-                        <span
-                          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--support)] shadow-sm dark:bg-slate-900/80"
-                          aria-hidden
-                        >
-                          <HandCoins className="h-5 w-5" strokeWidth={2} />
-                        </span>
-                        <div>
-                          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                            Tools you use
-                          </h2>
-                          <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-                            Services we matched from your saved data. Some have
-                            ways to contribute directly.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-4 p-5">
-                        {serviceEntries.map((entry) => (
-                          <StewardCard
-                            key={entry.uri}
-                            entry={entry}
-                            allEntries={allEntriesForLookup}
-                          />
-                        ))}
-                      </div>
+                  {/* Filter pills — only shown when more than one tag type is present */}
+                  {filterableTagCount > 1 && (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTag('all')}
+                        className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                          activeTag === 'all'
+                            ? 'bg-[var(--support)] text-[var(--support-foreground)]'
+                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        All ({visibleEntries.length})
+                      </button>
+                      {TAG_FILTER_LABELS.map(({ tag, label }) => {
+                        const count = tagCounts[tag] ?? 0
+                        if (count === 0) return null
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => setActiveTag(tag)}
+                            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                              activeTag === tag
+                                ? 'bg-[var(--support)] text-[var(--support-foreground)]'
+                                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            {label} ({count})
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
 
-                  <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
-                    <div className="flex gap-3 border-b border-[var(--network-border)]/50 bg-[var(--network-muted)] px-5 py-4 dark:border-[var(--network-border)]/35">
-                      <span
-                        className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--network)] shadow-sm dark:bg-slate-900/80"
-                        aria-hidden
-                      >
-                        <Users className="h-5 w-5" strokeWidth={2} />
-                      </span>
-                      <div>
-                        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                          In your network
-                        </h2>
-                        <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-                          People you follow who accept support via at.fund.
-                        </p>
-                      </div>
-                    </div>
-                    {networkEntries.length > 0 ? (
-                      <div className="flex flex-col gap-4 p-5">
-                        {networkEntries.map((entry) => (
-                          <StewardCard
-                            key={entry.uri}
-                            entry={entry}
-                            allEntries={allEntriesForLookup}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">
-                        {loading
-                          ? 'Loading network…'
-                          : 'None of the accounts you follow have published at.fund records yet. As more people adopt at.fund, they\'ll show up here automatically.'}
+                  {/* Flat entry list */}
+                  <div className="flex flex-col gap-4">
+                    {filteredEntries.map((entry) => (
+                      <StewardCard
+                        key={entry.uri}
+                        entry={entry}
+                        allEntries={allEntriesForLookup}
+                      />
+                    ))}
+                    {filteredEntries.length === 0 && (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        No entries match this filter.
                       </p>
                     )}
                   </div>
-
-                  {unknownEntries.length > 0 && (
-                    <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/60 dark:border-slate-800 dark:bg-slate-950/40">
-                      <div className="flex gap-3 border-b border-[var(--discover-border)]/60 bg-[var(--discover-muted)] px-5 py-4 dark:border-amber-500/25">
-                        <span
-                          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--discover)] shadow-sm dark:bg-slate-900/80 dark:text-amber-400"
-                          aria-hidden
-                        >
-                          <Sparkles className="h-5 w-5" strokeWidth={2} />
-                        </span>
-                        <div>
-                          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                            Still learning about these
-                          </h2>
-                          <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-                            Your account has something saved from these tools—we
-                            don&apos;t have give-back links for them yet.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-4 p-5">
-                        {unknownEntries.map((entry) => (
-                          <StewardCard
-                            key={entry.uri}
-                            entry={entry}
-                            allEntries={allEntriesForLookup}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </>
-              )}
-              {(stewardCount > 0 || followedCount > 0) && (
-                <div className="flex flex-wrap gap-2">
-                  {stewardCount > 0 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                      <Heart className="h-3.5 w-3.5 text-[var(--support)]" aria-hidden />
-                      {stewardCount} service{stewardCount === 1 ? '' : 's'}
-                    </span>
-                  )}
-                  {followedCount > 0 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                      <Users className="h-3.5 w-3.5 text-[var(--network)]" aria-hidden />
-                      {followedCount} in network
-                    </span>
-                  )}
-                </div>
               )}
             </section>
 
+            {/* Add more tools */}
             <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-5 dark:border-slate-700 dark:bg-slate-900/30">
               <div className="mb-3 flex items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
                 <PlusCircle className="h-5 w-5 text-[var(--support)]" aria-hidden />

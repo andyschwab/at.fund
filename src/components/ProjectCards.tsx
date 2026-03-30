@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useMemo } from 'react'
-import type { StewardEntry } from '@/lib/steward-model'
+import type { StewardEntry, StewardTag } from '@/lib/steward-model'
 import type { DisclosureMeta } from '@/lib/fund-at-records'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
 import Link from 'next/link'
@@ -18,6 +18,29 @@ import {
   Shield,
   X,
 } from 'lucide-react'
+
+const TAG_LABEL: Partial<Record<StewardTag, string>> = {
+  labeler: 'labeler',
+  feed: 'feed',
+  follow: 'follow',
+}
+
+function TagBadges({ tags }: { tags: StewardTag[] }) {
+  const shown = tags.filter((t) => TAG_LABEL[t])
+  if (shown.length === 0) return null
+  return (
+    <div className="mt-0.5 flex flex-wrap gap-1">
+      {shown.map((t) => (
+        <span
+          key={t}
+          className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-1.5 py-px text-[10px] font-medium leading-4 text-slate-400 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500"
+        >
+          {TAG_LABEL[t]}
+        </span>
+      ))}
+    </div>
+  )
+}
 
 function disclosureMetaFromEntry(e: StewardEntry): DisclosureMeta {
   return {
@@ -699,6 +722,7 @@ export function StewardCard({
                 <Cog className="h-5 w-5" strokeWidth={2} aria-hidden />
               </Link>
             </div>
+            <TagBadges tags={entry.tags} />
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               Your account has saved something from this service—we don&apos;t have
               details about it yet.{' '}
@@ -764,6 +788,7 @@ export function StewardCard({
                 </span>
               )}
             </div>
+            <TagBadges tags={entry.tags} />
             {entry.description && (
               <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                 {entry.description}
@@ -839,6 +864,7 @@ export function StewardCard({
               <Cog className="h-5 w-5" strokeWidth={2} aria-hidden />
             </Link>
           </div>
+          <TagBadges tags={entry.tags} />
           {entry.description && (
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               {entry.description}
