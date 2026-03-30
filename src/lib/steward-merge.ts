@@ -37,7 +37,7 @@ function stewardCardToEntry(card: StewardCardModel, tag: StewardTag): StewardEnt
   }
 }
 
-function followedAccountToEntry(account: FollowedAccountCard): StewardEntry {
+export function followedAccountToEntry(account: FollowedAccountCard): StewardEntry {
   return {
     uri: account.handle ?? account.did,
     did: account.did,
@@ -101,7 +101,7 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
 // Public: merge stewards + follows + subscriptions into unified StewardEntry[]
 // ---------------------------------------------------------------------------
 
-class EntryIndex {
+export class EntryIndex {
   private byDid = new Map<string, StewardEntry>()
   private byUri = new Map<string, StewardEntry>()
 

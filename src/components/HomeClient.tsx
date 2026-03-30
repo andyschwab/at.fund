@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import type { ScanResult } from '@/lib/lexicon-scan'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import type { ScanStreamEvent, ScanWarning, PdsHostFunding } from '@/lib/lexicon-scan'
+import type { StewardEntry } from '@/lib/steward-model'
+import { EntryIndex } from '@/lib/steward-merge'
 import { pdslsRepoUrl } from '@/lib/pdsls'
 import {
   StewardCard,
@@ -31,7 +33,6 @@ const BURRITO_QUOTE_URL =
 
 type Props = {
   hasSession: boolean
-  initialScan: ScanResult | null
   error?: string
 }
 
@@ -41,42 +42,147 @@ function userInitial(handleOrDid: string): string {
   return h.slice(0, 2).toUpperCase()
 }
 
-export function HomeClient({ hasSession, initialScan, error }: Props) {
+function entryTier(e: StewardEntry): number {
+  if (e.source === 'unknown') return 3
+  if (e.links && e.links.length > 0) return 0
+  if (e.dependencies && e.dependencies.length > 0) return 1
+  return 2
+}
+
+export function HomeClient({ hasSession, error }: Props) {
   const [handle, setHandle] = useState('')
   const [loading, setLoading] = useState(false)
-  const [scan, setScan] = useState<ScanResult | null>(initialScan)
   const [selfReport, setSelfReport] = useState('')
   const [err, setErr] = useState<string | null>(
     error ? 'Something went wrong signing in. Try again.' : null,
   )
 
+  // Streaming scan state
+  const [meta, setMeta] = useState<{ did: string; handle?: string; pdsUrl?: string } | null>(null)
+  const [entries, setEntries] = useState<StewardEntry[]>([])
+  const [referencedEntries, setReferencedEntries] = useState<StewardEntry[]>([])
+  const [warnings, setWarnings] = useState<ScanWarning[]>([])
+  const [pdsHostFunding, setPdsHostFunding] = useState<PdsHostFunding | undefined>()
+  const [scanDone, setScanDone] = useState(false)
+  const entryIndexRef = useRef(new EntryIndex())
+
   const knownEntries = useMemo(
-    () => scan?.entries.filter((e) => e.source !== 'unknown') ?? [],
-    [scan?.entries],
+    () => entries.filter((e) => e.source !== 'unknown'),
+    [entries],
   )
   const unknownEntries = useMemo(
-    () => scan?.entries.filter((e) => e.source === 'unknown') ?? [],
-    [scan?.entries],
+    () => entries.filter((e) => e.source === 'unknown').sort((a, b) => a.uri.localeCompare(b.uri)),
+    [entries],
   )
   const networkEntries = useMemo(
-    () => knownEntries.filter(
-      (e) => !e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') &&
-             e.tags.includes('follow') &&
-             e.links?.[0],
-    ),
+    () =>
+      knownEntries
+        .filter(
+          (e) =>
+            !e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') &&
+            e.tags.includes('follow') &&
+            e.links?.[0],
+        )
+        .sort((a, b) => a.uri.localeCompare(b.uri)),
     [knownEntries],
   )
   const serviceEntries = useMemo(
-    () => knownEntries.filter(
-      (e) => e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed'),
-    ),
+    () =>
+      knownEntries
+        .filter((e) => e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed'))
+        .sort((a, b) => {
+          const diff = entryTier(a) - entryTier(b)
+          return diff !== 0 ? diff : a.uri.localeCompare(b.uri)
+        }),
     [knownEntries],
   )
   // All entries + referenced dep entries for dependency lookup
   const allEntriesForLookup = useMemo(
-    () => [...(scan?.entries ?? []), ...(scan?.referencedEntries ?? [])],
-    [scan?.entries, scan?.referencedEntries],
+    () => [...entries, ...referencedEntries],
+    [entries, referencedEntries],
   )
+
+  async function runStreamingScan(extra: string[]) {
+    setLoading(true)
+    setScanDone(false)
+    setMeta(null)
+    setEntries([])
+    setReferencedEntries([])
+    setWarnings([])
+    setPdsHostFunding(undefined)
+    setErr(null)
+    entryIndexRef.current = new EntryIndex()
+
+    try {
+      const params = new URLSearchParams()
+      if (extra.length) params.set('extraStewards', extra.join(','))
+      const res = await fetch(`/api/lexicons/stream?${params}`)
+      if (!res.ok || !res.body) {
+        let msg = 'Scan failed'
+        try {
+          const data = await res.json() as { detail?: string; error?: string }
+          msg = data.detail ?? data.error ?? msg
+        } catch { /* empty body */ }
+        throw new Error(msg)
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()!
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          let event: ScanStreamEvent
+          try {
+            event = JSON.parse(line) as ScanStreamEvent
+          } catch {
+            continue
+          }
+
+          if (event.type === 'meta') {
+            setMeta({ did: event.did, handle: event.handle, pdsUrl: event.pdsUrl })
+          } else if (event.type === 'entry') {
+            entryIndexRef.current.upsert(event.entry)
+            setEntries(entryIndexRef.current.toArray())
+          } else if (event.type === 'referenced') {
+            setReferencedEntries((prev) => [...prev, event.entry])
+          } else if (event.type === 'pds-host') {
+            setPdsHostFunding(event.funding)
+          } else if (event.type === 'warning') {
+            setWarnings((prev) => [...prev, event.warning])
+          } else if (event.type === 'done') {
+            setScanDone(true)
+          }
+        }
+      }
+    } catch (x) {
+      setErr(
+        x instanceof Error
+          ? x.message === 'Scan failed'
+            ? 'Could not load your account data. Try again.'
+            : x.message
+          : 'Could not load your account data. Try again.',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Auto-start scan when session is available
+  useEffect(() => {
+    if (hasSession) {
+      void runStreamingScan([])
+    }
+    // hasSession doesn't change after mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSession])
 
   async function login(e: React.FormEvent) {
     e.preventDefault()
@@ -88,9 +194,9 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ handle }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || data.error || 'Login failed')
-      window.location.href = data.redirectUrl
+      const data = await res.json() as { redirectUrl?: string; detail?: string; error?: string }
+      if (!res.ok) throw new Error(data.detail ?? data.error ?? 'Login failed')
+      window.location.href = data.redirectUrl!
     } catch (x) {
       setErr(
         x instanceof Error
@@ -108,31 +214,6 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
     window.location.reload()
   }
 
-  async function runScan(extra: string[]) {
-    setLoading(true)
-    setErr(null)
-    try {
-      const res = await fetch('/api/lexicons', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selfReportedStewards: extra }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || data.error || 'Scan failed')
-      setScan(data)
-    } catch (x) {
-      setErr(
-        x instanceof Error
-          ? x.message === 'Scan failed'
-            ? 'Could not refresh your list. Try again.'
-            : x.message
-          : 'Could not refresh your list. Try again.',
-      )
-    } finally {
-      setLoading(false)
-    }
-  }
-
   function parseSelfReportInput(): string[] {
     return selfReport
       .split(/[\s,]+/)
@@ -142,8 +223,8 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
 
   const stewardCount = serviceEntries.length
   const followedCount = networkEntries.length
-  const displayId = scan?.handle ?? scan?.did ?? ''
-  const pdsUrl = scan?.pdsUrl
+  const displayId = meta?.handle ?? meta?.did ?? ''
+  const pdsUrl = meta?.pdsUrl
 
   return (
     <div className="page-wash min-h-full">
@@ -267,7 +348,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                   </Link>
                   <button
                     type="button"
-                    onClick={() => runScan(parseSelfReportInput())}
+                    onClick={() => runStreamingScan(parseSelfReportInput())}
                     disabled={loading}
                     className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
@@ -282,9 +363,9 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                       {loading ? '…' : 'Refresh'}
                     </span>
                   </button>
-                  {scan?.did && (
+                  {meta?.did && (
                     <a
-                      href={pdslsRepoUrl(scan.did)}
+                      href={pdslsRepoUrl(meta.did)}
                       target="_blank"
                       rel="noreferrer"
                       title="Opens PDSls in a new tab"
@@ -310,7 +391,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                 <div className="p-4 pt-4">
                   <PdsHostSupportCard
                     pdsHostname={new URL(pdsUrl).hostname}
-                    funding={scan?.pdsHostFunding}
+                    funding={pdsHostFunding}
                   />
                 </div>
               )}
@@ -323,15 +404,15 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
               </p>
             )}
 
-            {scan && scan.warnings && scan.warnings.length > 0 && (
+            {warnings.length > 0 && (
               <details className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
                 <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-amber-800 dark:text-amber-300 [&::-webkit-details-marker]:hidden">
                   <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-                  {scan.warnings.length} lookup{scan.warnings.length === 1 ? '' : 's'} had issues
+                  {warnings.length} lookup{warnings.length === 1 ? '' : 's'} had issues
                   <span className="text-amber-600 dark:text-amber-500">▾</span>
                 </summary>
                 <ul className="mt-2 space-y-1 pl-6 text-amber-700 dark:text-amber-400">
-                  {scan.warnings.map((w, i) => (
+                  {warnings.map((w, i) => (
                     <li key={i}>
                       <span className="font-mono text-xs">{w.stewardUri}</span>: {w.message}
                     </li>
@@ -341,18 +422,14 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
             )}
 
             <section className="space-y-10">
-              {!scan ? (
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Could not load your projects.{' '}
-                  <button
-                    type="button"
-                    onClick={() => runScan([])}
-                    className="font-medium text-[var(--support)] underline"
-                  >
-                    Try again
-                  </button>
-                </p>
-              ) : scan.entries.length === 0 ? (
+              {entries.length === 0 && !scanDone ? (
+                loading ? (
+                  <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+                    <RefreshCw className="h-4 w-4 animate-spin shrink-0" aria-hidden />
+                    Scanning your account…
+                  </div>
+                ) : null
+              ) : entries.length === 0 && scanDone ? (
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   We didn&apos;t find any extra tools in your saved data yet. You
                   can add more below if you know them.
@@ -419,9 +496,9 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                       </div>
                     ) : (
                       <p className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">
-                        None of the accounts you follow have published at.fund
-                        records yet. As more people adopt at.fund, they&apos;ll
-                        show up here automatically.
+                        {loading
+                          ? 'Loading network…'
+                          : 'None of the accounts you follow have published at.fund records yet. As more people adopt at.fund, they\'ll show up here automatically.'}
                       </p>
                     )}
                   </div>
@@ -458,7 +535,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                   )}
                 </>
               )}
-              {scan && (stewardCount > 0 || followedCount > 0) && (
+              {(stewardCount > 0 || followedCount > 0) && (
                 <div className="flex flex-wrap gap-2">
                   {stewardCount > 0 && (
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
@@ -496,7 +573,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                 />
                 <button
                   type="button"
-                  onClick={() => runScan(parseSelfReportInput())}
+                  onClick={() => runStreamingScan(parseSelfReportInput())}
                   disabled={loading}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
                 >

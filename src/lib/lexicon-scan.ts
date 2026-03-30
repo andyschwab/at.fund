@@ -10,7 +10,7 @@ import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import type { StewardCardModel, StewardEntry } from '@/lib/steward-model'
 import { scanFollows } from '@/lib/follow-scan'
 import type { FollowedAccountCard } from '@/lib/follow-scan'
-import { mergeIntoEntries, referencedStewardsToEntries } from '@/lib/steward-merge'
+import { mergeIntoEntries, referencedStewardsToEntries, followedAccountToEntry } from '@/lib/steward-merge'
 import { scanSubscriptions } from '@/lib/subscriptions-scan'
 import {
   getBlueskyHandleFallback,
@@ -60,6 +60,14 @@ export type ScanWarning = {
   step: string
   message: string
 }
+
+export type ScanStreamEvent =
+  | { type: 'meta'; did: string; handle?: string; pdsUrl?: string }
+  | { type: 'entry'; entry: StewardEntry }
+  | { type: 'referenced'; entry: StewardEntry }
+  | { type: 'pds-host'; funding: PdsHostFunding }
+  | { type: 'warning'; warning: ScanWarning }
+  | { type: 'done' }
 
 export type ScanResult = {
   did: string
@@ -305,4 +313,201 @@ export async function scanRepo(
     warnings,
     pdsHostFunding,
   }
+}
+
+/**
+ * Streaming variant of scanRepo. Emits events progressively as each steward
+ * resolves rather than waiting for the full scan to complete.
+ * Tool stewards are resolved in parallel; follows and subscriptions run
+ * concurrently with the last resolution phase.
+ */
+export async function scanRepoStreaming(
+  session: OAuthSession,
+  selfReportedStewards: string[] = [],
+  emit: (event: ScanStreamEvent) => void,
+): Promise<void> {
+  const agent = new Agent(session)
+  const pdsUrl = await resolveSessionPdsUrl(session, agent)
+
+  const repoInfo = await agent.com.atproto.repo.describeRepo({ repo: session.did })
+  const collections = repoInfo.data.collections ?? []
+  const handle =
+    handleFromDescribeRepo(repoInfo.data) ??
+    (await getBlueskyHandleFallback(session))
+
+  emit({ type: 'meta', did: session.did, handle: handle ?? undefined, pdsUrl: pdsUrl?.origin })
+
+  const thirdParty = filterThirdPartyCollections(collections)
+  const staticCols = stripDerivedCollections(thirdParty)
+  const [calendarKeys, siteStandardPairs] = await Promise.all([
+    resolveCalendarCatalogKeys(agent, session.did, thirdParty),
+    resolveSiteStandardPairs(agent, session.did, thirdParty),
+  ])
+
+  const observed = new Set<string>()
+  for (const c of staticCols) observed.add(c)
+  for (const k of calendarKeys) observed.add(k)
+  for (const pair of siteStandardPairs) observed.add(pair.contentType)
+  for (const s of selfReportedStewards) observed.add(s)
+
+  const stewardUris = new Set<string>()
+  for (const key of observed) {
+    const resolved = resolveStewardUri(key)
+    if (resolved) stewardUris.add(resolved)
+  }
+
+  logger.info('scan-streaming: resolved steward URIs', {
+    did: session.did,
+    stewardCount: stewardUris.size,
+    stewardUris: [...stewardUris].sort(),
+  })
+
+  // Track emitted URIs so dep entries aren't duplicated
+  const emittedUris = new Set<string>()
+  const pendingDepUris = new Set<string>()
+
+  // Resolve all tool stewards in parallel — emit each as it resolves
+  await Promise.allSettled(
+    [...stewardUris].sort().map(async (stewardUri) => {
+      const isDid = stewardUri.startsWith('did:')
+      let stewardDid: string | null = null
+
+      if (isDid) {
+        stewardDid = stewardUri
+      } else {
+        try {
+          stewardDid = await lookupAtprotoDid(stewardUri)
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'DNS lookup failed'
+          logger.warn('scan-streaming: DNS lookup failed', { stewardUri, error: msg })
+          emit({ type: 'warning', warning: { stewardUri, step: 'dns-lookup', message: msg } })
+        }
+      }
+
+      const stewardDidOrUndefined = stewardDid ?? undefined
+      const manual = lookupManualStewardRecord(stewardUri)
+
+      if (stewardDid) {
+        try {
+          const fundAt = await fetchFundAtForStewardDid(stewardDid)
+          if (fundAt) {
+            const { displayName: dName, description: dDesc, landingPage: dLanding, ...disclosureExtras } = fundAt.disclosure
+            const entry: StewardEntry = {
+              uri: stewardUri,
+              did: stewardDidOrUndefined,
+              tags: ['tool'],
+              displayName: dName ?? manual?.displayName ?? stewardUri,
+              description: dDesc ?? manual?.description,
+              landingPage: dLanding,
+              links: fundAt.links,
+              dependencies: fundAt.dependencyUris,
+              dependencyNotes: fundAt.dependencyNotes,
+              source: 'fund.at',
+              ...disclosureExtras,
+              contactGeneralHandle: fundAt.disclosure.contactGeneralHandle ?? manual?.contactGeneralHandle,
+            }
+            emittedUris.add(stewardUri)
+            for (const dep of fundAt.dependencyUris ?? []) pendingDepUris.add(dep)
+            emit({ type: 'entry', entry })
+            return
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Failed to fetch fund.at records'
+          logger.warn('scan-streaming: fund.at fetch failed', { stewardUri, stewardDid, error: msg })
+          emit({ type: 'warning', warning: { stewardUri, step: 'fund-at-fetch', message: msg } })
+          // fall through to manual catalog
+        }
+      }
+
+      if (manual) {
+        const entry: StewardEntry = {
+          uri: stewardUri,
+          did: stewardDidOrUndefined,
+          tags: ['tool'],
+          displayName: manual.displayName,
+          description: manual.description,
+          landingPage: manual.landingPage,
+          contactGeneralHandle: manual.contactGeneralHandle,
+          links: manual.links.length > 0 ? manual.links : undefined,
+          dependencies: manual.dependencies,
+          source: 'manual',
+        }
+        emittedUris.add(stewardUri)
+        for (const dep of manual.dependencies ?? []) pendingDepUris.add(dep)
+        emit({ type: 'entry', entry })
+        return
+      }
+
+      emittedUris.add(stewardUri)
+      emit({
+        type: 'entry',
+        entry: { uri: stewardUri, did: stewardDidOrUndefined, tags: ['tool'], displayName: stewardUri, source: 'unknown' },
+      })
+    }),
+  )
+
+  // Emit catalog-only dep entries (no extra network calls)
+  for (const depUri of pendingDepUris) {
+    if (!emittedUris.has(depUri)) {
+      const manual = lookupManualStewardRecord(depUri)
+      if (manual) {
+        emit({
+          type: 'referenced',
+          entry: {
+            uri: depUri,
+            tags: ['tool'],
+            displayName: manual.displayName,
+            description: manual.description,
+            landingPage: manual.landingPage,
+            contactGeneralHandle: manual.contactGeneralHandle,
+            links: manual.links.length > 0 ? manual.links : undefined,
+            dependencies: manual.dependencies,
+            source: 'manual',
+          },
+        })
+      }
+    }
+  }
+
+  // PDS host funding, follows, and subscriptions all in parallel
+  await Promise.all([
+    (async () => {
+      if (!pdsUrl) return
+      try {
+        const funding = await fetchFundingForUriLike(pdsUrl.origin)
+        if (funding) emit({ type: 'pds-host', funding })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'
+        logger.warn('scan-streaming: PDS host funding lookup failed', { pdsUrl: pdsUrl.origin, error: msg })
+        emit({ type: 'warning', warning: { stewardUri: pdsUrl.origin, step: 'pds-host-funding', message: msg } })
+      }
+    })(),
+    (async () => {
+      try {
+        const followedAccounts = await scanFollows(session.did)
+        for (const account of followedAccounts) {
+          emit({ type: 'entry', entry: followedAccountToEntry(account) })
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Follow scan failed'
+        logger.warn('scan-streaming: follow scan failed', { did: session.did, error: msg })
+        emit({ type: 'warning', warning: { stewardUri: session.did, step: 'follow-scan', message: msg } })
+      }
+    })(),
+    (async () => {
+      try {
+        const result = await scanSubscriptions(session)
+        for (const entry of result.entries) {
+          emit({ type: 'entry', entry })
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Subscriptions scan failed'
+        logger.warn('scan-streaming: subscriptions scan failed', { did: session.did, error: msg })
+        emit({ type: 'warning', warning: { stewardUri: session.did, step: 'subscriptions-scan', message: msg } })
+      }
+    })(),
+  ])
+
+  logger.info('scan-streaming: completed', { did: session.did })
+  emit({ type: 'done' })
 }
