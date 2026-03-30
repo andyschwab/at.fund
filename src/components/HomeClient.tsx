@@ -357,6 +357,7 @@ export function HomeClient({ hasSession, initialScan, error }: Props) {
                           <KnownStewardCard
                             key={steward.stewardUri}
                             steward={steward}
+                            allStewards={scan.stewards}
                           />
                         ))}
                       </div>

@@ -1,9 +1,13 @@
+'use client'
+
+import { useState, useRef, useMemo } from 'react'
 import type { StewardCardModel } from '@/lib/steward-model'
 import type { DisclosureMeta } from '@/lib/fund-at-records'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
 import type { FollowedAccountCard as FollowedAccountCardModel } from '@/lib/follow-scan'
 import Link from 'next/link'
 import {
+  ArrowRight,
   AtSign,
   FileText,
   Globe,
@@ -13,6 +17,7 @@ import {
   Scale,
   Cog,
   Shield,
+  X,
 } from 'lucide-react'
 
 function disclosureMetaFromSteward(s: StewardCardModel): DisclosureMeta {
@@ -43,7 +48,7 @@ function websiteFallbackForStewardUri(stewardUri: string): string | undefined {
   return undefined
 }
 
-/** Fixed disclosure “report card” slots (fund.at.disclosure), aligned with lexicon. */
+/** Fixed disclosure "report card" slots (fund.at.disclosure), aligned with lexicon. */
 type DisclosureSlot = {
   key: string
   label: string
@@ -191,6 +196,261 @@ function DisclosureReportRow({ slots }: { slots: DisclosureSlot[] }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Dependency rows + drill-down modal
+// ---------------------------------------------------------------------------
+
+type ModalState = {
+  uri: string
+  steward: StewardCardModel | null
+  loading: boolean
+  error: string | null
+}
+
+/** A single row in the "Depends on" inset section. */
+function DependencyRow({
+  depUri,
+  steward,
+  onExpand,
+}: {
+  depUri: string
+  steward?: StewardCardModel
+  onExpand: () => void
+}) {
+  const contributeLink = steward?.links?.[0]
+  const name = steward?.displayName ?? depUri
+  const websiteUrl = steward?.landingPage ?? websiteFallbackForStewardUri(depUri)
+
+  return (
+    <div className="flex items-center gap-2 py-1.5">
+      {contributeLink ? (
+        <a
+          href={contributeLink.url}
+          target="_blank"
+          rel="noreferrer"
+          title={contributeLink.label}
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Heart className="h-3.5 w-3.5 fill-current" strokeWidth={0} aria-hidden />
+          <span className="sr-only">{contributeLink.label}</span>
+        </a>
+      ) : (
+        <span
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
+          title="No contribution link published"
+        >
+          <Heart className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+        </span>
+      )}
+      <span className="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300">
+        {websiteUrl ? (
+          <a
+            href={websiteUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {name}
+          </a>
+        ) : (
+          name
+        )}
+      </span>
+      <button
+        type="button"
+        onClick={onExpand}
+        title={`View details for ${name}`}
+        className="shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+      >
+        <ArrowRight className="h-4 w-4" aria-hidden />
+        <span className="sr-only">View details for {name}</span>
+      </button>
+    </div>
+  )
+}
+
+/** Card content rendered inside the modal — same layout as KnownStewardCard but without the outer article shell. */
+function ModalCardContent({
+  steward,
+  onExpandDep,
+}: {
+  steward: StewardCardModel
+  onExpandDep: (uri: string) => void
+}) {
+  const contributeLink = steward.links?.[0]
+  const websiteFallback = websiteFallbackForStewardUri(steward.stewardUri)
+  const disclosure = disclosureMetaFromSteward(steward)
+  const websiteUrl = steward.landingPage ?? websiteFallback
+  const disclosureSlots = buildDisclosureSlots(disclosure, websiteFallback)
+
+  return (
+    <div>
+      <div className="flex gap-3">
+        <div className="flex shrink-0 flex-col items-center gap-1">
+          {contributeLink ? (
+            <a
+              href={contributeLink.url}
+              target="_blank"
+              rel="noreferrer"
+              title={contributeLink.label}
+              className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
+            >
+              <Heart className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
+              <span className="sr-only">{contributeLink.label}</span>
+            </a>
+          ) : (
+            <span
+              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
+              title="No contribution link published"
+            >
+              <Heart className="h-8 w-8" strokeWidth={1.5} aria-hidden />
+            </span>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-start gap-2">
+            <StewardNameHeading
+              name={steward.displayName}
+              websiteUrl={websiteUrl}
+              linkVariant="support"
+            />
+            <div className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-x-auto sm:max-w-none">
+              <DisclosureReportRow slots={disclosureSlots} />
+            </div>
+          </div>
+          {steward.description && (
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+              {steward.description}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {steward.dependencies && steward.dependencies.length > 0 && (
+        <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/30">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            Depends on
+          </p>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+            {steward.dependencies.map((depUri) => (
+              <DependencyRow
+                key={depUri}
+                depUri={depUri}
+                onExpand={() => onExpandDep(depUri)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Inset "Depends on" rows with a shared drill-down modal.
+ * Clicking any row's arrow fetches that dependency and shows it in the modal.
+ * Clicking a nested dependency arrow replaces the modal content.
+ */
+function DependenciesSection({
+  dependencies,
+  allStewards,
+}: {
+  dependencies: string[]
+  allStewards: StewardCardModel[]
+}) {
+  const [modal, setModal] = useState<ModalState | null>(null)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+
+  const stewardByUri = useMemo(
+    () => new Map(allStewards.map((s) => [s.stewardUri, s])),
+    [allStewards],
+  )
+
+  async function openDep(uri: string) {
+    setModal({ uri, steward: null, loading: true, error: null })
+    if (!dialogRef.current?.open) {
+      dialogRef.current?.showModal()
+    }
+    try {
+      const res = await fetch(`/api/steward?uri=${encodeURIComponent(uri)}`)
+      const data = await res.json() as StewardCardModel | { error: string }
+      if (!res.ok) throw new Error('error' in data ? data.error : 'Failed to load')
+      setModal({ uri, steward: data as StewardCardModel, loading: false, error: null })
+    } catch (e) {
+      setModal({
+        uri,
+        steward: null,
+        loading: false,
+        error: e instanceof Error ? e.message : 'Failed to load details',
+      })
+    }
+  }
+
+  function closeModal() {
+    dialogRef.current?.close()
+    setModal(null)
+  }
+
+  return (
+    <>
+      <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/30">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          Depends on
+        </p>
+        <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+          {dependencies.map((depUri) => (
+            <DependencyRow
+              key={depUri}
+              depUri={depUri}
+              steward={stewardByUri.get(depUri)}
+              onExpand={() => openDep(depUri)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <dialog
+        ref={dialogRef}
+        className="m-auto max-h-[85vh] w-full max-w-lg overflow-auto rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl dark:border-slate-800 dark:bg-slate-950 [&::backdrop]:bg-black/40"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) closeModal()
+        }}
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-950">
+          <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-300">
+            {modal?.steward?.displayName ?? modal?.uri ?? ''}
+          </p>
+          <button
+            type="button"
+            onClick={closeModal}
+            className="ml-3 shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" aria-hidden />
+          </button>
+        </div>
+        <div className="p-5">
+          {modal?.loading && (
+            <p className="py-6 text-center text-sm text-slate-400">Loading…</p>
+          )}
+          {modal?.error && (
+            <p className="text-sm text-red-600 dark:text-red-400">{modal.error}</p>
+          )}
+          {modal?.steward && (
+            <ModalCardContent steward={modal.steward} onExpandDep={openDep} />
+          )}
+        </div>
+      </dialog>
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Card exports
+// ---------------------------------------------------------------------------
+
 export function PdsHostSupportCard({
   pdsHostname,
   funding,
@@ -280,7 +540,13 @@ export function PdsHostSupportCard({
   )
 }
 
-export function KnownStewardCard({ steward }: { steward: StewardCardModel }) {
+export function KnownStewardCard({
+  steward,
+  allStewards = [],
+}: {
+  steward: StewardCardModel
+  allStewards?: StewardCardModel[]
+}) {
   const contributeLink = steward.links?.[0]
   const websiteFallback = websiteFallbackForStewardUri(steward.stewardUri)
   const disclosure = disclosureMetaFromSteward(steward)
@@ -339,6 +605,12 @@ export function KnownStewardCard({ steward }: { steward: StewardCardModel }) {
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               {steward.description}
             </p>
+          )}
+          {steward.dependencies && steward.dependencies.length > 0 && (
+            <DependenciesSection
+              dependencies={steward.dependencies}
+              allStewards={allStewards}
+            />
           )}
         </div>
       </div>
