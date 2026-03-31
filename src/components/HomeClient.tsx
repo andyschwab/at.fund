@@ -9,19 +9,17 @@ import {
   StewardCard,
   PdsHostSupportCard,
 } from '@/components/ProjectCards'
+import { LandingPage } from '@/components/LandingPage'
 import Link from 'next/link'
 import {
   AlertCircle,
   BookOpen,
   ExternalLink,
   HeartHandshake,
-  LogIn,
   LogOut,
-  Monitor,
   Pencil,
   PlusCircle,
   RefreshCw,
-  UserRound,
 } from 'lucide-react'
 
 const BURRITO_QUOTE_URL =
@@ -271,6 +269,18 @@ export function HomeClient({ hasSession, error }: Props) {
   // How many distinct tag types have entries (to decide whether to show filter bar)
   const filterableTagCount = TAG_FILTER_LABELS.filter(({ tag }) => (tagCounts[tag] ?? 0) > 0).length
 
+  if (!hasSession) {
+    return (
+      <LandingPage
+        handle={handle}
+        setHandle={setHandle}
+        loading={loading}
+        err={err}
+        onLogin={login}
+      />
+    )
+  }
+
   return (
     <div className="page-wash min-h-full">
       <div className="mx-auto flex max-w-5xl flex-col gap-12 px-4 py-12">
@@ -310,55 +320,8 @@ export function HomeClient({ hasSession, error }: Props) {
           </div>
         </header>
 
-        {!hasSession ? (
-          <section className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
-            <div className="mb-4 flex items-center gap-2 text-lg font-medium text-slate-900 dark:text-slate-100">
-              <UserRound className="h-5 w-5 text-[var(--support)]" aria-hidden />
-              Connect
-            </div>
-            <form onSubmit={login} className="flex max-w-md flex-col gap-3">
-              <label className="text-sm text-slate-600 dark:text-slate-400">
-                Your handle
-                <input
-                  type="text"
-                  value={handle}
-                  onChange={(e) => setHandle(e.target.value)}
-                  placeholder="you.bsky.social"
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  disabled={loading}
-                  required
-                />
-              </label>
-              {err && (
-                <p className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                  {err}
-                </p>
-              )}
-              <button
-                type="submit"
-                disabled={loading || !handle.trim()}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                <LogIn className="h-4 w-4" aria-hidden />
-                {loading ? 'Redirecting…' : 'Continue'}
-              </button>
-              <details className="mt-2 max-w-md rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
-                <summary className="flex cursor-pointer list-none items-center gap-2 font-medium [&::-webkit-details-marker]:hidden">
-                  <Monitor className="h-4 w-4 shrink-0" aria-hidden />
-                  Local development
-                  <span className="text-slate-400">▾</span>
-                </summary>
-                <p className="mt-2 pl-6 leading-relaxed">
-                  Use <code className="font-mono text-slate-700 dark:text-slate-300">127.0.0.1</code>{' '}
-                  (not <code className="font-mono">localhost</code>) so sign-in
-                  redirects work.
-                </p>
-              </details>
-            </form>
-          </section>
-        ) : (
-          <>
+        <>
+
             {/* Session header */}
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white/90 shadow-sm dark:border-slate-800 dark:bg-slate-950/90">
               <div className="flex flex-col gap-4 border-b border-slate-200/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
@@ -576,8 +539,7 @@ export function HomeClient({ hasSession, error }: Props) {
                 </button>
               </div>
             </section>
-          </>
-        )}
+        </>
 
         <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 dark:border-slate-800 dark:from-slate-900/50 dark:to-slate-950">
           <div className="flex gap-3">
