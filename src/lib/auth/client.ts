@@ -43,10 +43,11 @@ export const SCOPE = [
   'repo:fund.at.disclosure',
   'repo:fund.at.contribute',
   'repo:fund.at.dependencies',
-  // Bluesky AppView RPCs needed for subscriptions scan
+  // Bluesky AppView RPCs needed for subscriptions scan.
+  // All three use #bsky_appview — this is the only aud the Bluesky PDS grants.
   'rpc:app.bsky.actor.getPreferences?aud=did:web:api.bsky.app%23bsky_appview',
-  'rpc:app.bsky.labeler.getServices?aud=did:web:api.bsky.app',
-  'rpc:app.bsky.feed.getFeedGenerators?aud=did:web:api.bsky.app',
+  'rpc:app.bsky.labeler.getServices?aud=did:web:api.bsky.app%23bsky_appview',
+  'rpc:app.bsky.feed.getFeedGenerators?aud=did:web:api.bsky.app%23bsky_appview',
 ].join(' ')
 
 const globalAuth = globalThis as unknown as {

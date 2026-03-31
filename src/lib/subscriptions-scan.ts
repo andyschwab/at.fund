@@ -233,17 +233,19 @@ export async function scanSubscriptions(
     fetchFeedDisplayInfo(agent, feedUris),
   ])
 
+  // Build DID → rkey map from AT-URIs (at://did:.../app.bsky.feed.generator/rkey).
+  // Used as a display-name fallback when getFeedGenerators doesn't return the feed.
+  const feedRkeyByDid = new Map<string, string>()
+  for (const uri of feedUris) {
+    const m = uri.match(/^at:\/\/(did:[^/]+)\/[^/]+\/([^/]+)$/)
+    if (m) feedRkeyByDid.set(m[1]!, m[2]!)
+  }
+
   // Build feed DID list: start with DIDs parsed directly from the saved AT-URIs
   // so feeds that getFeedGenerators failed to resolve still produce entries.
   // feedInfo is used for display enrichment only — not as the source of truth.
   const feedDids = [
-    ...new Set([
-      ...feedUris.flatMap((uri) => {
-        const m = uri.match(/^at:\/\/(did:[^/]+)\//)
-        return m ? [m[1]!] : []
-      }),
-      ...feedInfo.keys(),
-    ]),
+    ...new Set([...feedRkeyByDid.keys(), ...feedInfo.keys()]),
   ]
 
   // Resolve all entries concurrently (fund.at calls)
@@ -251,9 +253,12 @@ export async function scanSubscriptions(
     runWithConcurrency(labelerDids, CONCURRENCY, (did) =>
       resolveEntry(did, 'labeler', labelerInfo.get(did)),
     ),
-    runWithConcurrency(feedDids, CONCURRENCY, (did) =>
-      resolveEntry(did, 'feed', feedInfo.get(did)),
-    ),
+    runWithConcurrency(feedDids, CONCURRENCY, (did) => {
+      const fallback = feedInfo.get(did) ?? (feedRkeyByDid.has(did)
+        ? { did, displayName: feedRkeyByDid.get(did)! }
+        : undefined)
+      return resolveEntry(did, 'feed', fallback)
+    }),
   ])
 
   const entries = [...labelerEntries, ...feedEntries]
