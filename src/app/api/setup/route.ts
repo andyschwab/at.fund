@@ -97,11 +97,11 @@ export async function POST(request: NextRequest) {
     // Write fund.at.dependency records (one per dependency)
     if (payload.dependencies) {
       for (const dep of payload.dependencies) {
-        await client.create(fund.at.dependency, {
+        await client.put(fund.at.dependency, {
           uri: dep.uri,
           ...(dep.label && { label: dep.label }),
           createdAt,
-        })
+        }, { rkey: dep.uri })
       }
     }
 

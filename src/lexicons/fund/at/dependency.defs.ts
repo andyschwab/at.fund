@@ -23,8 +23,8 @@ type Main = {
 export type { Main }
 
 /** A single dependency pointer. The uri is a DID or hostname identifying the upstream entity. */
-const main = l.record<'tid', Main>(
-  'tid',
+const main = l.record<'any', Main>(
+  'any',
   $nsid,
   l.object({
     uri: l.string(),
