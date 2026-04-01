@@ -5,45 +5,20 @@ import { Client } from '@atproto/lex'
 import { xrpcQuery } from '@/lib/xrpc'
 
 export const FUND_CONTRIBUTE = 'fund.at.contribute'
-export const FUND_DISCLOSURE = 'fund.at.disclosure'
-export const FUND_DEPENDENCIES = 'fund.at.dependencies'
+export const FUND_DEPENDENCY = 'fund.at.dependency'
+export const FUND_WATCH = 'fund.at.watch'
 
 const PUBLIC_IDENTITY = 'https://public.api.bsky.app'
 const publicClient = new Client(PUBLIC_IDENTITY)
 
-export type FundLink = { label: string; url: string }
-
-export type DisclosureMeta = {
-  displayName?: string
-  description?: string
-  landingPage?: string
-  /** fund.at.disclosure contact.general */
-  contactGeneralUrl?: string
-  contactGeneralHandle?: string
-  contactGeneralEmail?: string
-  /** fund.at.disclosure contact.press */
-  contactPressUrl?: string
-  contactPressEmail?: string
-  /** fund.at.disclosure security */
-  securityPolicyUri?: string
-  securityContactUri?: string
-  securityContactEmail?: string
-  /** fund.at.disclosure legal */
-  legalEntityName?: string
-  jurisdiction?: string
-  privacyPolicyUri?: string
-  termsOfServiceUri?: string
-  donorTermsUri?: string
-  taxDisclosureUri?: string
-  softwareLicenseUri?: string
-}
-
 export type FundAtResult = {
-  links?: FundLink[]
-  dependencyUris?: string[]
-  dependencyNotes?: string
-  disclosure: DisclosureMeta
+  contributeUrl?: string
+  dependencies?: Array<{ uri: string; label?: string }>
 }
+
+// ---------------------------------------------------------------------------
+// Identity resolution
+// ---------------------------------------------------------------------------
 
 function handleFromAlsoKnownAs(didDoc: unknown): string | undefined {
   if (!didDoc || typeof didDoc !== 'object') return undefined
@@ -99,191 +74,6 @@ export async function resolveDidFromIdentifier(
 }
 
 // ---------------------------------------------------------------------------
-// Record value helpers
-// ---------------------------------------------------------------------------
-
-type RawValue = Record<string, unknown>
-
-function isObject(v: unknown): v is RawValue {
-  return !!v && typeof v === 'object' && !Array.isArray(v)
-}
-
-export function collectRecordValues(
-  records: { value: unknown }[],
-): RawValue[] {
-  const out: RawValue[] = []
-  for (const r of records) {
-    if (isObject(r.value)) out.push(r.value)
-  }
-  return out
-}
-
-export function readLinks(value: RawValue): FundLink[] {
-  const raw = value.links
-  if (!Array.isArray(raw)) return []
-  const out: FundLink[] = []
-  for (const item of raw) {
-    if (!isObject(item)) continue
-    const label = (item as { label?: unknown }).label
-    const url = (item as { url?: unknown }).url
-    if (typeof label === 'string' && typeof url === 'string' && url.length > 0) {
-      out.push({ label, url })
-    }
-  }
-  return out
-}
-
-function normalizeHostname(domain: string): string | null {
-  const d = domain.trim().toLowerCase().replace(/\.$/, '')
-  if (!d) return null
-  if (d.includes('/') || d.includes(':')) return null
-  return d
-}
-
-function normalizeDependencyUri(uri: string): string | null {
-  const raw = uri.trim()
-  if (!raw) return null
-  if (raw.startsWith('did:')) return raw
-  return normalizeHostname(raw)
-}
-
-export function readDependencyUris(value: RawValue): string[] {
-  const raw = value.uris
-  if (!Array.isArray(raw)) return []
-  const out: string[] = []
-  for (const item of raw) {
-    if (typeof item !== 'string') continue
-    const normalized = normalizeDependencyUri(item)
-    if (normalized) out.push(normalized)
-  }
-  return out
-}
-
-// ---------------------------------------------------------------------------
-// Record selection
-// ---------------------------------------------------------------------------
-
-function effectiveDateMs(value: RawValue): number {
-  const d = value.effectiveDate
-  if (typeof d !== 'string') return 0
-  const t = Date.parse(d)
-  return Number.isNaN(t) ? 0 : t
-}
-
-function sortByEffectiveDateDesc(values: RawValue[]): void {
-  values.sort((a, b) => effectiveDateMs(b) - effectiveDateMs(a))
-}
-
-export function pickBestContribute(values: RawValue[]): RawValue | null {
-  if (values.length === 0) return null
-  const copy = [...values]
-  sortByEffectiveDateDesc(copy)
-  for (const v of copy) {
-    if (readLinks(v).length > 0) return v
-  }
-  return null
-}
-
-function hasDisclosureMeta(val: RawValue): boolean {
-  const meta = val.meta
-  if (!isObject(meta)) return false
-  const m = meta as RawValue
-  return (
-    typeof m.displayName === 'string' ||
-    typeof m.description === 'string' ||
-    typeof m.landingPage === 'string'
-  )
-}
-
-export function pickBestDisclosure(values: RawValue[]): RawValue | null {
-  const withMeta = values.filter(hasDisclosureMeta)
-  if (withMeta.length === 0) return null
-  sortByEffectiveDateDesc(withMeta)
-  return withMeta[0] ?? null
-}
-
-export function extractDisclosureMeta(value: RawValue): DisclosureMeta | null {
-  const meta = value.meta
-  if (!isObject(meta)) return null
-  const m = meta as RawValue
-  const displayName = typeof m.displayName === 'string' ? m.displayName : undefined
-  const description = typeof m.description === 'string' ? m.description : undefined
-  const landingPage = typeof m.landingPage === 'string' ? m.landingPage : undefined
-  if (!displayName && !description && !landingPage) return null
-
-  const contact = isObject(value.contact) ? (value.contact as RawValue) : undefined
-  const general =
-    contact && isObject(contact.general) ? (contact.general as RawValue) : undefined
-  const press =
-    contact && isObject(contact.press) ? (contact.press as RawValue) : undefined
-  const security = isObject(value.security) ? (value.security as RawValue) : undefined
-  const legal = isObject(value.legal) ? (value.legal as RawValue) : undefined
-
-  const rawHandle = general?.handle
-  let contactGeneralHandle: string | undefined
-  if (typeof rawHandle === 'string') {
-    const t = rawHandle.trim().replace(/^@/, '')
-    if (t) contactGeneralHandle = t
-  }
-
-  return {
-    displayName,
-    description,
-    landingPage,
-    contactGeneralUrl: typeof general?.url === 'string' ? general.url : undefined,
-    contactGeneralHandle,
-    contactGeneralEmail: typeof general?.email === 'string' ? general.email : undefined,
-    contactPressUrl: typeof press?.url === 'string' ? press.url : undefined,
-    contactPressEmail: typeof press?.email === 'string' ? press.email : undefined,
-    securityPolicyUri:
-      typeof security?.policyUri === 'string' ? security.policyUri : undefined,
-    securityContactUri:
-      typeof security?.contactUri === 'string' ? security.contactUri : undefined,
-    securityContactEmail:
-      typeof security?.contactEmail === 'string' ? security.contactEmail : undefined,
-    legalEntityName:
-      typeof legal?.legalEntityName === 'string' ? legal.legalEntityName : undefined,
-    jurisdiction:
-      typeof legal?.jurisdiction === 'string' ? legal.jurisdiction : undefined,
-    privacyPolicyUri:
-      typeof legal?.privacyPolicyUri === 'string' ? legal.privacyPolicyUri : undefined,
-    termsOfServiceUri:
-      typeof legal?.termsOfServiceUri === 'string' ? legal.termsOfServiceUri : undefined,
-    donorTermsUri: typeof legal?.donorTermsUri === 'string' ? legal.donorTermsUri : undefined,
-    taxDisclosureUri:
-      typeof legal?.taxDisclosureUri === 'string' ? legal.taxDisclosureUri : undefined,
-    softwareLicenseUri:
-      typeof legal?.softwareLicenseUri === 'string' ? legal.softwareLicenseUri : undefined,
-  }
-}
-
-export function isHostScopedDependency(value: RawValue): boolean {
-  const p = value.appliesToNsidPrefix
-  if (typeof p !== 'string') return true
-  return p.trim().length === 0
-}
-
-/** Checks whether a record's restrictToDomains allows a given hostname. */
-export function allowlistedForDomain(
-  value: RawValue,
-  domain: string,
-): boolean {
-  const list = value.restrictToDomains
-  if (list == null) return true
-  if (!Array.isArray(list)) return false
-  if (list.length === 0) return true
-
-  const needle = normalizeHostname(domain)
-  if (!needle) return false
-  for (const item of list) {
-    if (typeof item !== 'string') continue
-    const n = normalizeHostname(item)
-    if (n && n === needle) return true
-  }
-  return false
-}
-
-// ---------------------------------------------------------------------------
 // PDS resolution
 // ---------------------------------------------------------------------------
 
@@ -301,90 +91,93 @@ export async function resolvePdsUrl(stewardDid: string): Promise<URL | null> {
 }
 
 // ---------------------------------------------------------------------------
-// High-level fetch: all three fund.at.* collections from one PDS
+// Record value helpers
 // ---------------------------------------------------------------------------
+
+type RawValue = Record<string, unknown>
+
+function isObject(v: unknown): v is RawValue {
+  return !!v && typeof v === 'object' && !Array.isArray(v)
+}
+
+function collectRecordValues(records: { value: unknown }[]): RawValue[] {
+  const out: RawValue[] = []
+  for (const r of records) {
+    if (isObject(r.value)) out.push(r.value)
+  }
+  return out
+}
+
+function readContributeUrl(value: RawValue): string | undefined {
+  const url = value.url
+  if (typeof url === 'string' && url.length > 0) return url
+  return undefined
+}
+
+function readDependency(value: RawValue): { uri: string; label?: string } | null {
+  const uri = value.uri
+  if (typeof uri !== 'string' || !uri.trim()) return null
+  const label = typeof value.label === 'string' && value.label.trim()
+    ? value.label.trim()
+    : undefined
+  return { uri: uri.trim(), label }
+}
+
+// ---------------------------------------------------------------------------
+// High-level fetch: fund.at.contribute + fund.at.dependency from one PDS
+// ---------------------------------------------------------------------------
+
+async function getClientForDid(
+  stewardDid: string,
+  client?: Client,
+): Promise<Client | null> {
+  if (client) return client
+  const pdsUrl = await resolvePdsUrl(stewardDid)
+  if (!pdsUrl) return null
+  return new Client(pdsUrl.origin)
+}
 
 /**
  * Fetches fund.at.* records for a DID from its PDS.
- * An optional `domainFilter` restricts records via `restrictToDomains`.
- * Returns null when no usable disclosure metadata exists.
+ * Returns null when no records exist.
  */
 export async function fetchFundAtRecords(
   stewardDid: string,
-  domainFilter?: string,
   client?: Client,
 ): Promise<FundAtResult | null> {
-  let readClient: Client
-  if (client) {
-    readClient = client
-  } else {
-    const pdsUrl = await resolvePdsUrl(stewardDid)
-    if (!pdsUrl) return null
-    readClient = new Client(pdsUrl.origin)
+  const readClient = await getClientForDid(stewardDid, client)
+  if (!readClient) return null
+
+  let contributeUrl: string | undefined
+  try {
+    const res = await readClient.getRecord(FUND_CONTRIBUTE, 'self', {
+      repo: stewardDid as import('@atproto/lex-client').AtIdentifierString,
+    })
+    const value = res.body.value as RawValue | undefined
+    if (value) contributeUrl = readContributeUrl(value)
+  } catch {
+    // optional — record may not exist
   }
 
-  const filter = (vals: RawValue[]) =>
-    domainFilter ? vals.filter((v) => allowlistedForDomain(v, domainFilter)) : vals
-
-  let contributeValues: RawValue[] = []
+  let dependencies: Array<{ uri: string; label?: string }> | undefined
   try {
-    const res = await readClient.listRecords(FUND_CONTRIBUTE, {
+    const res = await readClient.listRecords(FUND_DEPENDENCY, {
       repo: stewardDid as import('@atproto/lex-client').AtIdentifierString,
       limit: 100,
     })
-    contributeValues = collectRecordValues(
-      res.body.records as { value: unknown }[],
-    )
-  } catch {
-    // optional
-  }
-
-  const bestContribute = pickBestContribute(filter(contributeValues))
-  const links = bestContribute ? readLinks(bestContribute) : undefined
-
-  let disclosure: DisclosureMeta | undefined
-  try {
-    const res = await readClient.listRecords(FUND_DISCLOSURE, {
-      repo: stewardDid as import('@atproto/lex-client').AtIdentifierString,
-      limit: 50,
-    })
-    const discValues = collectRecordValues(
-      res.body.records as { value: unknown }[],
-    )
-    const best = pickBestDisclosure(filter(discValues))
-    if (best) disclosure = extractDisclosureMeta(best) ?? undefined
-  } catch {
-    // optional
-  }
-
-  if (!disclosure) return null
-
-  let dependencyUris: string[] | undefined
-  let dependencyNotes: string | undefined
-  try {
-    const res = await readClient.listRecords(FUND_DEPENDENCIES, {
-      repo: stewardDid as import('@atproto/lex-client').AtIdentifierString,
-      limit: 100,
-    })
-    const depValues = collectRecordValues(
-      res.body.records as { value: unknown }[],
-    )
-    const merged = new Set<string>()
-    for (const rec of filter(depValues)) {
-      if (!isHostScopedDependency(rec)) continue
-      for (const u of readDependencyUris(rec)) merged.add(u)
-      if (!dependencyNotes && typeof rec.notes === 'string' && rec.notes.trim()) {
-        dependencyNotes = rec.notes.trim()
-      }
+    const values = collectRecordValues(res.body.records as { value: unknown }[])
+    const deps: Array<{ uri: string; label?: string }> = []
+    for (const v of values) {
+      const dep = readDependency(v)
+      if (dep) deps.push(dep)
     }
-    if (merged.size > 0) {
-      dependencyUris = [...merged].sort((a, b) => a.localeCompare(b))
-    }
+    if (deps.length > 0) dependencies = deps
   } catch {
     // optional
   }
 
-  return { links, dependencyUris, dependencyNotes, disclosure }
+  if (!contributeUrl && !dependencies) return null
+  return { contributeUrl, dependencies }
 }
 
 // ---------------------------------------------------------------------------
@@ -397,50 +190,29 @@ export async function fetchOwnFundAtRecords(
 ): Promise<FundAtResult | null> {
   const client = new Client(session)
 
-  let contributeValues: RawValue[] = []
+  let contributeUrl: string | undefined
   try {
-    const res = await client.listRecords(FUND_CONTRIBUTE, { limit: 100 })
-    contributeValues = collectRecordValues(
-      res.body.records as { value: unknown }[],
-    )
+    const res = await client.getRecord(FUND_CONTRIBUTE, 'self')
+    const value = res.body.value as RawValue | undefined
+    if (value) contributeUrl = readContributeUrl(value)
   } catch {
     // optional
   }
 
-  const bestContribute = pickBestContribute(contributeValues)
-  const links = bestContribute ? readLinks(bestContribute) : undefined
-
-  let disclosure: DisclosureMeta | undefined
+  let dependencies: Array<{ uri: string; label?: string }> | undefined
   try {
-    const res = await client.listRecords(FUND_DISCLOSURE, { limit: 50 })
-    const discValues = collectRecordValues(res.body.records as { value: unknown }[])
-    const best = pickBestDisclosure(discValues)
-    if (best) disclosure = extractDisclosureMeta(best) ?? undefined
-  } catch {
-    // optional
-  }
-
-  if (!disclosure) return null
-
-  let dependencyUris: string[] | undefined
-  let dependencyNotes: string | undefined
-  try {
-    const res = await client.listRecords(FUND_DEPENDENCIES, { limit: 100 })
-    const depValues = collectRecordValues(res.body.records as { value: unknown }[])
-    const merged = new Set<string>()
-    for (const rec of depValues) {
-      if (!isHostScopedDependency(rec)) continue
-      for (const u of readDependencyUris(rec)) merged.add(u)
-      if (!dependencyNotes && typeof rec.notes === 'string' && rec.notes.trim()) {
-        dependencyNotes = rec.notes.trim()
-      }
+    const res = await client.listRecords(FUND_DEPENDENCY, { limit: 100 })
+    const values = collectRecordValues(res.body.records as { value: unknown }[])
+    const deps: Array<{ uri: string; label?: string }> = []
+    for (const v of values) {
+      const dep = readDependency(v)
+      if (dep) deps.push(dep)
     }
-    if (merged.size > 0) {
-      dependencyUris = [...merged].sort((a, b) => a.localeCompare(b))
-    }
+    if (deps.length > 0) dependencies = deps
   } catch {
     // optional
   }
 
-  return { links, dependencyUris, dependencyNotes, disclosure }
+  if (!contributeUrl && !dependencies) return null
+  return { contributeUrl, dependencies }
 }

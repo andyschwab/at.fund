@@ -1,22 +1,3 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "Spark Social",
-      "description": "ATProto social client focused on user-controlled timelines and open feeds.",
-      "landingPage": "https://sprk.so"
-    },
-    "contact": {
-      "general": {
-        "handle": "sprk.so"
-      }
-    }
-  },
-  "contribute": {
-    "links": [
-      {
-        "label": "Support Spark Social",
-        "url": "https://sprk.so/support"
-      }
-    ]
-  }
+  "contributeUrl": "https://sprk.so/support"
 }

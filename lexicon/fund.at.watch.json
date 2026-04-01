@@ -1,0 +1,27 @@
+{
+  "lexicon": 1,
+  "id": "fund.at.watch",
+  "description": "A watchlist entry. The author wants to track the funding status of the referenced entity.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A single watchlist pointer.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["uri"],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "The watched entity: a DID (did:plc:..., did:web:...) or a hostname (example.com)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this watch was created."
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "fund.at.dependency",
+  "description": "Declares a single dependency relationship. The record author depends on the referenced entity.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A single dependency pointer. The uri is a DID or hostname identifying the upstream entity.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["uri"],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "The dependency identifier: a DID (did:plc:..., did:web:...) or a hostname (example.com)."
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Optional human-readable name for this dependency (e.g. 'Bluesky', 'AT Protocol')."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this dependency was declared."
+          }
+        }
+      }
+    }
+  }
+}

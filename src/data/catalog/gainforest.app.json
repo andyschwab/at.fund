@@ -1,22 +1,3 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "GainForest",
-      "description": "Conservation and biodiversity data using Darwin Core occurrence records on ATProto.",
-      "landingPage": "https://gainforest.app"
-    },
-    "contact": {
-      "general": {
-        "handle": "gainforest.app"
-      }
-    }
-  },
-  "contribute": {
-    "links": [
-      {
-        "label": "Donate to GainForest",
-        "url": "https://gainforest.org/app-donor/"
-      }
-    ]
-  }
+  "contributeUrl": "https://gainforest.org/app-donor/"
 }

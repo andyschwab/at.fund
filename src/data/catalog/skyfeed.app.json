@@ -1,19 +1,5 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "SkyFeed",
-      "description": "Bluesky web client and custom feed builder. Hosts the majority of community Feed Generators.",
-      "landingPage": "https://skyfeed.app"
-    },
-    "contact": {
-      "general": {
-        "handle": "skyfeed.app"
-      }
-    }
-  },
-  "dependencies": {
-    "uris": [
-      "redsolver.dev"
-    ]
-  }
+  "dependencies": [
+    "redsolver.dev"
+  ]
 }

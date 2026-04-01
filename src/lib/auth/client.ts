@@ -41,9 +41,9 @@ const safeFetch: typeof globalThis.fetch = async (input, init) => {
 
 export const SCOPE = [
   'atproto',
-  'repo:fund.at.disclosure',
   'repo:fund.at.contribute',
-  'repo:fund.at.dependencies',
+  'repo:fund.at.dependency',
+  'repo:fund.at.watch',
   // getPreferences is proxied through the PDS and requires an rpc: scope.
   // getServices/getFeedGenerators use the public API so no scope needed.
   'rpc:app.bsky.actor.getPreferences?aud=did:web:api.bsky.app%23bsky_appview',

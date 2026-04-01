@@ -1,22 +1,3 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "Blacksky",
-      "description": "Community platform supporting Black social media users. Custom AppView with algorithmic feeds and community posts.",
-      "landingPage": "https://github.com/blacksky-algorithms"
-    },
-    "contact": {
-      "general": {
-        "handle": "blacksky.community"
-      }
-    }
-  },
-  "contribute": {
-    "links": [
-      {
-        "label": "Open Collective",
-        "url": "https://opencollective.com/blacksky"
-      }
-    ]
-  }
+  "contributeUrl": "https://opencollective.com/blacksky"
 }

@@ -2,33 +2,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import resolverJson from '@/data/resolver-catalog.json'
 import { normalizeStewardUri } from '@/lib/steward-uri'
-import type { FundLink } from '@/lib/fund-at-records'
-
-type ManualDisclosure = {
-  meta?: {
-    displayName?: string
-    description?: string
-    landingPage?: string
-  }
-  contact?: {
-    general?: {
-      handle?: string
-    }
-  }
-}
-
-type ManualContribute = {
-  links?: FundLink[]
-}
-
-type ManualDependencies = {
-  uris?: string[]
-}
 
 type ManualRecord = {
-  disclosure?: ManualDisclosure
-  contribute?: ManualContribute
-  dependencies?: ManualDependencies
+  contributeUrl?: string
+  dependencies?: string[]
 }
 
 type ResolverOverride = {
@@ -111,40 +88,11 @@ export function resolveStewardUri(observedKey: string): string | null {
 
 export type ManualStewardRecord = {
   stewardUri: string
-  displayName: string
-  description?: string
-  landingPage?: string
-  /** fund.at.disclosure contact.general.handle */
-  contactGeneralHandle?: string
-  links: FundLink[]
+  contributeUrl?: string
   dependencies?: string[]
 }
 
-function buildHandleIndex(
-  records: Record<string, ManualRecord>,
-): Map<string, ManualStewardRecord> {
-  const index = new Map<string, ManualStewardRecord>()
-  for (const stewardUri of Object.keys(records)) {
-    const record = lookupManualStewardRecord(stewardUri)
-    if (!record?.contactGeneralHandle) continue
-    index.set(record.contactGeneralHandle.toLowerCase(), record)
-  }
-  return index
-}
-
-const handleIndex = buildHandleIndex(manualCatalogRecords)
-
-/**
- * Look up a catalog record by the account's Bluesky handle.
- * Handles the case where the catalog key (steward domain) differs from the handle.
- */
-export function lookupManualStewardByHandle(handle: string): ManualStewardRecord | null {
-  const normalized = handle.trim().replace(/^@/, '').toLowerCase()
-  if (!normalized) return null
-  return handleIndex.get(normalized) ?? null
-}
-
-/** Manual fallback keyed by steward URI. Returns fund.at-shaped data from our curated catalog. */
+/** Manual fallback keyed by steward URI. Returns contribute/dependency data from our curated catalog. */
 export function lookupManualStewardRecord(
   stewardUri: string,
 ): ManualStewardRecord | null {
@@ -154,23 +102,13 @@ export function lookupManualStewardRecord(
   const record = manualCatalogRecords[key]
   if (!record) return null
 
-  const meta = record.disclosure?.meta
-  if (!meta?.displayName) return null
-
-  const rawHandle = record.disclosure?.contact?.general?.handle
-  let contactGeneralHandle: string | undefined
-  if (typeof rawHandle === 'string') {
-    const t = rawHandle.trim().replace(/^@/, '')
-    if (t) contactGeneralHandle = t
+  if (!record.contributeUrl && (!record.dependencies || record.dependencies.length === 0)) {
+    return null
   }
 
   return {
     stewardUri: key,
-    displayName: meta.displayName,
-    description: meta.description,
-    landingPage: meta.landingPage,
-    contactGeneralHandle,
-    links: record.contribute?.links ?? [],
-    dependencies: record.dependencies?.uris,
+    contributeUrl: record.contributeUrl,
+    dependencies: record.dependencies,
   }
 }

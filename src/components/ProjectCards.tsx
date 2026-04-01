@@ -2,19 +2,13 @@
 
 import { useState, useRef, useMemo } from 'react'
 import type { StewardEntry, StewardTag } from '@/lib/steward-model'
-import type { DisclosureMeta } from '@/lib/fund-at-records'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
 import Link from 'next/link'
 import {
   ArrowRight,
   AtSign,
-  FileText,
-  Globe,
-  Mail,
-  Megaphone,
-  Scale,
   Cog,
-  Shield,
+  Globe,
   X,
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
@@ -42,112 +36,12 @@ function TagBadges({ tags }: { tags: StewardTag[] }) {
   )
 }
 
-function disclosureMetaFromEntry(e: StewardEntry): DisclosureMeta {
-  return {
-    displayName: e.displayName,
-    description: e.description,
-    landingPage: e.landingPage,
-    contactGeneralUrl: e.contactGeneralUrl,
-    contactGeneralHandle: e.contactGeneralHandle,
-    contactGeneralEmail: e.contactGeneralEmail,
-    contactPressUrl: e.contactPressUrl,
-    contactPressEmail: e.contactPressEmail,
-    securityPolicyUri: e.securityPolicyUri,
-    securityContactUri: e.securityContactUri,
-    securityContactEmail: e.securityContactEmail,
-    legalEntityName: e.legalEntityName,
-    jurisdiction: e.jurisdiction,
-    privacyPolicyUri: e.privacyPolicyUri,
-    termsOfServiceUri: e.termsOfServiceUri,
-    donorTermsUri: e.donorTermsUri,
-    taxDisclosureUri: e.taxDisclosureUri,
-    softwareLicenseUri: e.softwareLicenseUri,
-  }
-}
-
-/** URI → https fallback URL for hostname-shaped URIs (not DIDs). */
+/** URI -> https fallback URL for hostname-shaped URIs (not DIDs). */
 function websiteFallbackForUri(uri: string): string | undefined {
   if (uri.startsWith('did:')) return undefined
   if (uri.includes('/') || uri.includes(':')) return undefined
   if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(uri)) return `https://${uri}`
   return undefined
-}
-
-/** Fixed disclosure "report card" slots (fund.at.disclosure), aligned with lexicon. */
-type DisclosureSlot = {
-  key: string
-  label: string
-  href: string | undefined
-  Icon: typeof Globe
-}
-
-/** Public profile URL for an Atmosphere handle (Bluesky Social is the reference app). */
-function atmosphereProfileHref(handle: string | undefined): string | undefined {
-  if (!handle) return undefined
-  const h = handle.trim().replace(/^@/, '')
-  if (!h) return undefined
-  return `https://bsky.app/profile/${encodeURIComponent(h)}`
-}
-
-function buildDisclosureSlots(
-  disclosure: DisclosureMeta | undefined,
-  websiteFallback: string | undefined,
-): DisclosureSlot[] {
-  const d = disclosure
-  const website = d?.landingPage ?? websiteFallback
-  const atmosphereHref = atmosphereProfileHref(d?.contactGeneralHandle)
-  const contactHref =
-    d?.contactGeneralUrl ??
-    (d?.contactGeneralEmail
-      ? `mailto:${d.contactGeneralEmail}`
-      : undefined)
-  const pressHref =
-    d?.contactPressUrl ??
-    (d?.contactPressEmail ? `mailto:${d.contactPressEmail}` : undefined)
-  const securityHref = d?.securityPolicyUri ?? d?.securityContactUri
-
-  return [
-    { key: 'website', label: 'Website', Icon: Globe, href: website },
-    {
-      key: 'handle',
-      label: 'Atmosphere handle',
-      Icon: AtSign,
-      href: atmosphereHref,
-    },
-    { key: 'contact', label: 'Contact', Icon: Mail, href: contactHref },
-    { key: 'press', label: 'Press', Icon: Megaphone, href: pressHref },
-    { key: 'security', label: 'Security', Icon: Shield, href: securityHref },
-    {
-      key: 'privacy',
-      label: 'Privacy policy',
-      Icon: Scale,
-      href: d?.privacyPolicyUri,
-    },
-    {
-      key: 'terms',
-      label: 'Terms of service',
-      Icon: FileText,
-      href: d?.termsOfServiceUri,
-    },
-    {
-      key: 'donor',
-      label: 'Donor terms',
-      Icon: FileText,
-      href: d?.donorTermsUri,
-    },
-    {
-      key: 'tax',
-      label: 'Tax disclosure',
-      Icon: Scale,
-      href: d?.taxDisclosureUri,
-    },
-    {
-      key: 'license',
-      label: 'Software license',
-      Icon: FileText,
-      href: d?.softwareLicenseUri,
-    },
-  ]
 }
 
 function StewardNameHeading({
@@ -187,42 +81,6 @@ function StewardNameHeading({
   )
 }
 
-function DisclosureReportRow({ slots }: { slots: DisclosureSlot[] }) {
-  return (
-    <div className="flex shrink-0 items-center gap-0.5">
-      {slots.map((slot) => {
-        const Icon = slot.Icon
-        const active = !!slot.href
-        if (!active) {
-          return (
-            <span
-              key={slot.key}
-              title={`Not published: ${slot.label}`}
-              className="rounded-md p-1.5 text-slate-300 dark:text-slate-600"
-            >
-              <Icon className="h-4 w-4" strokeWidth={2} aria-hidden />
-              <span className="sr-only">Not published: {slot.label}</span>
-            </span>
-          )
-        }
-        return (
-          <a
-            key={slot.key}
-            href={slot.href}
-            target="_blank"
-            rel="noreferrer"
-            title={slot.label}
-            className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-          >
-            <Icon className="h-4 w-4" strokeWidth={2} aria-hidden />
-            <span className="sr-only">{slot.label}</span>
-          </a>
-        )
-      })}
-    </div>
-  )
-}
-
 // ---------------------------------------------------------------------------
 // Dependency rows + drill-down modal
 // ---------------------------------------------------------------------------
@@ -238,16 +96,16 @@ type DropletIconState = 'direct' | 'dependency' | 'none'
 
 /**
  * 'dependency' only fires when at least one listed dep resolves to an entry
- * with a contribution link — so we never imply actionability we can't back up.
+ * with a contribution link -- so we never imply actionability we can't back up.
  */
 function heartState(
-  links: import('@/lib/fund-at-records').FundLink[] | undefined,
+  contributeUrl: string | undefined,
   dependencies: string[] | undefined,
   lookup?: (uri: string) => StewardEntry | undefined,
 ): DropletIconState {
-  if (links?.[0]) return 'direct'
+  if (contributeUrl) return 'direct'
   if (dependencies?.length && lookup) {
-    if (dependencies.some((uri) => !!(lookup(uri)?.links?.[0]))) return 'dependency'
+    if (dependencies.some((uri) => !!(lookup(uri)?.contributeUrl))) return 'dependency'
   }
   return 'none'
 }
@@ -257,11 +115,11 @@ function depRowTier(
   lookup?: (uri: string) => StewardEntry | undefined,
 ): number {
   if (!e) return 2
-  if (e.links?.[0]) return 0
+  if (e.contributeUrl) return 0
   if (
     e.dependencies?.length &&
     lookup &&
-    e.dependencies.some((uri) => !!(lookup(uri)?.links?.[0]))
+    e.dependencies.some((uri) => !!(lookup(uri)?.contributeUrl))
   )
     return 1
   return 2
@@ -279,7 +137,7 @@ function DependencyRow({
   state: DropletIconState
   onExpand: () => void
 }) {
-  const contributeLink = entry?.links?.[0]
+  const contributeUrl = entry?.contributeUrl
   const name = entry?.displayName ?? depUri
   const websiteUrl = entry?.landingPage ?? websiteFallbackForUri(depUri)
 
@@ -287,20 +145,20 @@ function DependencyRow({
     <div className="flex items-center gap-2 py-1.5">
       {state === 'direct' ? (
         <a
-          href={contributeLink!.url}
+          href={contributeUrl!}
           target="_blank"
           rel="noreferrer"
-          title={contributeLink!.label}
+          title="Contribute"
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
           onClick={(e) => e.stopPropagation()}
         >
           <DropletIcon className="h-3.5 w-3.5 fill-current" strokeWidth={0} aria-hidden />
-          <span className="sr-only">{contributeLink!.label}</span>
+          <span className="sr-only">Contribute</span>
         </a>
       ) : state === 'dependency' ? (
         <span
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
-          title="No contribution link — has sub-dependencies"
+          title="No contribution link -- has sub-dependencies"
         >
           <DropletIcon className="h-3.5 w-3.5 fill-current" strokeWidth={0} aria-hidden />
         </span>
@@ -340,7 +198,7 @@ function DependencyRow({
   )
 }
 
-/** Card content rendered inside the modal — same layout as the main card but without the outer article shell. */
+/** Card content rendered inside the modal -- same layout as the main card but without the outer article shell. */
 function ModalCardContent({
   entry,
   onExpandDep,
@@ -350,12 +208,10 @@ function ModalCardContent({
   onExpandDep: (uri: string) => void
   lookup?: (uri: string) => StewardEntry | undefined
 }) {
-  const contributeLink = entry.links?.[0]
-  const state = heartState(entry.links, entry.dependencies, lookup)
+  const contributeUrl = entry.contributeUrl
+  const state = heartState(entry.contributeUrl, entry.dependencies, lookup)
   const websiteFallback = websiteFallbackForUri(entry.uri)
-  const disclosure = disclosureMetaFromEntry(entry)
   const websiteUrl = entry.landingPage ?? websiteFallback
-  const disclosureSlots = buildDisclosureSlots(disclosure, websiteFallback)
 
   return (
     <div>
@@ -363,19 +219,19 @@ function ModalCardContent({
         <div className="flex shrink-0 flex-col items-center gap-1">
           {state === 'direct' ? (
             <a
-              href={contributeLink!.url}
+              href={contributeUrl!}
               target="_blank"
               rel="noreferrer"
-              title={contributeLink!.label}
+              title="Contribute"
               className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
             >
               <DropletIcon className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
-              <span className="sr-only">{contributeLink!.label}</span>
+              <span className="sr-only">Contribute</span>
             </a>
           ) : state === 'dependency' ? (
             <span
               className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
-              title="No contribution link — has sub-dependencies"
+              title="No contribution link -- has sub-dependencies"
             >
               <DropletIcon className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
             </span>
@@ -395,9 +251,18 @@ function ModalCardContent({
               websiteUrl={websiteUrl}
               linkVariant="support"
             />
-            <div className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-x-auto sm:max-w-none">
-              <DisclosureReportRow slots={disclosureSlots} />
-            </div>
+            {websiteUrl && (
+              <a
+                href={websiteUrl}
+                target="_blank"
+                rel="noreferrer"
+                title="Website"
+                className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
+                <span className="sr-only">Website</span>
+              </a>
+            )}
           </div>
           {entry.description && (
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
@@ -420,7 +285,7 @@ function ModalCardContent({
                   key={depUri}
                   depUri={depUri}
                   entry={depEntry}
-                  state={heartState(depEntry?.links, depEntry?.dependencies, lookup)}
+                  state={heartState(depEntry?.contributeUrl, depEntry?.dependencies, lookup)}
                   onExpand={() => onExpandDep(depUri)}
                 />
               )
@@ -499,7 +364,7 @@ function DependenciesSection({
                 key={depUri}
                 depUri={depUri}
                 entry={depEntry}
-                state={heartState(depEntry?.links, depEntry?.dependencies, lookup)}
+                state={heartState(depEntry?.contributeUrl, depEntry?.dependencies, lookup)}
                 onExpand={() => openDep(depUri)}
               />
             )
@@ -529,7 +394,7 @@ function DependenciesSection({
         </div>
         <div className="p-5">
           {modal?.loading && (
-            <p className="py-6 text-center text-sm text-slate-400">Loading…</p>
+            <p className="py-6 text-center text-sm text-slate-400">Loading...</p>
           )}
           {modal?.error && (
             <p className="text-sm text-red-600 dark:text-red-400">{modal.error}</p>
@@ -569,37 +434,33 @@ export function PdsHostSupportCard({
   pdsHostname: string
   funding?: PdsHostFunding | null
 }) {
-  const disclosure = funding?.disclosure
   const pdsStewardLabel = funding?.pdsStewardHandle ?? funding?.pdsStewardUri
   const stewardWebsiteFallback = funding?.pdsStewardUri
     ? websiteFallbackForUri(funding.pdsStewardUri)
     : undefined
   const title =
-    disclosure?.displayName ??
-    (pdsStewardLabel
+    pdsStewardLabel
       ? `Your host steward (${pdsStewardLabel})`
-      : `Your host (${pdsHostname})`)
-  const contributeLink = funding?.links?.[0]
+      : `Your host (${pdsHostname})`
+  const contributeUrl = funding?.contributeUrl
   const websiteFallback = stewardWebsiteFallback ?? `https://${pdsHostname}`
   const summary =
-    disclosure?.description ??
-    (pdsStewardLabel
+    pdsStewardLabel
       ? `Your account's home server (${pdsHostname}), operated by ${pdsStewardLabel}.`
-      : `Your account's home server (${pdsHostname}) — support options if published.`)
+      : `Your account's home server (${pdsHostname}) -- support options if published.`
 
-  const disclosureSlots = buildDisclosureSlots(disclosure, websiteFallback)
-  const websiteUrl = disclosure?.landingPage ?? websiteFallback
+  const websiteUrl = websiteFallback
 
   return (
     <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-sky-400/90 bg-gradient-to-br from-sky-50/90 to-white p-4 shadow-sm dark:border-slate-800 dark:from-sky-950/40 dark:to-slate-950">
       <div className="flex gap-3">
         <div className="flex shrink-0 flex-col items-center gap-1">
-          {contributeLink ? (
+          {contributeUrl ? (
             <a
-              href={contributeLink.url}
+              href={contributeUrl}
               target="_blank"
               rel="noreferrer"
-              title={contributeLink.label}
+              title="Contribute"
               className="flex h-14 w-14 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm transition-opacity hover:opacity-90 dark:bg-sky-600"
             >
               <DropletIcon
@@ -607,7 +468,7 @@ export function PdsHostSupportCard({
                 strokeWidth={0}
                 aria-hidden
               />
-              <span className="sr-only">{contributeLink.label}</span>
+              <span className="sr-only">Contribute</span>
             </a>
           ) : (
             <span
@@ -625,11 +486,20 @@ export function PdsHostSupportCard({
               websiteUrl={websiteUrl}
               linkVariant="sky"
             />
-            <div className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-x-auto sm:max-w-none">
-              <DisclosureReportRow slots={disclosureSlots} />
-            </div>
+            {websiteUrl && (
+              <a
+                href={websiteUrl}
+                target="_blank"
+                rel="noreferrer"
+                title="Website"
+                className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
+                <span className="sr-only">Website</span>
+              </a>
+            )}
             <Link
-              href="/maintainers"
+              href="/lexicon"
               className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               title="Maintainers"
               aria-label="Maintainers"
@@ -670,19 +540,17 @@ export function StewardCard({
 }) {
   const variant = cardVariant(entry)
   const isFollow = entry.tags.includes('follow')
-  const contributeLink = entry.links?.[0]
+  const contributeUrl = entry.contributeUrl
 
   const entryByUri = useMemo(
     () => new Map(allEntries.map((e) => [e.uri, e])),
     [allEntries],
   )
   const lookup = (uri: string) => entryByUri.get(uri)
-  const state = heartState(entry.links, entry.dependencies, lookup)
+  const state = heartState(entry.contributeUrl, entry.dependencies, lookup)
 
   const websiteFallback = websiteFallbackForUri(entry.uri)
-  const disclosure = disclosureMetaFromEntry(entry)
   const websiteUrl = entry.landingPage ?? websiteFallback
-  const disclosureSlots = buildDisclosureSlots(disclosure, websiteFallback)
 
   // Profile URL for follow-tagged entries
   const profileUrl = entry.handle
@@ -710,11 +578,20 @@ export function StewardCard({
                 websiteUrl={websiteUrl}
                 linkVariant="discover"
               />
-              <div className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-x-auto sm:max-w-none">
-                <DisclosureReportRow slots={disclosureSlots} />
-              </div>
+              {websiteUrl && (
+                <a
+                  href={websiteUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Website"
+                  className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                >
+                  <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
+                  <span className="sr-only">Website</span>
+                </a>
+              )}
               <Link
-                href="/maintainers"
+                href="/lexicon"
                 className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                 title="Maintainers"
                 aria-label="Maintainers"
@@ -724,10 +601,10 @@ export function StewardCard({
             </div>
             <TagBadges tags={entry.tags} />
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-              Your account has saved something from this service—we don&apos;t have
+              Your account has saved something from this service--we don&apos;t have
               details about it yet.{' '}
               <Link
-                href="/maintainers"
+                href="/lexicon"
                 className="font-medium text-[var(--discover)] underline underline-offset-2 dark:text-amber-400"
               >
                 How projects get listed
@@ -744,16 +621,16 @@ export function StewardCard({
       <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--network-border)] bg-gradient-to-br from-[var(--network-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--network-muted)] dark:to-slate-950">
         <div className="flex gap-3">
           <div className="flex shrink-0 flex-col items-center gap-1">
-            {contributeLink ? (
+            {contributeUrl ? (
               <a
-                href={contributeLink.url}
+                href={contributeUrl}
                 target="_blank"
                 rel="noreferrer"
-                title={contributeLink.label}
+                title="Contribute"
                 className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--network)] text-white shadow-sm transition-opacity hover:opacity-90"
               >
                 <DropletIcon className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
-                <span className="sr-only">{contributeLink.label}</span>
+                <span className="sr-only">Contribute</span>
               </a>
             ) : (
               <span
@@ -807,19 +684,19 @@ export function StewardCard({
         <div className="flex shrink-0 flex-col items-center gap-1">
           {state === 'direct' ? (
             <a
-              href={contributeLink!.url}
+              href={contributeUrl!}
               target="_blank"
               rel="noreferrer"
-              title={contributeLink!.label}
+              title="Contribute"
               className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
             >
               <DropletIcon className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
-              <span className="sr-only">{contributeLink!.label}</span>
+              <span className="sr-only">Contribute</span>
             </a>
           ) : state === 'dependency' ? (
             <span
               className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
-              title="No contribution link — has sub-dependencies"
+              title="No contribution link -- has sub-dependencies"
             >
               <DropletIcon className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
             </span>
@@ -839,9 +716,18 @@ export function StewardCard({
               websiteUrl={websiteUrl}
               linkVariant="support"
             />
-            <div className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-x-auto sm:max-w-none">
-              <DisclosureReportRow slots={disclosureSlots} />
-            </div>
+            {websiteUrl && (
+              <a
+                href={websiteUrl}
+                target="_blank"
+                rel="noreferrer"
+                title="Website"
+                className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
+                <span className="sr-only">Website</span>
+              </a>
+            )}
             {/* Show Bluesky profile link for entries that are also a follow */}
             {isFollow && profileUrl && (
               <a
@@ -856,7 +742,7 @@ export function StewardCard({
               </a>
             )}
             <Link
-              href="/maintainers"
+              href="/lexicon"
               className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               title="Maintainers"
               aria-label="Maintainers"

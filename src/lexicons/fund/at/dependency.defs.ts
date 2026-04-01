@@ -4,28 +4,31 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'fund.at.contribute'
+const $nsid = 'fund.at.dependency'
 
 export { $nsid }
 
-/** The steward's canonical funding entry point. */
+/** A single dependency pointer. The uri is a DID or hostname identifying the upstream entity. */
 type Main = {
-  $type: 'fund.at.contribute'
+  $type: 'fund.at.dependency'
 
-  /** The canonical funding page URL (e.g. GitHub Sponsors, Open Collective, ko-fi). */
-  url: l.UriString
-  /** When this record was created or last updated. */
+  /** The dependency identifier: a DID (did:plc:..., did:web:...) or a hostname (example.com). */
+  uri: string
+  /** Optional human-readable name for this dependency (e.g. 'Bluesky', 'AT Protocol'). */
+  label?: string
+  /** When this dependency was declared. */
   createdAt?: l.DatetimeString
 }
 
 export type { Main }
 
-/** The steward's canonical funding entry point. */
-const main = l.record<'literal:self', Main>(
-  'literal:self',
+/** A single dependency pointer. The uri is a DID or hostname identifying the upstream entity. */
+const main = l.record<'tid', Main>(
+  'tid',
   $nsid,
   l.object({
-    url: l.string({ format: 'uri' }),
+    uri: l.string(),
+    label: l.optional(l.string()),
     createdAt: l.optional(l.string({ format: 'datetime' })),
   }),
 )

@@ -1,37 +1,27 @@
 {
   "lexicon": 1,
   "id": "fund.at.contribute",
-  "description": "Declares contribution and funding entry points published by a steward DID. Canonical schema for at.fund",
+  "description": "A single funding URL published by a steward. Points to the steward's external funding page.",
   "defs": {
     "main": {
       "type": "record",
-      "description": "Canonical contribution entry points published by a steward DID. Optionally restricted to specific domains via restrictToDomains.",
-      "key": "tid",
+      "description": "The steward's canonical funding entry point.",
+      "key": "literal:self",
       "record": {
         "type": "object",
+        "required": ["url"],
         "properties": {
-          "restrictToDomains": {
-            "type": "array",
-            "description": "Optional allowlist of domain/hostnames for which these contribution links should be considered applicable (e.g. example.com, pds.example.com). When omitted or empty, the record is open.",
-            "items": { "type": "string" }
-          },
-          "links": {
-            "type": "array",
-            "items": { "type": "ref", "ref": "#link" }
-          },
-          "effectiveDate": {
+          "url": {
             "type": "string",
-            "format": "datetime"
+            "format": "uri",
+            "description": "The canonical funding page URL (e.g. GitHub Sponsors, Open Collective, ko-fi)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this record was created or last updated."
           }
         }
-      }
-    },
-    "link": {
-      "type": "object",
-      "required": ["label", "url"],
-      "properties": {
-        "label": { "type": "string" },
-        "url": { "type": "string", "format": "uri" }
       }
     }
   }

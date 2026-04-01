@@ -59,14 +59,14 @@ vi.mock('@/lib/atfund-uri', () => ({
 
 // Mock fund-at-records identity resolution
 vi.mock('@/lib/fund-at-records', () => ({
+  FUND_CONTRIBUTE: 'fund.at.contribute',
+  FUND_DEPENDENCY: 'fund.at.dependency',
+  FUND_WATCH: 'fund.at.watch',
   resolveHandleFromDid: vi.fn().mockResolvedValue(undefined),
   resolveDidFromIdentifier: vi.fn().mockResolvedValue(undefined),
   resolvePdsUrl: vi.fn().mockResolvedValue(null),
   fetchOwnFundAtRecords: vi.fn().mockResolvedValue(null),
   fetchFundAtRecords: vi.fn().mockResolvedValue(null),
-  extractDisclosureMeta: () => null,
-  isHostScopedDependency: () => true,
-  allowlistedForDomain: () => true,
 }))
 
 import { scanRepo } from './lexicon-scan'
@@ -149,10 +149,10 @@ describe('scanRepo pipeline', () => {
     const result = await scanRepo(session, [])
 
     const frontpage = result.entries.find((e) => e.uri === 'frontpage.fyi')
-    // frontpage.fyi has a manual catalog entry with a displayName
+    // frontpage.fyi has a manual catalog entry with dependencies
     if (frontpage) {
       expect(frontpage.source).toBe('manual')
-      expect(frontpage.displayName).toBeTruthy()
+      expect(frontpage.dependencies).toBeDefined()
     }
   })
 
@@ -190,11 +190,7 @@ describe('scanRepo pipeline', () => {
     // Mock fund.at records
     const fundAtResult: StewardFundAt = {
       stewardDid: 'did:plc:frontpage',
-      links: [{ label: 'Donate', url: 'https://frontpage.fyi/donate' }],
-      disclosure: {
-        displayName: 'Frontpage',
-        description: 'A link aggregator for ATProto',
-      },
+      contributeUrl: 'https://frontpage.fyi/donate',
     }
     vi.mocked(fetchFundAtForStewardDid).mockResolvedValue(fundAtResult)
 
@@ -204,8 +200,7 @@ describe('scanRepo pipeline', () => {
     const frontpage = result.entries.find((e) => e.uri === 'frontpage.fyi')
     expect(frontpage).toBeDefined()
     expect(frontpage!.source).toBe('fund.at')
-    expect(frontpage!.displayName).toBe('Frontpage')
-    expect(frontpage!.links).toEqual([{ label: 'Donate', url: 'https://frontpage.fyi/donate' }])
+    expect(frontpage!.contributeUrl).toBe('https://frontpage.fyi/donate')
     expect(frontpage!.did).toBe('did:plc:frontpage')
   })
 
@@ -220,8 +215,7 @@ describe('scanRepo pipeline', () => {
 
     const bsky = result.entries.find((e) => e.uri === 'bsky.app')
     expect(bsky).toBeDefined()
-    // bsky.app should resolve via fund.at or manual catalog (not unknown)
-    expect(['fund.at', 'manual']).toContain(bsky!.source)
+    // bsky.app has no manual catalog entry with contribute/deps, so it's unknown
     expect(bsky!.displayName).toBeTruthy()
   })
 
@@ -235,7 +229,7 @@ describe('scanRepo pipeline', () => {
         ],
       }
 
-    // frontpage.fyi resolves to fund.at with links
+    // frontpage.fyi resolves to fund.at with contribute URL
     vi.mocked(lookupAtprotoDid).mockImplementation(async (hostname) => {
       if (hostname === 'frontpage.fyi') return 'did:plc:frontpage'
       return null
@@ -244,8 +238,7 @@ describe('scanRepo pipeline', () => {
       if (did === 'did:plc:frontpage') {
         return {
           stewardDid: did,
-          links: [{ label: 'Donate', url: 'https://frontpage.fyi/donate' }],
-          disclosure: { displayName: 'Frontpage' },
+          contributeUrl: 'https://frontpage.fyi/donate',
         }
       }
       return null

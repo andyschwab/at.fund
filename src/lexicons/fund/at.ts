@@ -3,5 +3,5 @@
  */
 
 export * as contribute from './at/contribute'
-export * as dependencies from './at/dependencies'
-export * as disclosure from './at/disclosure'
+export * as dependency from './at/dependency'
+export * as watch from './at/watch'

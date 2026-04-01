@@ -1,22 +1,3 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "redsolver",
-      "description": "Developer of SkyFeed and decentralized storage projects. Based in Germany.",
-      "landingPage": "https://github.com/redsolver"
-    },
-    "contact": {
-      "general": {
-        "handle": "redsolver.dev"
-      }
-    }
-  },
-  "contribute": {
-    "links": [
-      {
-        "label": "GitHub Sponsors (@redsolver)",
-        "url": "https://github.com/sponsors/redsolver"
-      }
-    ]
-  }
+  "contributeUrl": "https://github.com/sponsors/redsolver"
 }

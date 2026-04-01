@@ -1,22 +1,3 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "Nick Perez",
-      "description": "Developer of Bookhive, the ATProto-based open-source alternative to Goodreads.",
-      "landingPage": "https://nickthesick.com"
-    },
-    "contact": {
-      "general": {
-        "handle": "nickthesick.com"
-      }
-    }
-  },
-  "contribute": {
-    "links": [
-      {
-        "label": "Ko-fi (@nick_the_sick)",
-        "url": "https://ko-fi.com/nick_the_sick"
-      }
-    ]
-  }
+  "contributeUrl": "https://ko-fi.com/nick_the_sick"
 }

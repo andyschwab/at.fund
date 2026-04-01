@@ -1,4 +1,4 @@
-import type { StewardCardModel, StewardEntry, StewardSource, StewardTag } from '@/lib/steward-model'
+import type { StewardEntry, StewardSource, StewardTag } from '@/lib/steward-model'
 import type { FollowedAccountCard } from '@/lib/follow-scan'
 
 // ---------------------------------------------------------------------------
@@ -16,26 +16,8 @@ function betterSource(a: StewardSource, b: StewardSource): StewardSource {
 }
 
 // ---------------------------------------------------------------------------
-// Convert legacy types to StewardEntry
+// Convert types to StewardEntry
 // ---------------------------------------------------------------------------
-
-function stewardCardToEntry(card: StewardCardModel, tag: StewardTag): StewardEntry {
-  const { stewardUri, stewardDid, displayName, description, landingPage,
-          links, dependencies, dependencyNotes, source, ...extras } = card as StewardCardModel & { dependencyNotes?: string }
-  return {
-    uri: stewardUri,
-    did: stewardDid,
-    tags: [tag],
-    displayName,
-    description,
-    landingPage,
-    links,
-    dependencies,
-    dependencyNotes,
-    source,
-    ...extras,
-  }
-}
 
 export function followedAccountToEntry(account: FollowedAccountCard): StewardEntry {
   return {
@@ -46,7 +28,7 @@ export function followedAccountToEntry(account: FollowedAccountCard): StewardEnt
     displayName: account.displayName ?? account.handle ?? account.did,
     description: account.description,
     landingPage: account.landingPage,
-    links: account.links,
+    contributeUrl: account.contributeUrl,
     source: 'fund.at',
   }
 }
@@ -64,12 +46,8 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
   // Union tags, dedup
   const tags = [...new Set([...base.tags, ...incoming.tags])]
 
-  // Union links by URL
-  const linkMap = new Map<string, { label: string; url: string }>()
-  for (const l of [...(base.links ?? []), ...(incoming.links ?? [])]) {
-    linkMap.set(l.url, l)
-  }
-  const links = linkMap.size > 0 ? [...linkMap.values()] : undefined
+  // Prefer contributeUrl from higher-priority source
+  const contributeUrl = preferred.contributeUrl ?? other.contributeUrl
 
   // Union dependencies
   const depSet = new Set([...(base.dependencies ?? []), ...(incoming.dependencies ?? [])])
@@ -81,8 +59,6 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
     ?? base.uri
 
   return {
-    ...other,
-    ...preferred,
     uri,
     did: base.did ?? incoming.did,
     handle: base.handle ?? incoming.handle,
@@ -91,9 +67,8 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
     displayName: preferred.displayName ?? other.displayName,
     description: preferred.description ?? other.description,
     landingPage: preferred.landingPage ?? other.landingPage,
-    links,
+    contributeUrl,
     dependencies,
-    dependencyNotes: preferred.dependencyNotes ?? other.dependencyNotes,
   }
 }
 
@@ -144,13 +119,13 @@ export class EntryIndex {
  * Dedup key: resolved DID. Entries sharing a DID have their tags unioned.
  */
 export function mergeIntoEntries(
-  stewards: StewardCardModel[],
+  stewards: StewardEntry[],
   followedAccounts: FollowedAccountCard[],
   ...extraEntryLists: StewardEntry[][]
 ): StewardEntry[] {
   const index = new EntryIndex()
 
-  for (const s of stewards) index.upsert(stewardCardToEntry(s, 'tool'))
+  for (const s of stewards) index.upsert(s)
   for (const f of followedAccounts) index.upsert(followedAccountToEntry(f))
   for (const list of extraEntryLists) {
     for (const e of list) index.upsert(e)
@@ -164,7 +139,7 @@ export function mergeIntoEntries(
  * These are always tool-tagged and never merged with follows.
  */
 export function referencedStewardsToEntries(
-  stewards: StewardCardModel[],
+  stewards: StewardEntry[],
 ): StewardEntry[] {
-  return stewards.map((s) => stewardCardToEntry(s, 'tool'))
+  return stewards
 }

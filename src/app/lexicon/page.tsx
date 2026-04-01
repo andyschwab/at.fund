@@ -1,13 +1,13 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import disclosureSchema from '../../../lexicon/fund.at.disclosure.json'
 import contributeSchema from '../../../lexicon/fund.at.contribute.json'
-import dependenciesSchema from '../../../lexicon/fund.at.dependencies.json'
+import dependencySchema from '../../../lexicon/fund.at.dependency.json'
+import watchSchema from '../../../lexicon/fund.at.watch.json'
 
 export const metadata: Metadata = {
   title: 'Lexicon — at.fund',
   description:
-    'The fund.at.* ATProto lexicons: disclosure, contribute, and dependencies.',
+    'The fund.at.* ATProto lexicons: contribute, dependency, and watch.',
 }
 
 // ---- Schema shape types ----
@@ -19,6 +19,7 @@ type LexProp = {
   ref?: string
   items?: { type?: string; ref?: string }
   minItems?: number
+  maxLength?: number
 }
 
 type LexDef = {
@@ -26,6 +27,7 @@ type LexDef = {
   description?: string
   required?: string[]
   properties?: Record<string, LexProp>
+  key?: string
   record?: {
     type: string
     required?: string[]
@@ -36,7 +38,7 @@ type LexDef = {
 type LexSchema = {
   lexicon: number
   id: string
-  description: string
+  description?: string
   defs: Record<string, LexDef>
 }
 
@@ -200,10 +202,12 @@ function PropList({
 
 function RecordSection({
   schema,
-  isRequired,
+  keyType,
+  summary,
 }: {
   schema: LexSchema
-  isRequired: boolean
+  keyType: string
+  summary: string
 }) {
   const main = schema.defs.main
   const properties = main.record?.properties ?? main.properties ?? {}
@@ -211,21 +215,15 @@ function RecordSection({
   const defs = schema.defs
 
   return (
-    <section className="mt-14">
+    <section className="mt-10">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
-        <h2 className="font-mono text-base font-semibold">{schema.id}</h2>
-        {isRequired ? (
-          <span className="rounded-full bg-support px-2.5 py-0.5 text-xs font-semibold text-support-foreground">
-            required
-          </span>
-        ) : (
-          <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-            optional
-          </span>
-        )}
+        <h3 className="font-mono text-base font-semibold">{schema.id}</h3>
+        <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+          key: {keyType}
+        </span>
       </div>
       <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-        {main.description ?? schema.description}
+        {summary}
       </p>
       <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/20 px-5">
         <PropList
@@ -256,23 +254,54 @@ export default function LexiconPage() {
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">Lexicon</h1>
           <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-slate-400">
-            <code className="font-mono text-sm">fund.at.*</code> is a small family of three
-            ATProto lexicons. Together they let a project steward publish funding metadata —
-            who they are, how to support them, and what they build on — directly from their
+            <code className="font-mono text-sm">fund.at.*</code> is a small family of
+            ATProto lexicons. They let a project steward publish funding metadata —
+            how to support them, what they depend on, and what they watch — directly from their
             ATProto repo. Any client that speaks ATProto can discover and render these records
             without a central registry.
           </p>
         </div>
 
-        {/* Discovery */}
+        {/* Quick start for maintainers */}
+        <section className="mt-14">
+          <h2 className="text-lg font-semibold">Get found on AT.fund</h2>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+            If your domain already has an <code className="font-mono text-xs">_atproto</code> TXT
+            record — for handle verification, or because you run an ATProto service — AT.fund can
+            already resolve your DID. Add your <code className="font-mono text-xs">fund.at.*</code>{' '}
+            records and you&apos;re done.
+          </p>
+
+          <div className="mt-5 overflow-x-auto rounded-xl border border-support-border bg-support-muted">
+            <div className="px-5 pt-4 pb-1">
+              <p className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
+                DNS TXT record
+              </p>
+              <pre className="font-mono text-sm leading-relaxed"><span className="text-slate-400 dark:text-slate-500">_atproto.</span><span className="font-semibold text-foreground">yourdomain.com</span>
+<span className="text-slate-500 dark:text-slate-400 text-xs mt-1 block">→</span><span className="text-slate-700 dark:text-slate-200">did=did:plc:xxxxxxxxxxxxxxxxxxxx</span></pre>
+            </div>
+            <div className="border-t border-support-border px-5 py-3 mt-2">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                No DNS record? There&apos;s an HTTPS fallback at{' '}
+                <code className="font-mono">/.well-known/atproto-did</code> too.
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
+            Once AT.fund resolves your DID, it finds your PDS and fetches your{' '}
+            <code className="font-mono text-xs">fund.at.*</code> records. The setup page
+            handles the ATProto details so you don&apos;t have to.
+          </p>
+        </section>
+
+        {/* Discovery flow */}
         <section className="mt-14">
           <h2 className="text-lg font-semibold">How discovery works</h2>
           <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
             AT.fund starts from the domains and NSIDs it finds in your ATProto repo and
-            resolves them to stewards. A steward is any DID that has published{' '}
-            <code className="font-mono text-xs">fund.at.*</code> records to their PDS.
-            Discovery follows the same DNS handle-resolution that ATProto already uses for
-            identity — no new infrastructure required.
+            resolves them to stewards. Discovery follows the same DNS handle-resolution that
+            ATProto already uses for identity — no new infrastructure required.
           </p>
 
           <div className="mt-5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/30 overflow-x-auto">
@@ -295,15 +324,15 @@ export default function LexiconPage() {
               </div>
               <div>
                 <span className="text-slate-400 dark:text-slate-500">→ PDS      </span>
-                <span className="text-slate-600 dark:text-slate-300">their.pds.host → listRecords</span>
+                <span className="text-slate-600 dark:text-slate-300">their.pds.host → getRecord / listRecords</span>
               </div>
               <div>
                 <span className="text-slate-400 dark:text-slate-500">→ records  </span>
-                <span className="text-support">fund.at.disclosure</span>
+                <span className="text-support">fund.at.contribute</span>
                 <span className="text-slate-500 dark:text-slate-400">, </span>
-                <span className="text-slate-600 dark:text-slate-300">fund.at.contribute</span>
+                <span className="text-slate-600 dark:text-slate-300">fund.at.dependency</span>
                 <span className="text-slate-500 dark:text-slate-400">, </span>
-                <span className="text-slate-600 dark:text-slate-300">fund.at.dependencies</span>
+                <span className="text-slate-600 dark:text-slate-300">fund.at.watch</span>
               </div>
             </div>
           </div>
@@ -315,34 +344,56 @@ export default function LexiconPage() {
           </p>
         </section>
 
-        {/* Record sections — auto-rendered from the JSON schema files */}
-        <RecordSection
-          schema={disclosureSchema as unknown as LexSchema}
-          isRequired={true}
-        />
-        <RecordSection
-          schema={contributeSchema as unknown as LexSchema}
-          isRequired={false}
-        />
-        <RecordSection
-          schema={dependenciesSchema as unknown as LexSchema}
-          isRequired={false}
-        />
+        {/* Record schemas — auto-rendered from the JSON schema files */}
+        <section className="mt-14">
+          <h2 className="text-lg font-semibold">Record schemas</h2>
 
-        {/* Scoping note */}
-        <section className="mt-12 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/30 px-5 py-4">
+          <RecordSection
+            schema={contributeSchema as unknown as LexSchema}
+            keyType="literal:self"
+            summary="Your funding page URL — GitHub Sponsors, Open Collective, Patreon, or any page where people can support you. One record per repo, read with getRecord."
+          />
+          <RecordSection
+            schema={dependencySchema as unknown as LexSchema}
+            keyType="tid"
+            summary="One record per dependency: a DID or hostname for each project your tool builds on. This lets AT.fund surface the full dependency tree so the infrastructure underneath you gets credit too."
+          />
+          <RecordSection
+            schema={watchSchema as unknown as LexSchema}
+            keyType="tid"
+            summary="A watchlist entry: track the funding status of an entity you care about, even if you don't depend on it directly."
+          />
+        </section>
+
+        {/* CTA */}
+        <section className="mt-14">
+          <div className="rounded-2xl border border-support-border bg-support-muted px-6 py-8 text-center">
+            <h2 className="text-lg font-semibold">Ready?</h2>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              The setup page creates your records for you — step by step, no ATProto
+              expertise required.
+            </p>
+            <Link
+              href="/setup"
+              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-support px-5 py-2.5 text-sm font-semibold text-support-foreground hover:opacity-90 transition-opacity"
+            >
+              Set up your records →
+            </Link>
+          </div>
+        </section>
+
+        {/* Record keys footnote */}
+        <section className="mt-10 border-t border-slate-200 dark:border-slate-800 pt-8">
           <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Record scoping
+            Record keys
           </h3>
           <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-            Every record supports an optional{' '}
-            <code className="font-mono text-xs">restrictToDomains</code> allowlist. When set,
-            the record only applies when AT.fund encounters that specific hostname — useful
-            when one DID covers multiple products. Omit it and the record applies everywhere
-            your DID is found.{' '}
-            <code className="font-mono text-xs">fund.at.dependencies</code> also supports{' '}
-            <code className="font-mono text-xs">appliesToNsidPrefix</code> for tool-scoped
-            dependency lists.
+            <code className="font-mono text-xs">fund.at.contribute</code> uses a{' '}
+            <code className="font-mono text-xs">literal:self</code> key — one record per repo.{' '}
+            <code className="font-mono text-xs">fund.at.dependency</code> and{' '}
+            <code className="font-mono text-xs">fund.at.watch</code> use{' '}
+            <code className="font-mono text-xs">tid</code> keys so you can create multiple
+            records per repo.
           </p>
         </section>
 
