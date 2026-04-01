@@ -6,7 +6,7 @@
     "main": {
       "type": "record",
       "description": "A single dependency pointer. The uri is a DID or hostname identifying the upstream entity.",
-      "key": "tid",
+      "key": "any",
       "record": {
         "type": "object",
         "required": ["uri"],
