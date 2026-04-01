@@ -208,6 +208,7 @@ export async function scanSubscriptions(
   }
 
   const agent = new Agent(session)
+  agent.configureProxy('did:web:api.bsky.app#bsky_appview')
 
   // Fetch preferences via the high-level SDK helper
   let labelerDids: string[] = []

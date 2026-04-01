@@ -38,6 +38,7 @@ vi.mock('@atproto/api', () => {
         },
       },
     }
+    configureProxy() {}
   }
   return { Agent: MockAgent }
 })
