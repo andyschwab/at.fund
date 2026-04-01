@@ -15,6 +15,7 @@ import {
   AlertCircle,
   BookOpen,
   ExternalLink,
+  HeartHandshake,
   LogOut,
   Pencil,
   PlusCircle,
@@ -287,7 +288,7 @@ export function HomeClient({ hasSession, error }: Props) {
           <div className="mx-auto flex max-w-2xl flex-col items-center gap-4">
             <div className="space-y-3">
               <h1 className="text-5xl font-semibold tracking-tight sm:text-6xl">
-                <span className="inline-flex items-center font-mono font-medium text-slate-500 dark:text-slate-400">at<svg viewBox="0 0 10 14" className="inline-block h-[0.72em] w-[0.52em] translate-y-[0.04em] fill-[var(--support)] mx-[0.12em]" aria-hidden="true"><path d="M5 1 C2 5,1 8,1 10 A4 4 0 0 0 9 10 C9 8,8 5,5 1 Z" /></svg>fund</span>
+                <span className="inline-flex items-center font-mono font-medium text-slate-500 dark:text-slate-400">at<HeartHandshake className="inline-block h-[0.85em] w-[0.85em] translate-y-[0.04em] text-[var(--support)] mx-[0.12em]" strokeWidth={1.75} aria-hidden={true} />fund</span>
               </h1>
               <p className="text-xl font-medium text-slate-900 dark:text-slate-100 sm:text-2xl">
                 We can just pay for things
