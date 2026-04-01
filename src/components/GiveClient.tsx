@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import type { ScanStreamEvent, ScanWarning, PdsHostFunding } from '@/lib/lexicon-scan'
+import type { ScanStreamEvent, ScanWarning, PdsHostFunding } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
 import { EntryIndex } from '@/lib/steward-merge'
 import { pdslsRepoUrl } from '@/lib/pdsls'

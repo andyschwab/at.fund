@@ -1,4 +1,4 @@
-import type { StewardEntry, StewardSource, StewardTag } from '@/lib/steward-model'
+import type { StewardEntry, StewardSource, StewardTag, Capability } from '@/lib/steward-model'
 import type { FollowedAccountCard } from '@/lib/follow-scan'
 
 // ---------------------------------------------------------------------------
@@ -53,6 +53,10 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
   const depSet = new Set([...(base.dependencies ?? []), ...(incoming.dependencies ?? [])])
   const dependencies = depSet.size > 0 ? [...depSet].sort() : undefined
 
+  // Union capabilities, dedup by uri or type+name
+  const allCaps = [...(base.capabilities ?? []), ...(incoming.capabilities ?? [])]
+  const capabilities = deduplicateCapabilities(allCaps)
+
   // Prefer hostname URI over DID for readability
   const uri = (!base.uri.startsWith('did:') ? base.uri : null)
     ?? (!incoming.uri.startsWith('did:') ? incoming.uri : null)
@@ -77,7 +81,22 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
     landingPage: preferred.landingPage ?? other.landingPage,
     contributeUrl,
     dependencies,
+    capabilities,
   }
+}
+
+function deduplicateCapabilities(caps: Capability[]): Capability[] | undefined {
+  if (caps.length === 0) return undefined
+  const seen = new Set<string>()
+  const result: Capability[] = []
+  for (const c of caps) {
+    const key = c.uri ?? `${c.type}:${c.name}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      result.push(c)
+    }
+  }
+  return result.length > 0 ? result : undefined
 }
 
 // ---------------------------------------------------------------------------

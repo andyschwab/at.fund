@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 import { getSession } from '@/lib/auth/session'
-import { scanRepoStreaming } from '@/lib/lexicon-scan'
+import { scanStreaming } from '@/lib/pipeline/scan-stream'
 import { normalizeStewardUri } from '@/lib/steward-uri'
 import { logger } from '@/lib/logger'
-import type { ScanStreamEvent } from '@/lib/lexicon-scan'
+import type { ScanStreamEvent } from '@/lib/pipeline/scan-stream'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        await scanRepoStreaming(session, normalized, emit)
+        await scanStreaming(session, normalized, emit)
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Scan failed'
         logger.error('scanRepoStreaming failed', {

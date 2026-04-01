@@ -1,6 +1,6 @@
 import { Client } from '@atproto/lex'
 import type { OAuthSession } from '@atproto/oauth-client'
-import type { StewardEntry, StewardTag } from '@/lib/steward-model'
+import type { StewardEntry, StewardTag, Capability } from '@/lib/steward-model'
 import { lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { xrpcQuery } from '@/lib/xrpc'
@@ -42,15 +42,33 @@ type DisplayInfo = {
   landingPage?: string
 }
 
+type FeedInfo = {
+  feedUri: string
+  rkey: string
+  creatorDid: string
+  creatorHandle?: string
+  name: string
+  description?: string
+}
+
+type LabelerInfo = {
+  did: string
+  name: string
+  description?: string
+  creatorHandle?: string
+}
+
 async function fetchLabelerDisplayInfo(
   publicClient: Client,
   dids: string[],
-): Promise<Map<string, DisplayInfo>> {
-  const result = new Map<string, DisplayInfo>()
-  if (dids.length === 0) return result
+): Promise<{ displayInfo: Map<string, DisplayInfo>; labelerCaps: LabelerInfo[] }> {
+  const displayInfo = new Map<string, DisplayInfo>()
+  const labelerCaps: LabelerInfo[] = []
+  if (dids.length === 0) return { displayInfo, labelerCaps }
   try {
     const data = await xrpcQuery<{
       views?: Array<{
+        uri?: string
         creator?: { did: string; displayName?: string; description?: string; handle?: string }
       }>
     }>(publicClient, 'app.bsky.labeler.getServices', {
@@ -60,11 +78,17 @@ async function fetchLabelerDisplayInfo(
     for (const view of data.views ?? []) {
       const creator = view.creator
       if (!creator) continue
-      result.set(creator.did, {
+      displayInfo.set(creator.did, {
         did: creator.did,
         displayName: creator.displayName ?? creator.handle ?? creator.did,
         description: creator.description,
         handle: creator.handle,
+      })
+      labelerCaps.push({
+        did: creator.did,
+        name: creator.displayName ?? creator.handle ?? creator.did,
+        description: creator.description,
+        creatorHandle: creator.handle,
       })
     }
   } catch (e) {
@@ -72,14 +96,7 @@ async function fetchLabelerDisplayInfo(
       error: e instanceof Error ? e.message : String(e),
     })
   }
-  return result
-}
-
-type FeedInfo = DisplayInfo & {
-  /** The at:// URI of the feed generator record. */
-  feedUri: string
-  /** The rkey portion of the feed URI. */
-  rkey: string
+  return { displayInfo, labelerCaps }
 }
 
 async function fetchFeedDisplayInfo(
@@ -101,7 +118,6 @@ async function fetchFeedDisplayInfo(
     for (const view of data.feeds ?? []) {
       const feedUri = view.uri
       if (!feedUri) continue
-      // Extract creator DID from the AT URI (at://did:plc:xxx/app.bsky.feed.generator/rkey)
       const m = feedUri.match(/^at:\/\/(did:[^/]+)\/[^/]+\/([^/]+)$/)
       const creatorDid = view.creator?.did ?? m?.[1]
       if (!creatorDid) continue
@@ -109,10 +125,10 @@ async function fetchFeedDisplayInfo(
       result.push({
         feedUri,
         rkey,
-        did: creatorDid,
-        displayName: view.displayName ?? (rkey || creatorDid),
+        creatorDid,
+        creatorHandle: view.creator?.handle,
+        name: view.displayName ?? (rkey || creatorDid),
         description: view.description,
-        handle: view.creator?.handle,
       })
     }
   } catch (e) {
@@ -124,70 +140,66 @@ async function fetchFeedDisplayInfo(
 }
 
 // ---------------------------------------------------------------------------
-// Per-DID resolution: fund.at → manual catalog → Bluesky profile fallback
+// Handle backfill
 // ---------------------------------------------------------------------------
 
 /**
  * Batch-resolve handles for DIDs missing them via app.bsky.actor.getProfiles.
- * Mutates the provided DisplayInfo maps in-place.
+ * Returns a map of DID → handle for all resolved profiles.
  */
-/**
- * Batch-resolve handles for DIDs missing them via app.bsky.actor.getProfiles.
- * Mutates the provided DisplayInfo items in-place.
- */
-async function backfillHandles(
+async function resolveHandles(
   publicClient: Client,
-  items: DisplayInfo[],
-): Promise<void> {
-  const missing = [...new Set(items.filter((i) => !i.handle).map((i) => i.did))]
-  if (missing.length === 0) return
+  dids: string[],
+): Promise<Map<string, string>> {
+  const resolved = new Map<string, string>()
+  if (dids.length === 0) return resolved
 
   const BATCH = 25
-  for (let i = 0; i < missing.length; i += BATCH) {
-    const batch = missing.slice(i, i + BATCH)
+  for (let i = 0; i < dids.length; i += BATCH) {
+    const batch = dids.slice(i, i + BATCH)
     try {
       const data = await xrpcQuery<{
-        profiles?: Array<{ did: string; handle?: string }>
+        profiles?: Array<{ did: string; handle?: string; displayName?: string }>
       }>(publicClient, 'app.bsky.actor.getProfiles', { actors: batch })
       for (const profile of data.profiles ?? []) {
-        if (!profile.handle) continue
-        for (const item of items) {
-          if (item.did === profile.did && !item.handle) {
-            item.handle = profile.handle
-          }
-        }
+        if (profile.handle) resolved.set(profile.did, profile.handle)
       }
     } catch (e) {
-      logger.warn('subscriptions-scan: handle backfill failed', {
+      logger.warn('subscriptions-scan: handle resolve failed', {
         error: e instanceof Error ? e.message : String(e),
       })
     }
   }
+  return resolved
 }
+
+// ---------------------------------------------------------------------------
+// Per-DID resolution: fund.at → manual catalog → fallback
+// ---------------------------------------------------------------------------
 
 async function resolveEntry(
   did: string,
   tag: StewardTag,
   fallback: DisplayInfo | undefined,
-  opts?: { landingPage?: string; uri?: string },
+  capabilities?: Capability[],
 ): Promise<StewardEntry> {
-  // For feeds, use the feed-specific URI so multiple feeds by the same
-  // creator remain separate cards (not merged by DID).
-  const entryUri = opts?.uri ?? did
-  const entryDid = opts?.uri ? undefined : did
+  const base = {
+    uri: did,
+    did,
+    handle: fallback?.handle,
+    tags: [tag] as StewardTag[],
+    displayName: fallback?.displayName ?? did,
+    description: fallback?.description,
+    landingPage: fallback?.landingPage,
+    capabilities,
+  }
 
   // Try fund.at records first
   try {
     const fundAt = await fetchFundAtForStewardDid(did)
     if (fundAt) {
       return {
-        uri: entryUri,
-        did: entryDid,
-        handle: fallback?.handle,
-        tags: [tag],
-        displayName: fallback?.displayName ?? did,
-        description: fallback?.description,
-        landingPage: opts?.landingPage ?? fallback?.landingPage,
+        ...base,
         contributeUrl: fundAt.contributeUrl,
         dependencies: fundAt.dependencies?.map((d) => d.uri),
         source: 'fund.at',
@@ -201,13 +213,7 @@ async function resolveEntry(
   const manual = lookupManualStewardRecord(did)
   if (manual) {
     return {
-      uri: entryUri,
-      did: entryDid,
-      handle: fallback?.handle,
-      tags: [tag],
-      displayName: fallback?.displayName ?? did,
-      description: fallback?.description,
-      landingPage: opts?.landingPage ?? fallback?.landingPage,
+      ...base,
       contributeUrl: manual.contributeUrl,
       dependencies: manual.dependencies,
       source: 'manual',
@@ -215,16 +221,7 @@ async function resolveEntry(
   }
 
   // Fall back to Bluesky profile data
-  return {
-    uri: entryUri,
-    did: entryDid,
-    handle: fallback?.handle,
-    tags: [tag],
-    displayName: fallback?.displayName ?? did,
-    description: fallback?.description,
-    landingPage: opts?.landingPage ?? fallback?.landingPage,
-    source: 'unknown',
-  }
+  return { ...base, source: 'unknown' }
 }
 
 // ---------------------------------------------------------------------------
@@ -283,42 +280,101 @@ export async function scanSubscriptions(
     return { entries: [], labelerCount: 0, feedCount: 0 }
   }
 
-  const [labelerInfo, feedInfoList] = await Promise.all([
+  const [{ displayInfo: labelerDisplayInfo, labelerCaps }, feedInfoList] = await Promise.all([
     fetchLabelerDisplayInfo(publicClient, labelerDids),
     fetchFeedDisplayInfo(publicClient, feedUris),
   ])
 
-  // Resolve handles for any creators missing them
-  const labelerInfoValues = [...labelerInfo.values()]
-  await backfillHandles(publicClient, [...labelerInfoValues, ...feedInfoList])
+  // Collect all unique DIDs that need handle resolution
+  const allDids = new Set<string>()
+  for (const did of labelerDids) allDids.add(did)
+  for (const f of feedInfoList) allDids.add(f.creatorDid)
 
-  const [labelerEntries, feedEntries] = await Promise.all([
-    runWithConcurrency(labelerDids, CONCURRENCY, (did) =>
-      resolveEntry(did, 'labeler', labelerInfo.get(did)),
-    ),
-    runWithConcurrency(feedInfoList, CONCURRENCY, (feed) => {
-      // Build a bsky.app link to the feed
-      const feedLandingPage = feed.handle
-        ? `https://bsky.app/profile/${feed.handle}/feed/${feed.rkey}`
-        : `https://bsky.app/profile/${feed.did}/feed/${feed.rkey}`
-      return resolveEntry(feed.did, 'feed', feed, {
-        landingPage: feedLandingPage,
-        uri: feed.feedUri,
-      })
-    }),
-  ])
+  const needsHandle = [...allDids].filter((did) => {
+    const labelerHandle = labelerDisplayInfo.get(did)?.handle
+    const feedHandle = feedInfoList.find((f) => f.creatorDid === did)?.creatorHandle
+    return !labelerHandle && !feedHandle
+  })
+
+  const handleMap = await resolveHandles(publicClient, needsHandle)
+
+  // Apply resolved handles back to display info
+  for (const [did, handle] of handleMap) {
+    const info = labelerDisplayInfo.get(did)
+    if (info && !info.handle) info.handle = handle
+  }
+
+  // ── Build labeler entries with capabilities ──
+
+  // Build labeler capabilities per DID
+  const labelerCapsByDid = new Map<string, Capability[]>()
+  for (const cap of labelerCaps) {
+    const existing = labelerCapsByDid.get(cap.did) ?? []
+    const handle = cap.creatorHandle ?? handleMap.get(cap.did)
+    existing.push({
+      type: 'labeler',
+      name: cap.name,
+      description: cap.description,
+      landingPage: handle
+        ? `https://bsky.app/profile/${handle}`
+        : `https://bsky.app/profile/${cap.did}`,
+    })
+    labelerCapsByDid.set(cap.did, existing)
+  }
+
+  const labelerEntries = await runWithConcurrency(labelerDids, CONCURRENCY, (did) =>
+    resolveEntry(did, 'labeler', labelerDisplayInfo.get(did), labelerCapsByDid.get(did)),
+  )
+
+  // ── Build feed entries grouped by creator DID ──
+
+  // Group feeds by creator DID
+  const feedsByCreator = new Map<string, FeedInfo[]>()
+  for (const feed of feedInfoList) {
+    const list = feedsByCreator.get(feed.creatorDid) ?? []
+    list.push(feed)
+    feedsByCreator.set(feed.creatorDid, list)
+  }
+
+  const feedCreatorDids = [...feedsByCreator.keys()]
+
+  const feedEntries = await runWithConcurrency(feedCreatorDids, CONCURRENCY, (did) => {
+    const feeds = feedsByCreator.get(did)!
+    const handle = feeds[0]?.creatorHandle ?? handleMap.get(did)
+
+    // Build capabilities for each feed
+    const caps: Capability[] = feeds.map((f) => ({
+      type: 'feed' as const,
+      name: f.name,
+      description: f.description,
+      uri: f.feedUri,
+      landingPage: (handle ?? f.creatorHandle)
+        ? `https://bsky.app/profile/${handle ?? f.creatorHandle}/feed/${f.rkey}`
+        : `https://bsky.app/profile/${f.creatorDid}/feed/${f.rkey}`,
+    }))
+
+    // Use the first feed's creator handle as fallback display info
+    const fallback: DisplayInfo = {
+      did,
+      displayName: did,
+      handle: handle ?? feeds[0]?.creatorHandle,
+    }
+
+    return resolveEntry(did, 'feed', fallback, caps)
+  })
 
   const entries = [...labelerEntries, ...feedEntries]
 
   logger.info('subscriptions-scan: completed', {
     labelerCount: labelerEntries.length,
-    feedCount: feedEntries.length,
+    feedCreatorCount: feedEntries.length,
+    feedCount: feedInfoList.length,
     withFundAt: entries.filter((e) => e.source === 'fund.at').length,
   })
 
   return {
     entries,
     labelerCount: labelerEntries.length,
-    feedCount: feedEntries.length,
+    feedCount: feedInfoList.length,
   }
 }

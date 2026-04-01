@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Client } from '@atproto/lex'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { normalizeStewardUri } from '@/lib/steward-uri'
+import { xrpcQuery } from '@/lib/xrpc'
 import type { StewardEntry } from '@/lib/steward-model'
 import { logger } from '@/lib/logger'
 
+const PUBLIC_API = 'https://public.api.bsky.app'
+
 /**
  * Resolve a single steward URI to its full StewardEntry.
+ * Uses the same multi-key enrichment as the main pipeline (Phase 2).
  * Does not require authentication -- all data is public.
  */
 export async function GET(request: NextRequest) {
@@ -24,6 +29,7 @@ export async function GET(request: NextRequest) {
   try {
     const isDid = stewardUri.startsWith('did:')
     let stewardDid: string | null = null
+    const hostname = isDid ? undefined : stewardUri
 
     if (isDid) {
       stewardDid = stewardUri
@@ -38,39 +44,72 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const stewardDidOrUndefined = stewardDid ?? undefined
-    const manual = lookupManualStewardRecord(stewardUri)
+    // Resolve profile for handle + displayName
+    let handle: string | undefined
+    let profileName: string | undefined
+    if (stewardDid) {
+      try {
+        const publicClient = new Client(PUBLIC_API)
+        const data = await xrpcQuery<{
+          profiles?: Array<{ did: string; handle?: string; displayName?: string }>
+        }>(publicClient, 'app.bsky.actor.getProfiles', { actors: [stewardDid] })
+        const profile = data.profiles?.[0]
+        if (profile) {
+          handle = profile.handle
+          profileName = profile.displayName
+        }
+      } catch { /* profile fetch is best-effort */ }
+    }
 
+    // Try multi-key catalog lookup (DID, hostname, handle)
+    const manual = lookupManualStewardRecord(stewardUri)
+      ?? (stewardDid ? lookupManualStewardRecord(stewardDid) : null)
+      ?? (hostname ? lookupManualStewardRecord(hostname) : null)
+      ?? (handle ? lookupManualStewardRecord(handle) : null)
+
+    // Best displayName: profile > hostname > handle > DID > URI
+    const displayName = (profileName && !profileName.startsWith('did:'))
+      ? profileName
+      : hostname ?? handle ?? stewardUri
+
+    const uri = hostname ?? handle ?? stewardUri
+
+    const base: Omit<StewardEntry, 'source'> = {
+      uri,
+      did: stewardDid ?? undefined,
+      handle,
+      tags: ['tool'],
+      displayName,
+    }
+
+    // Try fund.at records
     if (stewardDid) {
       try {
         const fundAt = await fetchFundAtForStewardDid(stewardDid)
         if (fundAt) {
           const entry: StewardEntry = {
-            uri: stewardUri,
-            did: stewardDidOrUndefined,
-            tags: ['tool'],
-            displayName: manual?.stewardUri ?? stewardUri,
+            ...base,
             contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
-            dependencies: fundAt.dependencies?.map((d) => d.uri) ?? manual?.dependencies,
+            dependencies: mergeDeps(
+              fundAt.dependencies?.map((d) => d.uri),
+              manual?.dependencies,
+            ),
             source: 'fund.at',
           }
           return NextResponse.json(entry)
         }
       } catch (e) {
         logger.warn('steward: fund.at fetch failed', {
-          stewardUri,
-          stewardDid,
+          stewardUri, stewardDid,
           error: e instanceof Error ? e.message : 'Failed to fetch fund.at records',
         })
       }
     }
 
+    // Manual catalog fallback
     if (manual) {
       const entry: StewardEntry = {
-        uri: stewardUri,
-        did: stewardDidOrUndefined,
-        tags: ['tool'],
-        displayName: stewardUri,
+        ...base,
         contributeUrl: manual.contributeUrl,
         dependencies: manual.dependencies,
         source: 'manual',
@@ -78,17 +117,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(entry)
     }
 
-    const entry: StewardEntry = {
-      uri: stewardUri,
-      did: stewardDidOrUndefined,
-      tags: ['tool'],
-      displayName: stewardUri,
-      source: 'unknown',
-    }
-    return NextResponse.json(entry)
+    // Unknown
+    return NextResponse.json({ ...base, source: 'unknown' } as StewardEntry)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Failed to resolve steward'
     logger.error('steward: resolve failed', { stewardUri, error: message })
     return NextResponse.json({ error: message }, { status: 502 })
   }
+}
+
+function mergeDeps(
+  a: string[] | undefined,
+  b: string[] | undefined,
+): string[] | undefined {
+  if (!a && !b) return undefined
+  const set = new Set([...(a ?? []), ...(b ?? [])])
+  return set.size > 0 ? [...set].sort() : undefined
 }

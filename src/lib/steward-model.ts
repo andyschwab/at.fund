@@ -7,7 +7,21 @@ export type StewardSource = 'fund.at' | 'manual' | 'unknown'
 export type StewardTag = 'tool' | 'labeler' | 'feed' | 'follow' | 'pds-host'
 
 /**
- * Unified steward model. One entry per entity (deduped by DID),
+ * A capability provided by an account — a feed it publishes or a labeler it runs.
+ */
+export type Capability = {
+  type: 'feed' | 'labeler'
+  /** Human-readable name of the feed or labeler. */
+  name: string
+  description?: string
+  /** The AT URI of the record (e.g. at://did:plc:.../app.bsky.feed.generator/rkey). */
+  uri?: string
+  /** Web link to the feed or labeler on bsky.app. */
+  landingPage?: string
+}
+
+/**
+ * Unified steward model. One entry per account (deduped by DID),
  * with tags recording every discovery path that found it.
  */
 export type StewardEntry = {
@@ -29,4 +43,6 @@ export type StewardEntry = {
   dependencies?: string[]
   /** Where the display data came from — orthogonal to tags. */
   source: StewardSource
+  /** Feeds and labelers this account provides. */
+  capabilities?: Capability[]
 }
