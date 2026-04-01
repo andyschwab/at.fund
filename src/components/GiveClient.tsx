@@ -74,7 +74,6 @@ export function GiveClient() {
   const [scanStatus, setScanStatus] = useState<string>('')
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
   const entryIndexRef = useRef(new EntryIndex())
-  const autoFetchedDidsRef = useRef(new Set<string>())
 
   const allEntriesForLookup = useMemo(
     () => [...entries, ...referencedEntries],
@@ -112,33 +111,8 @@ export function GiveClient() {
     return counts
   }, [visibleEntries])
 
-  // Client-side fallback: enrich any DID-based referenced entries whose
-  // displayName is still the raw DID (scan-side enrichment may have failed).
-  useEffect(() => {
-    const unenriched = referencedEntries.filter(
-      (e) => e.uri.startsWith('did:') && e.displayName === e.uri && !autoFetchedDidsRef.current.has(e.uri),
-    )
-    for (const entry of unenriched) {
-      autoFetchedDidsRef.current.add(entry.uri)
-      fetch(`/api/steward?uri=${encodeURIComponent(entry.uri)}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((enriched: { displayName?: string; handle?: string } | null) => {
-          if (!enriched?.displayName && !enriched?.handle) return
-          setReferencedEntries((prev) =>
-            prev.map((e) =>
-              e.uri === entry.uri
-                ? { ...e, handle: enriched.handle ?? e.handle, displayName: enriched.displayName ?? enriched.handle ?? e.displayName }
-                : e,
-            ),
-          )
-        })
-        .catch(() => {})
-    }
-  }, [referencedEntries])
-
   const runStreamingScan = useCallback(async (extra: string[]) => {
     _scanCache = null
-    autoFetchedDidsRef.current = new Set()
     setLoading(true)
     setScanDone(false)
     setScanStatus('')
