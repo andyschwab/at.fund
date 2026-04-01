@@ -6,8 +6,6 @@ import type { PdsHostFunding } from '@/lib/atfund-steward'
 import Link from 'next/link'
 import {
   ArrowRight,
-  AtSign,
-  Globe,
   X,
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
@@ -22,16 +20,16 @@ function TagBadges({ tags }: { tags: StewardTag[] }) {
   const shown = tags.filter((t) => TAG_LABEL[t])
   if (shown.length === 0) return null
   return (
-    <div className="mt-0.5 flex flex-wrap gap-1">
+    <>
       {shown.map((t) => (
         <span
           key={t}
-          className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-1.5 py-px text-[10px] font-medium leading-4 text-slate-400 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500"
+          className="shrink-0 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400"
         >
           {TAG_LABEL[t]}
         </span>
       ))}
-    </div>
+    </>
   )
 }
 
@@ -45,23 +43,23 @@ function websiteFallbackForUri(uri: string): string | undefined {
 
 /** Build a Bluesky profile URL from handle or DID. */
 function profileUrlFor(entry: { handle?: string; did?: string }): string | undefined {
-  if (entry.handle) return `https://bsky.app/profile/${encodeURIComponent(entry.handle)}`
-  if (entry.did) return `https://bsky.app/profile/${encodeURIComponent(entry.did)}`
+  if (entry.handle) return `https://bsky.app/profile/${entry.handle}`
+  if (entry.did) return `https://bsky.app/profile/${entry.did}`
   return undefined
 }
 
 function StewardNameHeading({
   name,
-  profileUrl,
+  href,
   linkVariant,
 }: {
   name: string
-  profileUrl?: string
+  href?: string
   linkVariant: 'support' | 'discover' | 'sky' | 'network'
 }) {
   const base =
-    'min-w-0 flex-1 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100'
-  if (!profileUrl) {
+    'min-w-0 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100'
+  if (!href) {
     return <h3 className={`${base} truncate`}>{name}</h3>
   }
   const hover =
@@ -74,9 +72,9 @@ function StewardNameHeading({
           : 'hover:text-sky-700 hover:decoration-sky-500/50 dark:hover:text-sky-400'
 
   return (
-    <h3 className="min-w-0 flex-1">
+    <h3 className="min-w-0">
       <a
-        href={profileUrl}
+        href={href}
         target="_blank"
         rel="noreferrer"
         className={`block truncate rounded-sm underline decoration-slate-300 decoration-1 underline-offset-2 transition-colors dark:decoration-slate-600 ${base} ${hover}`}
@@ -87,12 +85,29 @@ function StewardNameHeading({
   )
 }
 
-/** Handle display under the name heading. */
-function HandleLine({ handle }: { handle?: string }) {
-  if (!handle) return null
+/** ATProto identity line under the name — always clickable to Bluesky profile. */
+function HandleLine({ handle, did }: { handle?: string; did?: string }) {
+  const label = handle ? `@${handle}` : did
+  if (!label) return null
+  const profileUrl = handle
+    ? `https://bsky.app/profile/${handle}`
+    : did
+      ? `https://bsky.app/profile/${did}`
+      : undefined
   return (
-    <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-      @{handle}
+    <p className="truncate text-xs">
+      {profileUrl ? (
+        <a
+          href={profileUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-slate-500 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-700 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-slate-200"
+        >
+          {label}
+        </a>
+      ) : (
+        <span className="text-slate-500 dark:text-slate-400">{label}</span>
+      )}
     </p>
   )
 }
@@ -229,7 +244,8 @@ function ModalCardContent({
   const websiteFallback = websiteFallbackForUri(entry.uri)
   const websiteUrl = entry.landingPage ?? websiteFallback
   const profileUrl = profileUrlFor(entry)
-  const isFollow = entry.tags.includes('follow')
+  const isTool = entry.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed')
+  const nameHref = isTool ? websiteUrl : profileUrl
 
   return (
     <div>
@@ -263,39 +279,15 @@ function ModalCardContent({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start gap-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <StewardNameHeading
               name={entry.displayName}
-              profileUrl={profileUrl}
+              href={nameHref}
               linkVariant="support"
             />
-            {websiteUrl && (
-              <a
-                href={websiteUrl}
-                target="_blank"
-                rel="noreferrer"
-                title="Website"
-                className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              >
-                <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
-                <span className="sr-only">Website</span>
-              </a>
-            )}
-            {isFollow && profileUrl && (
-              <a
-                href={profileUrl}
-                target="_blank"
-                rel="noreferrer"
-                title={`@${entry.handle ?? entry.did} on Bluesky`}
-                className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              >
-                <AtSign className="h-5 w-5" strokeWidth={2} aria-hidden />
-                <span className="sr-only">Bluesky profile</span>
-              </a>
-            )}
+            <TagBadges tags={entry.tags} />
           </div>
-          <HandleLine handle={entry.handle} />
-          <TagBadges tags={entry.tags} />
+          <HandleLine handle={entry.handle} did={entry.did} />
           {entry.description && (
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               {entry.description}
@@ -509,24 +501,11 @@ export function PdsHostSupportCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start gap-1">
-            <StewardNameHeading
-              name={title}
-              linkVariant="sky"
-            />
-            {websiteUrl && (
-              <a
-                href={websiteUrl}
-                target="_blank"
-                rel="noreferrer"
-                title="Website"
-                className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              >
-                <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
-                <span className="sr-only">Website</span>
-              </a>
-            )}
-          </div>
+          <StewardNameHeading
+            name={title}
+            href={websiteUrl}
+            linkVariant="sky"
+          />
           <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
             {summary}
           </p>
@@ -559,7 +538,6 @@ export function StewardCard({
   allEntries?: StewardEntry[]
 }) {
   const variant = cardVariant(entry)
-  const isFollow = entry.tags.includes('follow')
   const contributeUrl = entry.contributeUrl
 
   const entryByUri = useMemo(
@@ -586,27 +564,15 @@ export function StewardCard({
             </span>
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-start gap-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <StewardNameHeading
                 name={entry.displayName}
-                profileUrl={profileUrl}
+                href={websiteUrl}
                 linkVariant="discover"
               />
-              {websiteUrl && (
-                <a
-                  href={websiteUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Website"
-                  className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                >
-                  <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
-                  <span className="sr-only">Website</span>
-                </a>
-              )}
+              <TagBadges tags={entry.tags} />
             </div>
-            <HandleLine handle={entry.handle} />
-            <TagBadges tags={entry.tags} />
+            <HandleLine handle={entry.handle} did={entry.did} />
             {entry.description && (
               <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                 {entry.description}
@@ -654,27 +620,15 @@ export function StewardCard({
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-start gap-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <StewardNameHeading
                 name={entry.displayName}
-                profileUrl={profileUrl}
+                href={profileUrl}
                 linkVariant="network"
               />
-              {websiteUrl && (
-                <a
-                  href={websiteUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Website"
-                  className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                >
-                  <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
-                  <span className="sr-only">Website</span>
-                </a>
-              )}
+              <TagBadges tags={entry.tags} />
             </div>
-            <HandleLine handle={entry.handle} />
-            <TagBadges tags={entry.tags} />
+            <HandleLine handle={entry.handle} did={entry.did} />
             {entry.description && (
               <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                 {entry.description}
@@ -719,40 +673,15 @@ export function StewardCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start gap-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <StewardNameHeading
               name={entry.displayName}
-              profileUrl={profileUrl}
+              href={websiteUrl}
               linkVariant="support"
             />
-            {websiteUrl && (
-              <a
-                href={websiteUrl}
-                target="_blank"
-                rel="noreferrer"
-                title="Website"
-                className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              >
-                <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
-                <span className="sr-only">Website</span>
-              </a>
-            )}
-            {/* Show Bluesky profile link for entries that are also a follow */}
-            {isFollow && profileUrl && (
-              <a
-                href={profileUrl}
-                target="_blank"
-                rel="noreferrer"
-                title={`@${entry.handle ?? entry.did} on Bluesky`}
-                className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              >
-                <AtSign className="h-5 w-5" strokeWidth={2} aria-hidden />
-                <span className="sr-only">Bluesky profile</span>
-              </a>
-            )}
+            <TagBadges tags={entry.tags} />
           </div>
-          <HandleLine handle={entry.handle} />
-          <TagBadges tags={entry.tags} />
+          <HandleLine handle={entry.handle} did={entry.did} />
           {entry.description && (
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               {entry.description}

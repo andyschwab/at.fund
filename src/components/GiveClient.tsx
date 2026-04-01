@@ -259,7 +259,7 @@ export function GiveClient() {
         <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-5 dark:border-slate-700 dark:bg-slate-900/30">
           <div className="mb-3 flex items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
             <PlusCircle className="h-5 w-5 text-[var(--support)]" aria-hidden />
-            Add more tools
+            Add to my watch list
           </div>
           <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
             Paste extra names your developer or app gave you, even if
