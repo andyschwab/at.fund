@@ -76,18 +76,14 @@ export function LandingPage() {
         </div>
 
         {/* ── Four audiences ───────────────────────────────────────────── */}
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-12">
 
           {/* Users */}
-          <div className="flex flex-col gap-4 rounded-2xl border border-[var(--discover-border)] bg-[var(--discover-muted)] p-6">
-            <div className="flex items-center justify-center gap-2" aria-hidden>
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--discover-border)] bg-white/70 text-[var(--discover)] dark:bg-slate-900/60">
-                <User className="h-5 w-5" strokeWidth={1.75} />
-              </span>
-              <HeartHandshake className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" strokeWidth={1.75} />
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--discover-border)] bg-white/70 text-[var(--discover)] dark:bg-slate-900/60">
-                <HardHat className="h-5 w-5" strokeWidth={1.75} />
-              </span>
+          <div className="flex flex-col gap-6 p-4">
+            <div className="flex items-center justify-center gap-4" aria-hidden>
+              <User className="h-12 w-12 text-[var(--discover)]" strokeWidth={1.5} />
+              <HeartHandshake className="h-7 w-7 text-slate-300 dark:text-slate-600" strokeWidth={1.5} />
+              <HardHat className="h-12 w-12 text-[var(--discover)]" strokeWidth={1.5} />
             </div>
             <div className="flex flex-col gap-2">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -102,15 +98,11 @@ export function LandingPage() {
           </div>
 
           {/* Communities */}
-          <div className="flex flex-col gap-4 rounded-2xl border border-[var(--network-border)] bg-[var(--network-muted)] p-6">
-            <div className="flex items-center justify-center gap-2" aria-hidden>
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--network-border)] bg-white/70 text-[var(--network)] dark:bg-slate-900/60">
-                <Users className="h-5 w-5" strokeWidth={1.75} />
-              </span>
-              <HeartHandshake className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" strokeWidth={1.75} />
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--network-border)] bg-white/70 text-[var(--network)] dark:bg-slate-900/60">
-                <HardHat className="h-5 w-5" strokeWidth={1.75} />
-              </span>
+          <div className="flex flex-col gap-6 p-4">
+            <div className="flex items-center justify-center gap-4" aria-hidden>
+              <Users className="h-12 w-12 text-[var(--network)]" strokeWidth={1.5} />
+              <HeartHandshake className="h-7 w-7 text-slate-300 dark:text-slate-600" strokeWidth={1.5} />
+              <HardHat className="h-12 w-12 text-[var(--network)]" strokeWidth={1.5} />
             </div>
             <div className="flex flex-col gap-2">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -133,15 +125,11 @@ export function LandingPage() {
           </div>
 
           {/* Builders */}
-          <div className="flex flex-col gap-4 rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] p-6">
-            <div className="flex items-center justify-center gap-2" aria-hidden>
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--support-border)] bg-white/70 text-[var(--support)] dark:bg-slate-900/60">
-                <Banknote className="h-5 w-5" strokeWidth={1.75} />
-              </span>
-              <HeartHandshake className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" strokeWidth={1.75} />
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--support-border)] bg-white/70 text-[var(--support)] dark:bg-slate-900/60">
-                <HardHat className="h-5 w-5" strokeWidth={1.75} />
-              </span>
+          <div className="flex flex-col gap-6 p-4">
+            <div className="flex items-center justify-center gap-4" aria-hidden>
+              <Banknote className="h-12 w-12 text-[var(--support)]" strokeWidth={1.5} />
+              <HeartHandshake className="h-7 w-7 text-slate-300 dark:text-slate-600" strokeWidth={1.5} />
+              <HardHat className="h-12 w-12 text-[var(--support)]" strokeWidth={1.5} />
             </div>
             <div className="flex flex-col gap-2">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -163,15 +151,11 @@ export function LandingPage() {
           </div>
 
           {/* App builders */}
-          <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-6 dark:border-slate-800 dark:bg-slate-900/40">
-            <div className="flex items-center justify-center gap-2" aria-hidden>
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white/70 text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400">
-                <AppWindow className="h-5 w-5" strokeWidth={1.75} />
-              </span>
-              <HeartHandshake className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" strokeWidth={1.75} />
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white/70 text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400">
-                <User className="h-5 w-5" strokeWidth={1.75} />
-              </span>
+          <div className="flex flex-col gap-6 p-4">
+            <div className="flex items-center justify-center gap-4" aria-hidden>
+              <AppWindow className="h-12 w-12 text-slate-400 dark:text-slate-500" strokeWidth={1.5} />
+              <HeartHandshake className="h-7 w-7 text-slate-300 dark:text-slate-600" strokeWidth={1.5} />
+              <User className="h-12 w-12 text-slate-400 dark:text-slate-500" strokeWidth={1.5} />
             </div>
             <div className="flex flex-col gap-2">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
