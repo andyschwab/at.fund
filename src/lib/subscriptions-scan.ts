@@ -41,37 +41,8 @@ type DisplayInfo = {
 }
 
 /**
- * Fallback: resolve DIDs to display info via the public Bluesky API (no auth needed).
- * Only populates entries not already present in the result map.
- */
-async function resolveProfileFallbacks(
-  dids: string[],
-  result: Map<string, DisplayInfo>,
-): Promise<void> {
-  const publicAgent = new Agent('https://public.api.bsky.app')
-  await runWithConcurrency(
-    dids.filter((d) => !result.has(d)),
-    CONCURRENCY,
-    async (did) => {
-      try {
-        const profile = await publicAgent.getProfile({ actor: did })
-        result.set(did, {
-          did,
-          displayName: profile.data.displayName ?? profile.data.handle,
-          description: profile.data.description,
-          handle: profile.data.handle,
-        })
-      } catch {
-        // leave unresolved — resolveEntry will use DID as display name
-      }
-    },
-  )
-}
-
-/**
  * Batch-fetch Bluesky labeler service views for a list of DIDs.
  * Returns a map of DID → DisplayInfo (only for DIDs that resolve).
- * Falls back to public profile resolution when getServices fails (e.g. scope issues).
  */
 async function fetchLabelerDisplayInfo(
   agent: Agent,
@@ -97,11 +68,9 @@ async function fetchLabelerDisplayInfo(
       })
     }
   } catch (e) {
-    logger.warn('subscriptions-scan: labeler display info fetch failed, trying profile fallback', {
+    logger.warn('subscriptions-scan: labeler display info fetch failed', {
       error: e instanceof Error ? e.message : String(e),
     })
-    // Fall back to public profile lookups for any DIDs we didn't resolve
-    await resolveProfileFallbacks(dids, result)
   }
   return result
 }
@@ -131,16 +100,9 @@ async function fetchFeedDisplayInfo(
       })
     }
   } catch (e) {
-    logger.warn('subscriptions-scan: feed generator display info fetch failed, trying profile fallback', {
+    logger.warn('subscriptions-scan: feed generator display info fetch failed', {
       error: e instanceof Error ? e.message : String(e),
     })
-    // Extract DIDs from feed URIs and try public profile resolution
-    const feedDids: string[] = []
-    for (const uri of feedUris) {
-      const m = uri.match(/^at:\/\/(did:[^/]+)\//)
-      if (m) feedDids.push(m[1]!)
-    }
-    await resolveProfileFallbacks([...new Set(feedDids)], result)
   }
   return result
 }
