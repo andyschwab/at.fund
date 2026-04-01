@@ -17,6 +17,9 @@ importers:
       '@atproto/oauth-client-node':
         specifier: ^0.3.17
         version: 0.3.17
+      '@atproto/oauth-types':
+        specifier: ^0.6.3
+        version: 0.6.3
       '@atproto/syntax':
         specifier: ^0.5.2
         version: 0.5.2
