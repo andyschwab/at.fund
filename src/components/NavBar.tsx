@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { useSession } from '@/components/SessionContext'
+import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
@@ -214,18 +215,22 @@ export function NavBar() {
             </div>
           ) : (
             <form onSubmit={handleLogin} className="space-y-3">
-              <label className="block text-sm text-slate-600 dark:text-slate-400">
-                Your Bluesky handle
-                <input
-                  type="text"
+              <div className="space-y-1">
+                <label
+                  htmlFor="nav-handle-input"
+                  className="block text-sm text-slate-600 dark:text-slate-400"
+                >
+                  Your Bluesky handle
+                </label>
+                <HandleAutocomplete
+                  id="nav-handle-input"
                   value={handle}
-                  onChange={(e) => setHandle(e.target.value)}
+                  onChange={setHandle}
                   placeholder="you.bsky.social"
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   disabled={loginLoading}
-                  required
+                  inputClassName="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
                 />
-              </label>
+              </div>
               {loginError && (
                 <p className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
