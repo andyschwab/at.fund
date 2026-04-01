@@ -13,7 +13,13 @@ export async function GET(request: NextRequest) {
 
     logger.info('oauth: callback successful', { did: session.did })
 
-    const response = NextResponse.redirect(new URL('/', publicUrl))
+    const rawReturnTo = request.cookies.get('returnTo')?.value ?? '/'
+    const safePath =
+      rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//')
+        ? rawReturnTo
+        : '/'
+    const response = NextResponse.redirect(new URL(safePath, publicUrl))
+    response.cookies.delete('returnTo')
 
     response.cookies.set('did', session.did, {
       httpOnly: true,

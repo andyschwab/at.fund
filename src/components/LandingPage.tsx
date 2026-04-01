@@ -63,7 +63,7 @@ export function LandingPage() {
             <button
               type="button"
               onClick={() => {
-                // Open the login modal by finding the dialog in the NavBar
+                document.cookie = 'returnTo=/give; path=/; max-age=300; SameSite=Lax'
                 const dialog = document.querySelector<HTMLDialogElement>('dialog')
                 dialog?.showModal()
               }}
