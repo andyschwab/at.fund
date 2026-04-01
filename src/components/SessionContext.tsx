@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
+import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 
 type SessionState = {
@@ -23,6 +24,17 @@ export function useSession(): SessionContextValue {
   return ctx
 }
 
+async function checkSession(): Promise<{ valid: boolean; did: string | null }> {
+  try {
+    const res = await fetch('/api/auth/check')
+    if (!res.ok) return { valid: false, did: null }
+    return await res.json()
+  } catch {
+    // Network error — don't invalidate, could be transient
+    return { valid: true, did: null }
+  }
+}
+
 export function SessionProvider({
   initial,
   children,
@@ -33,6 +45,33 @@ export function SessionProvider({
   const [state, setState] = useState<SessionState>(initial)
   const [loginError, setLoginError] = useState<string | null>(null)
   const [loginLoading, setLoginLoading] = useState(false)
+  const pathname = usePathname()
+  const lastValidatedPath = useRef<string>(pathname)
+
+  const validateSession = useCallback(async () => {
+    // Only validate if the client thinks it has a session
+    if (!state.hasSession) return
+
+    const result = await checkSession()
+    if (!result.valid) {
+      setState({ hasSession: false, did: null })
+    }
+  }, [state.hasSession])
+
+  // Validate on route change (client-side navigation)
+  useEffect(() => {
+    if (pathname !== lastValidatedPath.current) {
+      lastValidatedPath.current = pathname
+      validateSession()
+    }
+  }, [pathname, validateSession])
+
+  // Validate on tab focus (user returning to stale tab)
+  useEffect(() => {
+    const onFocus = () => validateSession()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [validateSession])
 
   const login = useCallback(async (handle: string) => {
     setLoginLoading(true)
