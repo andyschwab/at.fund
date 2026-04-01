@@ -85,30 +85,27 @@ function StewardNameHeading({
   )
 }
 
-/** ATProto identity line under the name — always clickable to Bluesky profile. */
-function HandleLine({ handle, did }: { handle?: string; did?: string }) {
+/** ATProto identity — shown inline right of the name, links to DID for provenance. */
+function HandleBadge({ handle, did }: { handle?: string; did?: string }) {
   const label = handle ? `@${handle}` : did
   if (!label) return null
-  const profileUrl = handle
-    ? `https://bsky.app/profile/${handle}`
-    : did
-      ? `https://bsky.app/profile/${did}`
+  // Always link via DID when available (stronger provenance), fall back to handle
+  const profileUrl = did
+    ? `https://bsky.app/profile/${did}`
+    : handle
+      ? `https://bsky.app/profile/${handle}`
       : undefined
-  return (
-    <p className="truncate text-xs">
-      {profileUrl ? (
-        <a
-          href={profileUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-slate-500 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-700 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-slate-200"
-        >
-          {label}
-        </a>
-      ) : (
-        <span className="text-slate-500 dark:text-slate-400">{label}</span>
-      )}
-    </p>
+  return profileUrl ? (
+    <a
+      href={profileUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="shrink-0 truncate text-xs text-slate-500 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-700 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-slate-200"
+    >
+      {label}
+    </a>
+  ) : (
+    <span className="shrink-0 truncate text-xs text-slate-500 dark:text-slate-400">{label}</span>
   )
 }
 
@@ -285,9 +282,9 @@ function ModalCardContent({
               href={nameHref}
               linkVariant="support"
             />
+            <HandleBadge handle={entry.handle} did={entry.did} />
             <TagBadges tags={entry.tags} />
           </div>
-          <HandleLine handle={entry.handle} did={entry.did} />
           {entry.description && (
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               {entry.description}
@@ -570,9 +567,9 @@ export function StewardCard({
                 href={websiteUrl}
                 linkVariant="discover"
               />
+              <HandleBadge handle={entry.handle} did={entry.did} />
               <TagBadges tags={entry.tags} />
             </div>
-            <HandleLine handle={entry.handle} did={entry.did} />
             {entry.description && (
               <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                 {entry.description}
@@ -626,9 +623,9 @@ export function StewardCard({
                 href={profileUrl}
                 linkVariant="network"
               />
+              <HandleBadge handle={entry.handle} did={entry.did} />
               <TagBadges tags={entry.tags} />
             </div>
-            <HandleLine handle={entry.handle} did={entry.did} />
             {entry.description && (
               <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                 {entry.description}
@@ -679,9 +676,9 @@ export function StewardCard({
               href={websiteUrl}
               linkVariant="support"
             />
+            <HandleBadge handle={entry.handle} did={entry.did} />
             <TagBadges tags={entry.tags} />
           </div>
-          <HandleLine handle={entry.handle} did={entry.did} />
           {entry.description && (
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               {entry.description}
