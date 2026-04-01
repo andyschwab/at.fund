@@ -276,8 +276,8 @@ export default function LexiconPage() {
           />
           <RecordSection
             schema={endorseSchema as unknown as LexSchema}
-            keyType="tid"
-            summary="Publicly endorse any entity you use or value, even if you don't depend on it directly. Unlike contribute (published by builders) and dependency (published by projects), endorse is published by users — a protocol-native signal of trust. Endorsements live on the endorser's PDS, so counts are verifiable, not self-reported."
+            keyType="any (rkey = endorsed URI)"
+            summary="Publicly endorse any entity you use or value, even if you don't depend on it directly. The record key is the endorsed URI itself (a DID or hostname), so each entity can only be endorsed once per account. Unlike contribute (published by builders) and dependency (published by projects), endorse is published by users — a protocol-native signal of trust. Endorsements live on the endorser's PDS, so counts are verifiable, not self-reported."
           />
         </section>
 

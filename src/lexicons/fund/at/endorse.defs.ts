@@ -21,8 +21,8 @@ type Main = {
 export type { Main }
 
 /** A single endorsement pointer. */
-const main = l.record<'tid', Main>(
-  'tid',
+const main = l.record<'any', Main>(
+  'any',
   $nsid,
   l.object({
     uri: l.string(),

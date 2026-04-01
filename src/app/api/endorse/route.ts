@@ -5,15 +5,14 @@ import * as fund from '@/lexicons/fund'
 import { FUND_ENDORSE } from '@/lib/fund-at-records'
 import { logger } from '@/lib/logger'
 
-type RawValue = Record<string, unknown>
-
 function str(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined
   const t = v.trim()
   return t || undefined
 }
 
-// POST — create an endorsement record
+// POST — create or overwrite an endorsement record.
+// The rkey IS the endorsed URI, so endorsing the same entity twice is idempotent.
 export async function POST(request: NextRequest) {
   const session = await getSession()
   if (!session) {
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest) {
   const createdAt = l.toDatetimeString(new Date())
 
   try {
-    await client.create(fund.at.endorse, { uri, createdAt })
+    await client.put(fund.at.endorse, { uri, createdAt }, { rkey: uri })
     logger.info('endorse: record created', { did: session.did, uri })
     return NextResponse.json({ success: true })
   } catch (e) {
@@ -52,7 +51,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE — remove an endorsement record by matching uri
+// DELETE — remove an endorsement record. The rkey is the endorsed URI.
 export async function DELETE(request: NextRequest) {
   const session = await getSession()
   if (!session) {
@@ -74,43 +73,7 @@ export async function DELETE(request: NextRequest) {
   const client = new Client(session)
 
   try {
-    // List endorsement records to find the one matching this URI
-    const res = await client.listRecords(FUND_ENDORSE, { limit: 100 })
-    const records = res.body.records as Array<{ uri: string; value: unknown }>
-    const match = records.find((r) => {
-      const v = r.value as RawValue | undefined
-      return v && typeof v.uri === 'string' && v.uri.trim() === uri
-    })
-
-    if (!match) {
-      return NextResponse.json({ error: 'Endorsement not found' }, { status: 404 })
-    }
-
-    // Extract rkey from the AT URI: at://did:plc:.../fund.at.endorse/<rkey>
-    const rkey = match.uri.split('/').pop()
-    if (!rkey) {
-      return NextResponse.json({ error: 'Could not determine record key' }, { status: 500 })
-    }
-
-    // Delete via XRPC procedure
-    const deleteRes = await client.fetchHandler(
-      '/xrpc/com.atproto.repo.deleteRecord' as `/${string}`,
-      {
-        method: 'POST',
-        headers: new Headers({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          repo: session.did,
-          collection: FUND_ENDORSE,
-          rkey,
-        }),
-      },
-    )
-
-    if (!deleteRes.ok) {
-      const errBody = await deleteRes.text()
-      throw new Error(`deleteRecord: ${deleteRes.status} ${errBody}`)
-    }
-
+    await client.deleteRecord(FUND_ENDORSE, uri)
     logger.info('endorse: record deleted', { did: session.did, uri })
     return NextResponse.json({ success: true })
   } catch (e) {
