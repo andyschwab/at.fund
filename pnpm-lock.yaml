@@ -14,6 +14,9 @@ importers:
       '@atproto/lex':
         specifier: ^0.0.23
         version: 0.0.23
+      '@atproto/lex-client':
+        specifier: ^0.0.18
+        version: 0.0.18
       '@atproto/oauth-client':
         specifier: ^0.6.0
         version: 0.6.0
