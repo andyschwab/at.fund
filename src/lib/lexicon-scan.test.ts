@@ -8,38 +8,27 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * NSID resolve → steward lookup → card assembly.
  */
 
-// Mock @atproto/api Agent
-const mockDescribeRepo = vi.fn()
+// Mock @atproto/lex Client
 const mockListRecords = vi.fn()
-const mockResolveIdentity = vi.fn()
-const mockGetProfile = vi.fn()
-const mockGetFollows = vi.fn()
+const mockGetRecord = vi.fn()
 
-vi.mock('@atproto/api', () => {
-  class MockAgent {
-    com = {
-      atproto: {
-        repo: {
-          describeRepo: mockDescribeRepo,
-          listRecords: mockListRecords,
-        },
-        identity: {
-          resolveIdentity: mockResolveIdentity,
-        },
-      },
-    }
-    app = {
-      bsky: {
-        actor: {
-          getProfile: mockGetProfile,
-        },
-        graph: {
-          getFollows: mockGetFollows,
-        },
-      },
-    }
+// Shared state for per-test overrides of xrpc responses
+let describeRepoResponse = {
+  handle: 'testuser.bsky.social',
+  collections: [] as string[],
+}
+
+// xrpcQuery calls go through fetchHandler; mock it to dispatch by NSID
+const mockFetchHandler = vi.fn()
+
+vi.mock('@atproto/lex', () => {
+  class MockClient {
+    listRecords = mockListRecords
+    getRecord = mockGetRecord
+    fetchHandler = mockFetchHandler
+    get did() { return undefined }
   }
-  return { Agent: MockAgent }
+  return { Client: MockClient }
 })
 
 // Mock @atproto/did
@@ -96,25 +85,38 @@ function makeMockSession(did = 'did:plc:testuser123'): OAuthSession {
 beforeEach(() => {
   vi.clearAllMocks()
 
-  // Default: repo with some third-party collections
-  mockDescribeRepo.mockResolvedValue({
-    data: {
-      handle: 'testuser.bsky.social',
-      collections: [
-        'app.bsky.feed.post',
-        'app.bsky.actor.profile',
-        'com.atproto.repo.strongRef',
-        'fyi.unravel.frontpage.post',
-        'blue.zio.atfile.upload',
-      ],
-    },
+  // Reset describeRepo default
+  describeRepoResponse = {
+    handle: 'testuser.bsky.social',
+    collections: [
+      'app.bsky.feed.post',
+      'app.bsky.actor.profile',
+      'com.atproto.repo.strongRef',
+      'fyi.unravel.frontpage.post',
+      'blue.zio.atfile.upload',
+    ],
+  }
+
+  // xrpc responses via fetchHandler — dispatch by NSID in path
+  mockFetchHandler.mockImplementation(async (path: string) => {
+    if (path.includes('com.atproto.repo.describeRepo')) {
+      return new Response(JSON.stringify(describeRepoResponse), { status: 200 })
+    }
+    if (path.includes('com.atproto.identity.resolveIdentity')) {
+      return new Response(JSON.stringify({ didDoc: {} }), { status: 200 })
+    }
+    if (path.includes('app.bsky.actor.getProfile')) {
+      return new Response(JSON.stringify({ handle: 'testuser.bsky.social' }), { status: 200 })
+    }
+    if (path.includes('app.bsky.graph.getFollows')) {
+      return new Response(JSON.stringify({ follows: [] }), { status: 200 })
+    }
+    return new Response(JSON.stringify({}), { status: 200 })
   })
 
   // Default: no records in any collection
-  mockListRecords.mockResolvedValue({ data: { records: [] } })
-  mockGetProfile.mockResolvedValue({ data: { handle: 'testuser.bsky.social' } })
-  // Default: no follows
-  mockGetFollows.mockResolvedValue({ data: { follows: [] } })
+  mockListRecords.mockResolvedValue({ body: { records: [] } })
+  mockGetRecord.mockRejectedValue(new Error('not found'))
 })
 
 describe('scanRepo pipeline', () => {
@@ -135,15 +137,13 @@ describe('scanRepo pipeline', () => {
   })
 
   it('uses manual catalog fallback for known stewards', async () => {
-    mockDescribeRepo.mockResolvedValue({
-      data: {
+    describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
           'fyi.unravel.frontpage.post',
         ],
-      },
-    })
+      }
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])
@@ -158,15 +158,13 @@ describe('scanRepo pipeline', () => {
 
   it('marks stewards as unknown when no fund.at or manual record exists', async () => {
     // Use a collection NSID that maps to a domain not in the manual catalog
-    mockDescribeRepo.mockResolvedValue({
-      data: {
+    describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
           'com.randomdev.myapp.record',
         ],
-      },
-    })
+      }
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])
@@ -178,15 +176,13 @@ describe('scanRepo pipeline', () => {
   })
 
   it('uses fund.at records when steward DID resolves', async () => {
-    mockDescribeRepo.mockResolvedValue({
-      data: {
+    describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
           'fyi.unravel.frontpage.post',
         ],
-      },
-    })
+      }
 
     // Mock DNS resolution for frontpage.fyi
     vi.mocked(lookupAtprotoDid).mockResolvedValue('did:plc:frontpage')
@@ -214,12 +210,10 @@ describe('scanRepo pipeline', () => {
   })
 
   it('includes self-reported stewards in resolution', async () => {
-    mockDescribeRepo.mockResolvedValue({
-      data: {
+    describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: ['app.bsky.feed.post'],
-      },
-    })
+      }
 
     const session = makeMockSession()
     const result = await scanRepo(session, ['bsky.app'])
@@ -232,16 +226,14 @@ describe('scanRepo pipeline', () => {
   })
 
   it('sorts stewards: fund.at with links first, unknown last', async () => {
-    mockDescribeRepo.mockResolvedValue({
-      data: {
+    describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
           'fyi.unravel.frontpage.post',
           'com.randomdev.myapp.record',
         ],
-      },
-    })
+      }
 
     // frontpage.fyi resolves to fund.at with links
     vi.mocked(lookupAtprotoDid).mockImplementation(async (hostname) => {
@@ -269,12 +261,10 @@ describe('scanRepo pipeline', () => {
   })
 
   it('handles empty repo (no collections)', async () => {
-    mockDescribeRepo.mockResolvedValue({
-      data: {
+    describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [],
-      },
-    })
+      }
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])
@@ -284,8 +274,7 @@ describe('scanRepo pipeline', () => {
   })
 
   it('handles repo with only noise collections', async () => {
-    mockDescribeRepo.mockResolvedValue({
-      data: {
+    describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
@@ -293,8 +282,7 @@ describe('scanRepo pipeline', () => {
           'com.atproto.label.label',
           'chat.bsky.convo',
         ],
-      },
-    })
+      }
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])
@@ -304,16 +292,14 @@ describe('scanRepo pipeline', () => {
 
   it('deduplicates steward URIs from multiple collections', async () => {
     // Two collections that both resolve to the same steward
-    mockDescribeRepo.mockResolvedValue({
-      data: {
+    describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
           'feed.popfeed.xyz',
           'actor.popfeed.settings',
         ],
-      },
-    })
+      }
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])
@@ -324,15 +310,13 @@ describe('scanRepo pipeline', () => {
   })
 
   it('captures warnings when DNS lookup throws', async () => {
-    mockDescribeRepo.mockResolvedValue({
-      data: {
+    describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
           'fyi.unravel.frontpage.post',
         ],
-      },
-    })
+      }
 
     // DNS lookup throws an error
     vi.mocked(lookupAtprotoDid).mockRejectedValue(new Error('DNS timeout'))
@@ -350,15 +334,13 @@ describe('scanRepo pipeline', () => {
   })
 
   it('captures warnings when fund.at fetch throws', async () => {
-    mockDescribeRepo.mockResolvedValue({
-      data: {
+    describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
           'fyi.unravel.frontpage.post',
         ],
-      },
-    })
+      }
 
     vi.mocked(lookupAtprotoDid).mockResolvedValue('did:plc:frontpage')
     vi.mocked(fetchFundAtForStewardDid).mockRejectedValue(new Error('PDS unreachable'))
@@ -377,9 +359,7 @@ describe('scanRepo pipeline', () => {
   })
 
   it('returns warnings array even when empty', async () => {
-    mockDescribeRepo.mockResolvedValue({
-      data: { handle: 'testuser.bsky.social', collections: [] },
-    })
+    describeRepoResponse = { handle: 'testuser.bsky.social', collections: [] }
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])

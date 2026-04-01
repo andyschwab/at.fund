@@ -6,6 +6,7 @@ import {
 import type { NodeSavedSession, NodeSavedState } from '@atproto/oauth-client-node'
 import type { OAuthClientMetadataInput } from '@atproto/oauth-types'
 import { getPublicUrl, isLoopbackPublicUrl } from '@/lib/public-url'
+import { logger } from '@/lib/logger'
 
 // Work around Next.js dev-mode fetch patch that breaks DPoP POST retries.
 //
@@ -43,6 +44,9 @@ export const SCOPE = [
   'repo:fund.at.disclosure',
   'repo:fund.at.contribute',
   'repo:fund.at.dependencies',
+  // getPreferences is proxied through the PDS and requires an rpc: scope.
+  // getServices/getFeedGenerators use the public API so no scope needed.
+  'rpc:app.bsky.actor.getPreferences?aud=did:web:api.bsky.app%23bsky_appview',
 ].join(' ')
 
 const globalAuth = globalThis as unknown as {
@@ -80,14 +84,19 @@ function buildClientMetadata(): OAuthClientMetadataInput {
 
 export async function getOAuthClient(): Promise<NodeOAuthClient> {
   const base = getPublicUrl()
-  const key = base
+  const key = `${base}|${SCOPE}`
   if (client && clientKey === key) {
     return client
   }
 
   clientKey = key
+  const metadata = buildClientMetadata()
+  logger.info('oauth: building client', {
+    client_id: metadata.client_id,
+    scope: metadata.scope,
+  })
   client = new NodeOAuthClient({
-    clientMetadata: buildClientMetadata(),
+    clientMetadata: metadata,
     fetch: safeFetch,
     stateStore: {
       async get(k: string) {

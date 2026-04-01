@@ -1,7 +1,8 @@
-import { Agent } from '@atproto/api'
+import { Client } from '@atproto/lex'
 import { lookupAtprotoDid, lookupAtprotoDidExact } from '@/lib/atfund-dns'
 import { fetchPdsHostFunding, type PdsHostFunding } from '@/lib/atfund-steward'
 import { resolveDidFromIdentifier, resolveHandleFromDid } from '@/lib/fund-at-records'
+import { xrpcQuery } from '@/lib/xrpc'
 
 
 function hostnameFromUriLike(input: string): string | null {
@@ -38,12 +39,15 @@ async function describeServerStewardFallback(hostname: string): Promise<{
   stewardDid?: string
 }> {
   try {
-    const agent = new Agent(`https://${hostname}`)
-    const res = await agent.com.atproto.server.describeServer()
-    const did = typeof res.data.did === 'string' ? res.data.did : undefined
+    const pdsClient = new Client(`https://${hostname}`)
+    const res = await xrpcQuery<{
+      did?: string
+      links?: { privacyPolicy?: string; termsOfService?: string }
+    }>(pdsClient, 'com.atproto.server.describeServer', {})
+    const did = typeof res.did === 'string' ? res.did : undefined
     const policyHost =
-      hostnameFromWebUrl(res.data.links?.privacyPolicy) ??
-      hostnameFromWebUrl(res.data.links?.termsOfService)
+      hostnameFromWebUrl(res.links?.privacyPolicy) ??
+      hostnameFromWebUrl(res.links?.termsOfService)
     const pdsStewardUri = policyHost ?? did
     const pdsStewardHandle =
       pdsStewardUri && !pdsStewardUri.startsWith('did:') ? pdsStewardUri : undefined
@@ -56,11 +60,11 @@ async function describeServerStewardFallback(hostname: string): Promise<{
 /**
  * Generic fund.at discovery starting from a URI-like identifier (URL or hostname).
  * For hostnames, we resolve `_atproto.<hostname>` to a steward DID, then load
- * `fund.at.*` records from that DID’s PDS.
+ * `fund.at.*` records from that DID's PDS.
  */
 export async function fetchFundingForUriLike(
   uriLike: string,
-  agent?: Agent,
+  client?: Client,
 ): Promise<PdsHostFunding | null> {
   const hostname = hostnameFromUriLike(uriLike)
   if (!hostname) return null
@@ -83,7 +87,7 @@ export async function fetchFundingForUriLike(
     const hostFunding = await fetchPdsHostFunding(resolvedDid, hostname, {
       pdsStewardUri: resolvedUri,
       pdsStewardHandle: resolvedHandle ?? fallback.pdsStewardHandle,
-    }, agent)
+    }, client)
     if (hostFunding) return hostFunding
 
     return {
@@ -99,7 +103,7 @@ export async function fetchFundingForUriLike(
   const hostFunding = await fetchPdsHostFunding(did, hostname, {
     pdsStewardUri,
     pdsStewardHandle,
-  }, agent)
+  }, client)
   if (hostFunding) return hostFunding
 
   // Return steward identity even when no fund.at.disclosure is published.
@@ -110,4 +114,3 @@ export async function fetchFundingForUriLike(
     pdsStewardHandle,
   }
 }
-

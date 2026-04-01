@@ -1,5 +1,8 @@
-import { Agent } from '@atproto/api'
+import { Client } from '@atproto/lex'
 import type { OAuthSession } from '@atproto/oauth-client'
+import { xrpcQuery } from '@/lib/xrpc'
+
+const PUBLIC_API = 'https://public.api.bsky.app'
 
 /** Handle from `com.atproto.repo.describeRepo` (home PDS; works for any ATProto host). */
 export function handleFromDescribeRepo(data: {
@@ -14,11 +17,13 @@ export async function getBlueskyHandleFallback(
   session: OAuthSession,
 ): Promise<string | undefined> {
   try {
-    const agent = new Agent(session)
-    const prof = await agent.app.bsky.actor.getProfile({
-      actor: session.did,
-    })
-    return prof.data.handle
+    const publicClient = new Client(PUBLIC_API)
+    const res = await xrpcQuery<{ handle?: string }>(
+      publicClient,
+      'app.bsky.actor.getProfile',
+      { actor: session.did },
+    )
+    return res.handle
   } catch {
     return undefined
   }
@@ -34,9 +39,13 @@ export async function getSessionHandle(
 ): Promise<string | undefined> {
   if (describeRepoHandle) return describeRepoHandle
   try {
-    const agent = new Agent(session)
-    const res = await agent.com.atproto.repo.describeRepo({ repo: session.did })
-    const h = handleFromDescribeRepo(res.data)
+    const client = new Client(session)
+    const res = await xrpcQuery<{ handle?: string }>(
+      client,
+      'com.atproto.repo.describeRepo',
+      { repo: session.did },
+    )
+    const h = handleFromDescribeRepo(res)
     if (h) return h
   } catch {
     // fall through

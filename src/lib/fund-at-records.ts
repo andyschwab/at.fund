@@ -1,15 +1,15 @@
-import { Agent } from '@atproto/api'
 import { extractPdsUrl } from '@atproto/did'
 import type { AtprotoDidDocument } from '@atproto/did'
 import type { OAuthSession } from '@atproto/oauth-client'
 import { Client } from '@atproto/lex'
+import { xrpcQuery } from '@/lib/xrpc'
 
 export const FUND_CONTRIBUTE = 'fund.at.contribute'
 export const FUND_DISCLOSURE = 'fund.at.disclosure'
 export const FUND_DEPENDENCIES = 'fund.at.dependencies'
 
 const PUBLIC_IDENTITY = 'https://public.api.bsky.app'
-const identityAgent = new Agent(PUBLIC_IDENTITY)
+const publicClient = new Client(PUBLIC_IDENTITY)
 
 export type FundLink = { label: string; url: string }
 
@@ -62,10 +62,13 @@ export async function resolveHandleFromDid(
   stewardDid: string,
 ): Promise<string | undefined> {
   try {
-    const res = await identityAgent.com.atproto.identity.resolveIdentity({
+    const res = await xrpcQuery<{
+      handle?: string
+      didDoc?: unknown
+    }>(publicClient, 'com.atproto.identity.resolveIdentity', {
       identifier: stewardDid,
     })
-    const fromIdentity = res.data.handle ?? handleFromAlsoKnownAs(res.data.didDoc)
+    const fromIdentity = res.handle ?? handleFromAlsoKnownAs(res.didDoc)
     if (fromIdentity) return fromIdentity
   } catch {
     // fall through
@@ -84,10 +87,12 @@ export async function resolveDidFromIdentifier(
   identifier: string,
 ): Promise<string | undefined> {
   try {
-    const res = await identityAgent.com.atproto.identity.resolveIdentity({
-      identifier,
-    })
-    return res.data.did
+    const res = await xrpcQuery<{ did: string }>(
+      publicClient,
+      'com.atproto.identity.resolveIdentity',
+      { identifier },
+    )
+    return res.did
   } catch {
     return undefined
   }
@@ -284,10 +289,12 @@ export function allowlistedForDomain(
 
 export async function resolvePdsUrl(stewardDid: string): Promise<URL | null> {
   try {
-    const res = await identityAgent.com.atproto.identity.resolveIdentity({
-      identifier: stewardDid,
-    })
-    return extractPdsUrl(res.data.didDoc as AtprotoDidDocument)
+    const res = await xrpcQuery<{ didDoc: unknown }>(
+      publicClient,
+      'com.atproto.identity.resolveIdentity',
+      { identifier: stewardDid },
+    )
+    return extractPdsUrl(res.didDoc as AtprotoDidDocument)
   } catch {
     return null
   }
@@ -305,15 +312,15 @@ export async function resolvePdsUrl(stewardDid: string): Promise<URL | null> {
 export async function fetchFundAtRecords(
   stewardDid: string,
   domainFilter?: string,
-  agent?: Agent,
+  client?: Client,
 ): Promise<FundAtResult | null> {
-  let readAgent: Agent
-  if (agent) {
-    readAgent = agent
+  let readClient: Client
+  if (client) {
+    readClient = client
   } else {
     const pdsUrl = await resolvePdsUrl(stewardDid)
     if (!pdsUrl) return null
-    readAgent = new Agent(pdsUrl.origin)
+    readClient = new Client(pdsUrl.origin)
   }
 
   const filter = (vals: RawValue[]) =>
@@ -321,12 +328,13 @@ export async function fetchFundAtRecords(
 
   let contributeValues: RawValue[] = []
   try {
-    const listed = await readAgent.com.atproto.repo.listRecords({
-      repo: stewardDid,
-      collection: FUND_CONTRIBUTE,
+    const res = await readClient.listRecords(FUND_CONTRIBUTE, {
+      repo: stewardDid as import('@atproto/lex-client').AtIdentifierString,
       limit: 100,
     })
-    contributeValues = collectRecordValues(listed.data.records ?? [])
+    contributeValues = collectRecordValues(
+      res.body.records as { value: unknown }[],
+    )
   } catch {
     // optional
   }
@@ -336,12 +344,13 @@ export async function fetchFundAtRecords(
 
   let disclosure: DisclosureMeta | undefined
   try {
-    const discListed = await readAgent.com.atproto.repo.listRecords({
-      repo: stewardDid,
-      collection: FUND_DISCLOSURE,
+    const res = await readClient.listRecords(FUND_DISCLOSURE, {
+      repo: stewardDid as import('@atproto/lex-client').AtIdentifierString,
       limit: 50,
     })
-    const discValues = collectRecordValues(discListed.data.records ?? [])
+    const discValues = collectRecordValues(
+      res.body.records as { value: unknown }[],
+    )
     const best = pickBestDisclosure(filter(discValues))
     if (best) disclosure = extractDisclosureMeta(best) ?? undefined
   } catch {
@@ -353,12 +362,13 @@ export async function fetchFundAtRecords(
   let dependencyUris: string[] | undefined
   let dependencyNotes: string | undefined
   try {
-    const depListed = await readAgent.com.atproto.repo.listRecords({
-      repo: stewardDid,
-      collection: FUND_DEPENDENCIES,
+    const res = await readClient.listRecords(FUND_DEPENDENCIES, {
+      repo: stewardDid as import('@atproto/lex-client').AtIdentifierString,
       limit: 100,
     })
-    const depValues = collectRecordValues(depListed.data.records ?? [])
+    const depValues = collectRecordValues(
+      res.body.records as { value: unknown }[],
+    )
     const merged = new Set<string>()
     for (const rec of filter(depValues)) {
       if (!isHostScopedDependency(rec)) continue
@@ -382,8 +392,6 @@ export async function fetchFundAtRecords(
 // bypassing public API identity resolution.
 // ---------------------------------------------------------------------------
 
-type RawRecord = { value: unknown }
-
 export async function fetchOwnFundAtRecords(
   session: OAuthSession,
 ): Promise<FundAtResult | null> {
@@ -393,7 +401,7 @@ export async function fetchOwnFundAtRecords(
   try {
     const res = await client.listRecords(FUND_CONTRIBUTE, { limit: 100 })
     contributeValues = collectRecordValues(
-      res.body.records as RawRecord[],
+      res.body.records as { value: unknown }[],
     )
   } catch {
     // optional
@@ -405,7 +413,7 @@ export async function fetchOwnFundAtRecords(
   let disclosure: DisclosureMeta | undefined
   try {
     const res = await client.listRecords(FUND_DISCLOSURE, { limit: 50 })
-    const discValues = collectRecordValues(res.body.records as RawRecord[])
+    const discValues = collectRecordValues(res.body.records as { value: unknown }[])
     const best = pickBestDisclosure(discValues)
     if (best) disclosure = extractDisclosureMeta(best) ?? undefined
   } catch {
@@ -418,7 +426,7 @@ export async function fetchOwnFundAtRecords(
   let dependencyNotes: string | undefined
   try {
     const res = await client.listRecords(FUND_DEPENDENCIES, { limit: 100 })
-    const depValues = collectRecordValues(res.body.records as RawRecord[])
+    const depValues = collectRecordValues(res.body.records as { value: unknown }[])
     const merged = new Set<string>()
     for (const rec of depValues) {
       if (!isHostScopedDependency(rec)) continue
