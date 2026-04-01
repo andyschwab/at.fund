@@ -284,37 +284,27 @@ export function HomeClient({ hasSession, error }: Props) {
     <div className="page-wash min-h-full">
       <div className="mx-auto flex max-w-5xl flex-col gap-12 px-4 py-12">
         <header className="text-center">
-          <div className="mx-auto flex max-w-2xl flex-col items-center gap-5">
-            <span
-              className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-white shadow-sm dark:bg-slate-900"
-              aria-hidden
-            >
-              <svg viewBox="0 0 44 44" className="h-11 w-11 text-[var(--support)]" fill="none" aria-hidden="true">
-                <circle cx="22" cy="22" r="19" stroke="currentColor" strokeWidth="2" />
-                <path d="M22 10 C14 18,13 22,13 27 A9 9 0 0 1 31 27 C31 22,30 18,22 10 Z" fill="currentColor" />
-              </svg>
-            </span>
-            <div className="w-full space-y-3">
-              <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
-                <span className="inline-flex items-center font-mono font-medium text-slate-500 dark:text-slate-400">at<svg viewBox="0 0 10 14" className="inline-block h-[0.72em] w-[0.52em] translate-y-[0.04em] fill-[var(--support)] mx-[0.1em]" aria-hidden="true"><path d="M5 1 C2 5,1 8,1 10 A4 4 0 0 1 9 10 C9 8,8 5,5 1 Z" /></svg>fund</span>
-                <span className="text-slate-500 dark:text-slate-400">: </span>
-                <span className="text-slate-900 dark:text-slate-100">
-                  We can just pay for things
-                  <sup className="ml-0.5 align-super text-lg font-normal leading-none">
-                    <a
-                      href={BURRITO_QUOTE_URL}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[var(--support)] underline decoration-[var(--support-border)] underline-offset-2 transition-opacity hover:opacity-80"
-                      aria-label="@burrito.space on Bluesky"
-                    >
-                      *
-                    </a>
-                  </sup>
-                </span>
+          <div className="mx-auto flex max-w-2xl flex-col items-center gap-4">
+            <div className="space-y-3">
+              <h1 className="text-5xl font-semibold tracking-tight sm:text-6xl">
+                <span className="inline-flex items-center font-mono font-medium text-slate-500 dark:text-slate-400">at<svg viewBox="0 0 10 14" className="inline-block h-[0.72em] w-[0.52em] translate-y-[0.04em] fill-[var(--support)] mx-[0.12em]" aria-hidden="true"><path d="M5 1 C2 5,1 8,1 10 A4 4 0 0 0 9 10 C9 8,8 5,5 1 Z" /></svg>fund</span>
               </h1>
-              <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                Find ways to pay the people who build what you rely on.
+              <p className="text-xl font-medium text-slate-900 dark:text-slate-100 sm:text-2xl">
+                We can just pay for things
+                <sup className="ml-0.5 align-super text-sm font-normal leading-none">
+                  <a
+                    href={BURRITO_QUOTE_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[var(--support)] underline decoration-[var(--support-border)] underline-offset-2 transition-opacity hover:opacity-80"
+                    aria-label="@burrito.space on Bluesky"
+                  >
+                    *
+                  </a>
+                </sup>
+              </p>
+              <p className="text-base leading-relaxed text-slate-600 dark:text-slate-400">
+                No VCs, no ads — just builders getting paid directly for the work you already rely on.
               </p>
             </div>
           </div>

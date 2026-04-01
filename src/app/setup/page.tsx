@@ -6,7 +6,7 @@ import { SetupClient } from '@/components/SetupClient'
 import type { FundAtResult } from '@/lib/fund-at-records'
 
 export const metadata = {
-  title: 'Set up your funding profile — AT.fund',
+  title: 'Set up your funding profile — at.fund',
 }
 
 export default async function SetupPage() {

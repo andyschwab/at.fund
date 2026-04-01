@@ -5,7 +5,7 @@ import contributeSchema from '../../../lexicon/fund.at.contribute.json'
 import dependenciesSchema from '../../../lexicon/fund.at.dependencies.json'
 
 export const metadata: Metadata = {
-  title: 'Lexicon — AT.fund',
+  title: 'Lexicon — at.fund',
   description:
     'The fund.at.* ATProto lexicons: disclosure, contribute, and dependencies.',
 }

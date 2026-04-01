@@ -12,7 +12,7 @@ export default function MaintainersPage() {
         {/* Hero */}
         <div className="mt-10">
           <h1 className="text-3xl font-semibold tracking-tight">
-            Get found on AT.fund
+            Get found on at.fund
           </h1>
           <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-slate-400">
             If your domain already has an <code className="font-mono text-sm">_atproto</code> TXT
