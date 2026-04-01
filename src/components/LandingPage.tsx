@@ -5,10 +5,10 @@ import {
   AppWindow,
   ArrowRight,
   Banknote,
-  HardHat,
   HeartHandshake,
   LogIn,
   User,
+  UserCog,
   Users,
 } from 'lucide-react'
 import { useSession } from '@/components/SessionContext'
@@ -56,7 +56,7 @@ export function LandingPage() {
               className="inline-flex items-center gap-2 rounded-xl bg-[var(--support)] px-6 py-3 text-base font-medium text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
             >
               <LogIn className="h-5 w-5" aria-hidden />
-              See who to support
+              Pay your builders
               <ArrowRight className="h-5 w-5" aria-hidden />
             </Link>
           ) : (
@@ -70,7 +70,7 @@ export function LandingPage() {
               className="inline-flex items-center gap-2 rounded-xl bg-[var(--support)] px-6 py-3 text-base font-medium text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
             >
               <LogIn className="h-5 w-5" aria-hidden />
-              See who to support
+              Pay your builders
             </button>
           )}
         </div>
@@ -79,11 +79,11 @@ export function LandingPage() {
         <div className="grid grid-cols-2 gap-x-8 gap-y-12">
 
           {/* Users */}
-          <div className="flex flex-col gap-6 p-4">
+          <div className="relative flex flex-col gap-6 p-4 pb-8">
             <div className="flex items-center justify-center gap-4" aria-hidden>
               <User className="h-12 w-12 text-[var(--discover)]" strokeWidth={1.5} />
               <HeartHandshake className="h-7 w-7 text-slate-300 dark:text-slate-600" strokeWidth={1.5} />
-              <HardHat className="h-12 w-12 text-[var(--discover)]" strokeWidth={1.5} />
+              <UserCog className="h-12 w-12 text-[var(--discover)]" strokeWidth={1.5} />
             </div>
             <div className="flex flex-col gap-2">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -95,18 +95,41 @@ export function LandingPage() {
                 has published. No digging around required.
               </p>
             </div>
+            {hasSession ? (
+              <Link
+                href="/give"
+                className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-[var(--discover)] transition-opacity hover:opacity-80"
+              >
+                Pay your builders
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  document.cookie = 'returnTo=/give; path=/; max-age=300; SameSite=Lax'
+                  const dialog = document.querySelector<HTMLDialogElement>('dialog')
+                  dialog?.showModal()
+                }}
+                className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-[var(--discover)] transition-opacity hover:opacity-80"
+              >
+                Pay your builders
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </button>
+            )}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[var(--background)] to-transparent" aria-hidden />
           </div>
 
           {/* Communities */}
-          <div className="flex flex-col gap-6 p-4">
+          <div className="relative flex flex-col gap-6 p-4 pb-8">
             <div className="flex items-center justify-center gap-4" aria-hidden>
               <Users className="h-12 w-12 text-[var(--network)]" strokeWidth={1.5} />
               <HeartHandshake className="h-7 w-7 text-slate-300 dark:text-slate-600" strokeWidth={1.5} />
-              <HardHat className="h-12 w-12 text-[var(--network)]" strokeWidth={1.5} />
+              <UserCog className="h-12 w-12 text-[var(--network)]" strokeWidth={1.5} />
             </div>
             <div className="flex flex-col gap-2">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                Help the builders your people depend on get paid
+                Help the builders you depend on get paid
               </h2>
               <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                 You run a list, a starter pack, or a project others rely on. You
@@ -119,17 +142,18 @@ export function LandingPage() {
               href="/setup"
               className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-[var(--network)] transition-opacity hover:opacity-80"
             >
-              Learn how
+              Share your dependencies
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[var(--background)] to-transparent" aria-hidden />
           </div>
 
           {/* Builders */}
-          <div className="flex flex-col gap-6 p-4">
+          <div className="relative flex flex-col gap-6 p-4 pb-8">
             <div className="flex items-center justify-center gap-4" aria-hidden>
               <Banknote className="h-12 w-12 text-[var(--support)]" strokeWidth={1.5} />
               <HeartHandshake className="h-7 w-7 text-slate-300 dark:text-slate-600" strokeWidth={1.5} />
-              <HardHat className="h-12 w-12 text-[var(--support)]" strokeWidth={1.5} />
+              <UserCog className="h-12 w-12 text-[var(--support)]" strokeWidth={1.5} />
             </div>
             <div className="flex flex-col gap-2">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -148,10 +172,11 @@ export function LandingPage() {
               Add your project
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[var(--background)] to-transparent" aria-hidden />
           </div>
 
           {/* App builders */}
-          <div className="flex flex-col gap-6 p-4">
+          <div className="relative flex flex-col gap-6 p-4 pb-8">
             <div className="flex items-center justify-center gap-4" aria-hidden>
               <AppWindow className="h-12 w-12 text-slate-400 dark:text-slate-500" strokeWidth={1.5} />
               <HeartHandshake className="h-7 w-7 text-slate-300 dark:text-slate-600" strokeWidth={1.5} />
@@ -174,6 +199,7 @@ export function LandingPage() {
               Read the lexicon
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[var(--background)] to-transparent" aria-hidden />
           </div>
 
         </div>
