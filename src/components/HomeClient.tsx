@@ -9,19 +9,16 @@ import {
   StewardCard,
   PdsHostSupportCard,
 } from '@/components/ProjectCards'
+import { LandingPage } from '@/components/LandingPage'
 import Link from 'next/link'
 import {
   AlertCircle,
   BookOpen,
   ExternalLink,
-  HeartHandshake,
-  LogIn,
   LogOut,
-  Monitor,
   Pencil,
   PlusCircle,
   RefreshCw,
-  UserRound,
 } from 'lucide-react'
 
 const BURRITO_QUOTE_URL =
@@ -271,94 +268,50 @@ export function HomeClient({ hasSession, error }: Props) {
   // How many distinct tag types have entries (to decide whether to show filter bar)
   const filterableTagCount = TAG_FILTER_LABELS.filter(({ tag }) => (tagCounts[tag] ?? 0) > 0).length
 
+  if (!hasSession) {
+    return (
+      <LandingPage
+        handle={handle}
+        setHandle={setHandle}
+        loading={loading}
+        err={err}
+        onLogin={login}
+      />
+    )
+  }
+
   return (
     <div className="page-wash min-h-full">
       <div className="mx-auto flex max-w-5xl flex-col gap-12 px-4 py-12">
         <header className="text-center">
-          <div className="mx-auto flex max-w-2xl flex-col items-center gap-5">
-            <span
-              className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)] shadow-sm"
-              aria-hidden
-            >
-              <HeartHandshake className="h-11 w-11" strokeWidth={1.75} />
-            </span>
-            <div className="w-full space-y-3">
-              <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
-                <span className="font-mono font-medium text-slate-500 dark:text-slate-400">
-                  AT.fund
-                </span>
-                <span className="text-slate-500 dark:text-slate-400">: </span>
-                <span className="text-slate-900 dark:text-slate-100">
-                  We can just pay for things
-                  <sup className="ml-0.5 align-super text-lg font-normal leading-none">
-                    <a
-                      href={BURRITO_QUOTE_URL}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[var(--support)] underline decoration-[var(--support-border)] underline-offset-2 transition-opacity hover:opacity-80"
-                      aria-label="@burrito.space on Bluesky"
-                    >
-                      *
-                    </a>
-                  </sup>
-                </span>
+          <div className="mx-auto flex max-w-2xl flex-col items-center gap-4">
+            <div className="space-y-3">
+              <h1 className="text-5xl font-semibold tracking-tight sm:text-6xl">
+                <span className="inline-flex items-center font-mono font-medium text-slate-500 dark:text-slate-400">at<svg viewBox="0 0 10 14" className="inline-block h-[0.72em] w-[0.52em] translate-y-[0.04em] fill-[var(--support)] mx-[0.12em]" aria-hidden="true"><path d="M5 1 C2 5,1 8,1 10 A4 4 0 0 0 9 10 C9 8,8 5,5 1 Z" /></svg>fund</span>
               </h1>
-              <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                Find ways to pay the people who build what you rely on.
+              <p className="text-xl font-medium text-slate-900 dark:text-slate-100 sm:text-2xl">
+                We can just pay for things
+                <sup className="ml-0.5 align-super text-sm font-normal leading-none">
+                  <a
+                    href={BURRITO_QUOTE_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[var(--support)] underline decoration-[var(--support-border)] underline-offset-2 transition-opacity hover:opacity-80"
+                    aria-label="@burrito.space on Bluesky"
+                  >
+                    *
+                  </a>
+                </sup>
+              </p>
+              <p className="text-base leading-relaxed text-slate-600 dark:text-slate-400">
+                No VCs, no ads — just builders getting paid directly for the work you already rely on.
               </p>
             </div>
           </div>
         </header>
 
-        {!hasSession ? (
-          <section className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
-            <div className="mb-4 flex items-center gap-2 text-lg font-medium text-slate-900 dark:text-slate-100">
-              <UserRound className="h-5 w-5 text-[var(--support)]" aria-hidden />
-              Connect
-            </div>
-            <form onSubmit={login} className="flex max-w-md flex-col gap-3">
-              <label className="text-sm text-slate-600 dark:text-slate-400">
-                Your handle
-                <input
-                  type="text"
-                  value={handle}
-                  onChange={(e) => setHandle(e.target.value)}
-                  placeholder="you.bsky.social"
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  disabled={loading}
-                  required
-                />
-              </label>
-              {err && (
-                <p className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                  {err}
-                </p>
-              )}
-              <button
-                type="submit"
-                disabled={loading || !handle.trim()}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                <LogIn className="h-4 w-4" aria-hidden />
-                {loading ? 'Redirecting…' : 'Continue'}
-              </button>
-              <details className="mt-2 max-w-md rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
-                <summary className="flex cursor-pointer list-none items-center gap-2 font-medium [&::-webkit-details-marker]:hidden">
-                  <Monitor className="h-4 w-4 shrink-0" aria-hidden />
-                  Local development
-                  <span className="text-slate-400">▾</span>
-                </summary>
-                <p className="mt-2 pl-6 leading-relaxed">
-                  Use <code className="font-mono text-slate-700 dark:text-slate-300">127.0.0.1</code>{' '}
-                  (not <code className="font-mono">localhost</code>) so sign-in
-                  redirects work.
-                </p>
-              </details>
-            </form>
-          </section>
-        ) : (
-          <>
+        <>
+
             {/* Session header */}
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white/90 shadow-sm dark:border-slate-800 dark:bg-slate-950/90">
               <div className="flex flex-col gap-4 border-b border-slate-200/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
@@ -576,8 +529,7 @@ export function HomeClient({ hasSession, error }: Props) {
                 </button>
               </div>
             </section>
-          </>
-        )}
+        </>
 
         <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 dark:border-slate-800 dark:from-slate-900/50 dark:to-slate-950">
           <div className="flex gap-3">

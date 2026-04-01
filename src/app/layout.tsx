@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AT.fund — We can just pay for things",
+  title: "at.fund — Keep your atmosphere clean",
   description:
-    "Find ways to pay the people who build what you rely on. ATProto sign-in.",
+    "Fund what you use. Pay the builders you already rely on, directly. ATProto sign-in.",
 };
 
 export default function RootLayout({
