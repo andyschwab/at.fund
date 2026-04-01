@@ -6,9 +6,6 @@ import type { PdsHostFunding } from '@/lib/atfund-steward'
 import Link from 'next/link'
 import {
   ArrowRight,
-  AtSign,
-  Cog,
-  Globe,
   X,
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
@@ -23,16 +20,16 @@ function TagBadges({ tags }: { tags: StewardTag[] }) {
   const shown = tags.filter((t) => TAG_LABEL[t])
   if (shown.length === 0) return null
   return (
-    <div className="mt-0.5 flex flex-wrap gap-1">
+    <>
       {shown.map((t) => (
         <span
           key={t}
-          className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-1.5 py-px text-[10px] font-medium leading-4 text-slate-400 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500"
+          className="shrink-0 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400"
         >
           {TAG_LABEL[t]}
         </span>
       ))}
-    </div>
+    </>
   )
 }
 
@@ -44,18 +41,25 @@ function websiteFallbackForUri(uri: string): string | undefined {
   return undefined
 }
 
+/** Build a Bluesky profile URL from handle or DID. */
+function profileUrlFor(entry: { handle?: string; did?: string }): string | undefined {
+  if (entry.handle) return `https://bsky.app/profile/${entry.handle}`
+  if (entry.did) return `https://bsky.app/profile/${entry.did}`
+  return undefined
+}
+
 function StewardNameHeading({
   name,
-  websiteUrl,
+  href,
   linkVariant,
 }: {
   name: string
-  websiteUrl?: string
+  href?: string
   linkVariant: 'support' | 'discover' | 'sky' | 'network'
 }) {
   const base =
-    'min-w-0 flex-1 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100'
-  if (!websiteUrl) {
+    'min-w-0 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100'
+  if (!href) {
     return <h3 className={`${base} truncate`}>{name}</h3>
   }
   const hover =
@@ -68,9 +72,9 @@ function StewardNameHeading({
           : 'hover:text-sky-700 hover:decoration-sky-500/50 dark:hover:text-sky-400'
 
   return (
-    <h3 className="min-w-0 flex-1">
+    <h3 className="min-w-0">
       <a
-        href={websiteUrl}
+        href={href}
         target="_blank"
         rel="noreferrer"
         className={`block truncate rounded-sm underline decoration-slate-300 decoration-1 underline-offset-2 transition-colors dark:decoration-slate-600 ${base} ${hover}`}
@@ -78,6 +82,30 @@ function StewardNameHeading({
         {name}
       </a>
     </h3>
+  )
+}
+
+/** ATProto identity — shown inline right of the name, links to DID for provenance. */
+function HandleBadge({ handle, did }: { handle?: string; did?: string }) {
+  const label = handle ? `@${handle}` : did
+  if (!label) return null
+  // Always link via DID when available (stronger provenance), fall back to handle
+  const profileUrl = did
+    ? `https://bsky.app/profile/${did}`
+    : handle
+      ? `https://bsky.app/profile/${handle}`
+      : undefined
+  return profileUrl ? (
+    <a
+      href={profileUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="shrink-0 truncate text-xs text-slate-500 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-700 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-slate-200"
+    >
+      {label}
+    </a>
+  ) : (
+    <span className="shrink-0 truncate text-xs text-slate-500 dark:text-slate-400">{label}</span>
   )
 }
 
@@ -212,6 +240,9 @@ function ModalCardContent({
   const state = heartState(entry.contributeUrl, entry.dependencies, lookup)
   const websiteFallback = websiteFallbackForUri(entry.uri)
   const websiteUrl = entry.landingPage ?? websiteFallback
+  const profileUrl = profileUrlFor(entry)
+  const isTool = entry.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed')
+  const nameHref = isTool ? websiteUrl : profileUrl
 
   return (
     <div>
@@ -245,24 +276,14 @@ function ModalCardContent({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <StewardNameHeading
               name={entry.displayName}
-              websiteUrl={websiteUrl}
+              href={nameHref}
               linkVariant="support"
             />
-            {websiteUrl && (
-              <a
-                href={websiteUrl}
-                target="_blank"
-                rel="noreferrer"
-                title="Website"
-                className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              >
-                <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
-                <span className="sr-only">Website</span>
-              </a>
-            )}
+            <HandleBadge handle={entry.handle} did={entry.did} />
+            <TagBadges tags={entry.tags} />
           </div>
           {entry.description && (
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
@@ -314,16 +335,17 @@ function DependenciesSection({
     () => new Map(allEntries.map((e) => [e.uri, e])),
     [allEntries],
   )
-
   const lookup = (uri: string) => entryByUri.get(uri)
 
-  const sortedDependencies = useMemo(
-    () =>
-      [...dependencies].sort(
-        (a, b) => depRowTier(entryByUri.get(a), lookup) - depRowTier(entryByUri.get(b), lookup),
-      ),
-    [dependencies, entryByUri],
-  )
+  const sortedDeps = useMemo(() => {
+    return [...dependencies].sort((a, b) => {
+      const ea = lookup(a)
+      const eb = lookup(b)
+      const diff = depRowTier(ea, lookup) - depRowTier(eb, lookup)
+      return diff !== 0 ? diff : a.localeCompare(b)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dependencies, allEntries])
 
   async function openDep(uri: string) {
     setModal({ uri, entry: null, loading: true, error: null })
@@ -332,8 +354,8 @@ function DependenciesSection({
     }
     try {
       const res = await fetch(`/api/steward?uri=${encodeURIComponent(uri)}`)
-      const data = await res.json() as StewardEntry | { error: string }
-      if (!res.ok) throw new Error('error' in data ? data.error : 'Failed to load')
+      const data = await res.json()
+      if (!res.ok) throw new Error('error' in data ? (data as { error: string }).error : 'Failed to load')
       setModal({ uri, entry: data as StewardEntry, loading: false, error: null })
     } catch (e) {
       setModal({
@@ -357,8 +379,8 @@ function DependenciesSection({
           Depends on
         </p>
         <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-          {sortedDependencies.map((depUri) => {
-            const depEntry = entryByUri.get(depUri)
+          {sortedDeps.map((depUri) => {
+            const depEntry = lookup(depUri)
             return (
               <DependencyRow
                 key={depUri}
@@ -386,19 +408,15 @@ function DependenciesSection({
           <button
             type="button"
             onClick={closeModal}
-            className="ml-3 shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             aria-label="Close"
+            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
           >
             <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
         <div className="p-5">
-          {modal?.loading && (
-            <p className="py-6 text-center text-sm text-slate-400">Loading...</p>
-          )}
-          {modal?.error && (
-            <p className="text-sm text-red-600 dark:text-red-400">{modal.error}</p>
-          )}
+          {modal?.loading && <p className="text-sm text-slate-500">Loading…</p>}
+          {modal?.error && <p className="text-sm text-red-600 dark:text-red-400">{modal.error}</p>}
           {modal?.entry && (
             <ModalCardContent entry={modal.entry} onExpandDep={openDep} lookup={lookup} />
           )}
@@ -464,8 +482,8 @@ export function PdsHostSupportCard({
               className="flex h-14 w-14 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm transition-opacity hover:opacity-90 dark:bg-sky-600"
             >
               <DropletIcon
-                className="h-8 w-8 fill-current"
-                strokeWidth={0}
+                className="h-8 w-8"
+                strokeWidth={1.75}
                 aria-hidden
               />
               <span className="sr-only">Contribute</span>
@@ -480,33 +498,11 @@ export function PdsHostSupportCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start gap-2">
-            <StewardNameHeading
-              name={title}
-              websiteUrl={websiteUrl}
-              linkVariant="sky"
-            />
-            {websiteUrl && (
-              <a
-                href={websiteUrl}
-                target="_blank"
-                rel="noreferrer"
-                title="Website"
-                className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              >
-                <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
-                <span className="sr-only">Website</span>
-              </a>
-            )}
-            <Link
-              href="/lexicon"
-              className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              title="Maintainers"
-              aria-label="Maintainers"
-            >
-              <Cog className="h-5 w-5" strokeWidth={2} aria-hidden />
-            </Link>
-          </div>
+          <StewardNameHeading
+            name={title}
+            href={websiteUrl}
+            linkVariant="sky"
+          />
           <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
             {summary}
           </p>
@@ -539,7 +535,6 @@ export function StewardCard({
   allEntries?: StewardEntry[]
 }) {
   const variant = cardVariant(entry)
-  const isFollow = entry.tags.includes('follow')
   const contributeUrl = entry.contributeUrl
 
   const entryByUri = useMemo(
@@ -551,13 +546,7 @@ export function StewardCard({
 
   const websiteFallback = websiteFallbackForUri(entry.uri)
   const websiteUrl = entry.landingPage ?? websiteFallback
-
-  // Profile URL for follow-tagged entries
-  const profileUrl = entry.handle
-    ? `https://bsky.app/profile/${encodeURIComponent(entry.handle)}`
-    : entry.did
-      ? `https://bsky.app/profile/${encodeURIComponent(entry.did)}`
-      : undefined
+  const profileUrl = profileUrlFor(entry)
 
   if (variant === 'discover') {
     return (
@@ -572,34 +561,20 @@ export function StewardCard({
             </span>
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-start gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <StewardNameHeading
                 name={entry.displayName}
-                websiteUrl={websiteUrl}
+                href={websiteUrl}
                 linkVariant="discover"
               />
-              {websiteUrl && (
-                <a
-                  href={websiteUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Website"
-                  className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                >
-                  <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
-                  <span className="sr-only">Website</span>
-                </a>
-              )}
-              <Link
-                href="/lexicon"
-                className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                title="Maintainers"
-                aria-label="Maintainers"
-              >
-                <Cog className="h-5 w-5" strokeWidth={2} aria-hidden />
-              </Link>
+              <HandleBadge handle={entry.handle} did={entry.did} />
+              <TagBadges tags={entry.tags} />
             </div>
-            <TagBadges tags={entry.tags} />
+            {entry.description && (
+              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                {entry.description}
+              </p>
+            )}
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               Your account has saved something from this service--we don&apos;t have
               details about it yet.{' '}
@@ -642,30 +617,15 @@ export function StewardCard({
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-start gap-2">
-              <h3 className="min-w-0 flex-1">
-                {profileUrl ? (
-                  <a
-                    href={profileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block truncate rounded-sm text-base font-semibold tracking-tight text-slate-900 underline decoration-slate-300 decoration-1 underline-offset-2 transition-colors hover:text-[var(--network)] hover:decoration-[var(--network-border)] dark:text-slate-100 dark:decoration-slate-600"
-                  >
-                    {entry.displayName}
-                  </a>
-                ) : (
-                  <span className="block truncate text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-                    {entry.displayName}
-                  </span>
-                )}
-              </h3>
-              {entry.handle && (
-                <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
-                  @{entry.handle}
-                </span>
-              )}
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <StewardNameHeading
+                name={entry.displayName}
+                href={profileUrl}
+                linkVariant="network"
+              />
+              <HandleBadge handle={entry.handle} did={entry.did} />
+              <TagBadges tags={entry.tags} />
             </div>
-            <TagBadges tags={entry.tags} />
             {entry.description && (
               <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                 {entry.description}
@@ -710,47 +670,15 @@ export function StewardCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <StewardNameHeading
               name={entry.displayName}
-              websiteUrl={websiteUrl}
+              href={websiteUrl}
               linkVariant="support"
             />
-            {websiteUrl && (
-              <a
-                href={websiteUrl}
-                target="_blank"
-                rel="noreferrer"
-                title="Website"
-                className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              >
-                <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
-                <span className="sr-only">Website</span>
-              </a>
-            )}
-            {/* Show Bluesky profile link for entries that are also a follow */}
-            {isFollow && profileUrl && (
-              <a
-                href={profileUrl}
-                target="_blank"
-                rel="noreferrer"
-                title={`@${entry.handle ?? entry.did} on Bluesky`}
-                className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              >
-                <AtSign className="h-5 w-5" strokeWidth={2} aria-hidden />
-                <span className="sr-only">Bluesky profile</span>
-              </a>
-            )}
-            <Link
-              href="/lexicon"
-              className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              title="Maintainers"
-              aria-label="Maintainers"
-            >
-              <Cog className="h-5 w-5" strokeWidth={2} aria-hidden />
-            </Link>
+            <HandleBadge handle={entry.handle} did={entry.did} />
+            <TagBadges tags={entry.tags} />
           </div>
-          <TagBadges tags={entry.tags} />
           {entry.description && (
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               {entry.description}

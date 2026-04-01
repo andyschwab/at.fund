@@ -75,27 +75,42 @@ async function fetchLabelerDisplayInfo(
   return result
 }
 
+type FeedInfo = DisplayInfo & {
+  /** The at:// URI of the feed generator record. */
+  feedUri: string
+  /** The rkey portion of the feed URI. */
+  rkey: string
+}
+
 async function fetchFeedDisplayInfo(
   publicClient: Client,
   feedUris: string[],
-): Promise<Map<string, DisplayInfo>> {
-  const result = new Map<string, DisplayInfo>()
+): Promise<FeedInfo[]> {
+  const result: FeedInfo[] = []
   if (feedUris.length === 0) return result
   try {
     const data = await xrpcQuery<{
       feeds?: Array<{
+        uri?: string
         did?: string
         displayName?: string
         description?: string
-        creator?: { handle?: string }
+        creator?: { did?: string; handle?: string }
       }>
     }>(publicClient, 'app.bsky.feed.getFeedGenerators', { feeds: feedUris })
     for (const view of data.feeds ?? []) {
-      const did = view.did
-      if (!did) continue
-      result.set(did, {
-        did,
-        displayName: view.displayName ?? did,
+      const feedUri = view.uri
+      if (!feedUri) continue
+      // Extract creator DID from the AT URI (at://did:plc:xxx/app.bsky.feed.generator/rkey)
+      const m = feedUri.match(/^at:\/\/(did:[^/]+)\/[^/]+\/([^/]+)$/)
+      const creatorDid = view.creator?.did ?? m?.[1]
+      if (!creatorDid) continue
+      const rkey = m?.[2] ?? ''
+      result.push({
+        feedUri,
+        rkey,
+        did: creatorDid,
+        displayName: view.displayName ?? (rkey || creatorDid),
         description: view.description,
         handle: view.creator?.handle,
       })
@@ -112,23 +127,67 @@ async function fetchFeedDisplayInfo(
 // Per-DID resolution: fund.at → manual catalog → Bluesky profile fallback
 // ---------------------------------------------------------------------------
 
+/**
+ * Batch-resolve handles for DIDs missing them via app.bsky.actor.getProfiles.
+ * Mutates the provided DisplayInfo maps in-place.
+ */
+/**
+ * Batch-resolve handles for DIDs missing them via app.bsky.actor.getProfiles.
+ * Mutates the provided DisplayInfo items in-place.
+ */
+async function backfillHandles(
+  publicClient: Client,
+  items: DisplayInfo[],
+): Promise<void> {
+  const missing = [...new Set(items.filter((i) => !i.handle).map((i) => i.did))]
+  if (missing.length === 0) return
+
+  const BATCH = 25
+  for (let i = 0; i < missing.length; i += BATCH) {
+    const batch = missing.slice(i, i + BATCH)
+    try {
+      const data = await xrpcQuery<{
+        profiles?: Array<{ did: string; handle?: string }>
+      }>(publicClient, 'app.bsky.actor.getProfiles', { actors: batch })
+      for (const profile of data.profiles ?? []) {
+        if (!profile.handle) continue
+        for (const item of items) {
+          if (item.did === profile.did && !item.handle) {
+            item.handle = profile.handle
+          }
+        }
+      }
+    } catch (e) {
+      logger.warn('subscriptions-scan: handle backfill failed', {
+        error: e instanceof Error ? e.message : String(e),
+      })
+    }
+  }
+}
+
 async function resolveEntry(
   did: string,
   tag: StewardTag,
   fallback: DisplayInfo | undefined,
+  opts?: { landingPage?: string; uri?: string },
 ): Promise<StewardEntry> {
+  // For feeds, use the feed-specific URI so multiple feeds by the same
+  // creator remain separate cards (not merged by DID).
+  const entryUri = opts?.uri ?? did
+  const entryDid = opts?.uri ? undefined : did
+
   // Try fund.at records first
   try {
     const fundAt = await fetchFundAtForStewardDid(did)
     if (fundAt) {
       return {
-        uri: did,
-        did,
+        uri: entryUri,
+        did: entryDid,
         handle: fallback?.handle,
         tags: [tag],
         displayName: fallback?.displayName ?? did,
         description: fallback?.description,
-        landingPage: fallback?.landingPage,
+        landingPage: opts?.landingPage ?? fallback?.landingPage,
         contributeUrl: fundAt.contributeUrl,
         dependencies: fundAt.dependencies?.map((d) => d.uri),
         source: 'fund.at',
@@ -142,13 +201,13 @@ async function resolveEntry(
   const manual = lookupManualStewardRecord(did)
   if (manual) {
     return {
-      uri: did,
-      did,
+      uri: entryUri,
+      did: entryDid,
       handle: fallback?.handle,
       tags: [tag],
       displayName: fallback?.displayName ?? did,
       description: fallback?.description,
-      landingPage: fallback?.landingPage,
+      landingPage: opts?.landingPage ?? fallback?.landingPage,
       contributeUrl: manual.contributeUrl,
       dependencies: manual.dependencies,
       source: 'manual',
@@ -157,13 +216,13 @@ async function resolveEntry(
 
   // Fall back to Bluesky profile data
   return {
-    uri: did,
-    did,
+    uri: entryUri,
+    did: entryDid,
     handle: fallback?.handle,
     tags: [tag],
     displayName: fallback?.displayName ?? did,
     description: fallback?.description,
-    landingPage: fallback?.landingPage,
+    landingPage: opts?.landingPage ?? fallback?.landingPage,
     source: 'unknown',
   }
 }
@@ -224,30 +283,28 @@ export async function scanSubscriptions(
     return { entries: [], labelerCount: 0, feedCount: 0 }
   }
 
-  const [labelerInfo, feedInfo] = await Promise.all([
+  const [labelerInfo, feedInfoList] = await Promise.all([
     fetchLabelerDisplayInfo(publicClient, labelerDids),
     fetchFeedDisplayInfo(publicClient, feedUris),
   ])
 
-  const feedRkeyByDid = new Map<string, string>()
-  for (const uri of feedUris) {
-    const m = uri.match(/^at:\/\/(did:[^/]+)\/[^/]+\/([^/]+)$/)
-    if (m) feedRkeyByDid.set(m[1]!, m[2]!)
-  }
-
-  const feedDids = [
-    ...new Set([...feedRkeyByDid.keys(), ...feedInfo.keys()]),
-  ]
+  // Resolve handles for any creators missing them
+  const labelerInfoValues = [...labelerInfo.values()]
+  await backfillHandles(publicClient, [...labelerInfoValues, ...feedInfoList])
 
   const [labelerEntries, feedEntries] = await Promise.all([
     runWithConcurrency(labelerDids, CONCURRENCY, (did) =>
       resolveEntry(did, 'labeler', labelerInfo.get(did)),
     ),
-    runWithConcurrency(feedDids, CONCURRENCY, (did) => {
-      const fallback = feedInfo.get(did) ?? (feedRkeyByDid.has(did)
-        ? { did, displayName: feedRkeyByDid.get(did)! }
-        : undefined)
-      return resolveEntry(did, 'feed', fallback)
+    runWithConcurrency(feedInfoList, CONCURRENCY, (feed) => {
+      // Build a bsky.app link to the feed
+      const feedLandingPage = feed.handle
+        ? `https://bsky.app/profile/${feed.handle}/feed/${feed.rkey}`
+        : `https://bsky.app/profile/${feed.did}/feed/${feed.rkey}`
+      return resolveEntry(feed.did, 'feed', feed, {
+        landingPage: feedLandingPage,
+        uri: feed.feedUri,
+      })
     }),
   ])
 

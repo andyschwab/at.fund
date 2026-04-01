@@ -58,13 +58,21 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
     ?? (!incoming.uri.startsWith('did:') ? incoming.uri : null)
     ?? base.uri
 
+  // Prefer a meaningful displayName over a DID-shaped one
+  const displayName =
+    (preferred.displayName && !preferred.displayName.startsWith('did:'))
+      ? preferred.displayName
+      : (other.displayName && !other.displayName.startsWith('did:'))
+        ? other.displayName
+        : preferred.displayName ?? other.displayName
+
   return {
     uri,
     did: base.did ?? incoming.did,
     handle: base.handle ?? incoming.handle,
     tags,
     source,
-    displayName: preferred.displayName ?? other.displayName,
+    displayName,
     description: preferred.description ?? other.description,
     landingPage: preferred.landingPage ?? other.landingPage,
     contributeUrl,
