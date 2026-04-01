@@ -44,12 +44,9 @@ export const SCOPE = [
   'repo:fund.at.disclosure',
   'repo:fund.at.contribute',
   'repo:fund.at.dependencies',
-  // Bluesky AppView RPCs needed for subscriptions scan.
-  // The PDS only grants scopes with aud=did:web:api.bsky.app#bsky_appview
-  // (it silently drops the no-fragment variant).
+  // getPreferences is proxied through the PDS and requires an rpc: scope.
+  // getServices/getFeedGenerators use the public API so no scope needed.
   'rpc:app.bsky.actor.getPreferences?aud=did:web:api.bsky.app%23bsky_appview',
-  'rpc:app.bsky.labeler.getServices?aud=did:web:api.bsky.app%23bsky_appview',
-  'rpc:app.bsky.feed.getFeedGenerators?aud=did:web:api.bsky.app%23bsky_appview',
 ].join(' ')
 
 const globalAuth = globalThis as unknown as {

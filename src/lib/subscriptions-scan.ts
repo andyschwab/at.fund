@@ -1,4 +1,4 @@
-import { Agent } from '@atproto/api'
+import { Client } from '@atproto/lex'
 import type { OAuthSession } from '@atproto/oauth-client'
 import type { StewardEntry, StewardTag } from '@/lib/steward-model'
 import { lookupManualStewardRecord } from '@/lib/catalog'
@@ -6,6 +6,7 @@ import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { logger } from '@/lib/logger'
 
 const CONCURRENCY = 8
+const PUBLIC_API = 'https://public.api.bsky.app'
 
 async function runWithConcurrency<T, R>(
   items: T[],
@@ -29,6 +30,35 @@ async function runWithConcurrency<T, R>(
 }
 
 // ---------------------------------------------------------------------------
+// XRPC helpers — raw fetch through the lex Client
+// ---------------------------------------------------------------------------
+
+async function xrpcQuery<T>(
+  client: Client,
+  nsid: string,
+  params: Record<string, string | string[] | boolean | number>,
+): Promise<T> {
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (Array.isArray(v)) {
+      for (const item of v) qs.append(k, item)
+    } else {
+      qs.set(k, String(v))
+    }
+  }
+  const path = `/xrpc/${nsid}?${qs.toString()}` as `/${string}`
+  const res = await client.fetchHandler(path, {
+    method: 'GET',
+    headers: new Headers(),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`${nsid}: ${res.status} ${body}`)
+  }
+  return (await res.json()) as T
+}
+
+// ---------------------------------------------------------------------------
 // Display-info helpers
 // ---------------------------------------------------------------------------
 
@@ -42,27 +72,29 @@ type DisplayInfo = {
 
 /**
  * Batch-fetch Bluesky labeler service views for a list of DIDs.
- * Returns a map of DID → DisplayInfo (only for DIDs that resolve).
+ * Uses the public API — no auth or rpc: scope needed.
  */
 async function fetchLabelerDisplayInfo(
-  agent: Agent,
+  publicClient: Client,
   dids: string[],
 ): Promise<Map<string, DisplayInfo>> {
   const result = new Map<string, DisplayInfo>()
   if (dids.length === 0) return result
   try {
-    const res = await agent.app.bsky.labeler.getServices({
+    const data = await xrpcQuery<{
+      views?: Array<{
+        creator?: { did: string; displayName?: string; description?: string; handle?: string }
+      }>
+    }>(publicClient, 'app.bsky.labeler.getServices', {
       dids,
       detailed: false,
     })
-    for (const view of res.data.views ?? []) {
-      if (!('creator' in view)) continue
+    for (const view of data.views ?? []) {
       const creator = view.creator
       if (!creator) continue
-      const did = creator.did
-      result.set(did, {
-        did,
-        displayName: creator.displayName ?? creator.handle,
+      result.set(creator.did, {
+        did: creator.did,
+        displayName: creator.displayName ?? creator.handle ?? creator.did,
         description: creator.description,
         handle: creator.handle,
       })
@@ -77,26 +109,31 @@ async function fetchLabelerDisplayInfo(
 
 /**
  * Batch-fetch Bluesky feed generator views for a list of AT-URIs.
- * Returns a map of DID → DisplayInfo (only for feeds that resolve).
+ * Uses the public API — no auth or rpc: scope needed.
  */
 async function fetchFeedDisplayInfo(
-  agent: Agent,
+  publicClient: Client,
   feedUris: string[],
 ): Promise<Map<string, DisplayInfo>> {
   const result = new Map<string, DisplayInfo>()
   if (feedUris.length === 0) return result
   try {
-    const res = await agent.app.bsky.feed.getFeedGenerators({ feeds: feedUris })
-    for (const view of res.data.feeds ?? []) {
+    const data = await xrpcQuery<{
+      feeds?: Array<{
+        did?: string
+        displayName?: string
+        description?: string
+        creator?: { handle?: string }
+      }>
+    }>(publicClient, 'app.bsky.feed.getFeedGenerators', { feeds: feedUris })
+    for (const view of data.feeds ?? []) {
       const did = view.did
       if (!did) continue
       result.set(did, {
         did,
-        displayName: view.displayName,
+        displayName: view.displayName ?? did,
         description: view.description,
         handle: view.creator?.handle,
-        // Feed generators don't have a canonical landing page in the API —
-        // callers can derive one from the AT-URI if needed.
       })
     }
   } catch (e) {
@@ -191,37 +228,43 @@ export type SubscriptionScanResult = {
  *   - Labeler services they subscribe to (tag: 'labeler')
  *   - Feed generators they have saved/pinned (tag: 'feed')
  *
- * For each, attempts fund.at record lookup, manual catalog fallback,
- * then Bluesky profile data as a last resort for display info.
+ * Uses the authenticated session for getPreferences (user-private data)
+ * and the public Bluesky API for getServices/getFeedGenerators (public data).
  */
 export async function scanSubscriptions(
   session: OAuthSession,
 ): Promise<SubscriptionScanResult> {
-  // Log granted scopes so we can diagnose scope issues
-  try {
-    const tokenInfo = await session.getTokenInfo()
-    logger.info('subscriptions-scan: token scope', { scope: tokenInfo.scope })
-  } catch (e) {
-    logger.warn('subscriptions-scan: could not read token info', {
-      error: e instanceof Error ? e.message : String(e),
-    })
-  }
+  // Authenticated client with AppView proxy for getPreferences
+  const authClient = new Client(session, {
+    service: 'did:web:api.bsky.app#bsky_appview',
+  })
 
-  const agent = new Agent(session)
-  agent.configureProxy('did:web:api.bsky.app#bsky_appview')
+  // Public client for labeler/feed display info (no scope needed)
+  const publicClient = new Client(PUBLIC_API)
 
-  // Fetch preferences via the high-level SDK helper
+  // Fetch preferences via authenticated session
   let labelerDids: string[] = []
   let feedUris: string[] = []
 
   try {
-    const prefs = await agent.getPreferences()
+    const prefs = await xrpcQuery<{
+      preferences: Array<{
+        $type: string
+        labelers?: Array<{ did: string }>
+        saved?: Array<{ type: string; value: string }>
+      }>
+    }>(authClient, 'app.bsky.actor.getPreferences', {})
 
-    labelerDids = prefs.moderationPrefs.labelers.map((l) => l.did)
-
-    feedUris = prefs.savedFeeds
-      .filter((f) => f.type === 'feed')
-      .map((f) => f.value)
+    for (const pref of prefs.preferences) {
+      if (pref.$type === 'app.bsky.actor.defs#labelersPref' && pref.labelers) {
+        labelerDids = pref.labelers.map((l) => l.did)
+      }
+      if (pref.$type === 'app.bsky.actor.defs#savedFeedsPrefV2' && pref.saved) {
+        feedUris = pref.saved
+          .filter((f) => f.type === 'feed')
+          .map((f) => f.value)
+      }
+    }
   } catch (e) {
     logger.warn('subscriptions-scan: failed to fetch preferences', {
       error: e instanceof Error ? e.message : String(e),
@@ -238,10 +281,10 @@ export async function scanSubscriptions(
     return { entries: [], labelerCount: 0, feedCount: 0 }
   }
 
-  // Batch-fetch display info for both types in parallel
+  // Batch-fetch display info for both types in parallel (public API)
   const [labelerInfo, feedInfo] = await Promise.all([
-    fetchLabelerDisplayInfo(agent, labelerDids),
-    fetchFeedDisplayInfo(agent, feedUris),
+    fetchLabelerDisplayInfo(publicClient, labelerDids),
+    fetchFeedDisplayInfo(publicClient, feedUris),
   ])
 
   // Build DID → rkey map from AT-URIs (at://did:.../app.bsky.feed.generator/rkey).
@@ -254,7 +297,6 @@ export async function scanSubscriptions(
 
   // Build feed DID list: start with DIDs parsed directly from the saved AT-URIs
   // so feeds that getFeedGenerators failed to resolve still produce entries.
-  // feedInfo is used for display enrichment only — not as the source of truth.
   const feedDids = [
     ...new Set([...feedRkeyByDid.keys(), ...feedInfo.keys()]),
   ]
