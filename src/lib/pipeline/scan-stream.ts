@@ -79,7 +79,7 @@ export async function scanStreaming(
   }
 
   // ── Phase 4: Dependencies ──────────────────────────────────────────────
-  resolveDependencies(allEntries, (entry) => {
+  await resolveDependencies(allEntries, (entry) => {
     emit({ type: 'referenced', entry })
   })
 
