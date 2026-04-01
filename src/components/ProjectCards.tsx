@@ -6,7 +6,8 @@ import type { PdsHostFunding } from '@/lib/atfund-steward'
 import Link from 'next/link'
 import {
   ArrowRight,
-  Pin,
+  BadgeCheck,
+  BadgePlus,
   X,
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
@@ -588,19 +589,19 @@ function EndorseButton({
         e.stopPropagation()
         handler(uri)
       }}
-      title={endorsed ? 'Unpin from Your Stack' : 'Pin to Your Stack'}
-      className={`ml-auto shrink-0 rounded-md p-1 transition-colors ${
+      title={endorsed ? 'Remove from Your Stack' : 'Endorse and add to Your Stack'}
+      className={`ml-auto shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
         endorsed
-          ? 'text-[var(--support)] hover:bg-[var(--support-muted)]'
-          : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100 dark:text-slate-600 dark:hover:text-slate-400 dark:hover:bg-slate-800'
+          ? 'text-[var(--support)] bg-[var(--support-muted)] hover:bg-[var(--support-muted)]/80'
+          : 'text-slate-400 hover:text-[var(--support)] hover:bg-[var(--support-muted)] dark:text-slate-500 dark:hover:text-[var(--support)]'
       }`}
     >
-      <Pin
-        className={`h-4 w-4 ${endorsed ? 'fill-current' : ''}`}
-        strokeWidth={endorsed ? 2 : 1.5}
-        aria-hidden
-      />
-      <span className="sr-only">{endorsed ? 'Unpin' : 'Pin to Your Stack'}</span>
+      {endorsed ? (
+        <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+      ) : (
+        <BadgePlus className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+      )}
+      {endorsed ? 'Endorsed' : 'Endorse'}
     </button>
   )
 }

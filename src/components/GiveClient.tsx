@@ -11,8 +11,9 @@ import {
 } from '@/components/ProjectCards'
 import {
   AlertCircle,
+  BadgeCheck,
+  BadgePlus,
   ExternalLink,
-  Pin,
   PlusCircle,
   RefreshCw,
 } from 'lucide-react'
@@ -317,15 +318,20 @@ export function GiveClient() {
         {/* ── Your Stack ─────────────────────────────────────────── */}
         <section className="rounded-2xl border border-slate-200 bg-white/60 p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/40">
           <div className="mb-4 flex items-center gap-2">
-            <Pin className="h-5 w-5 text-[var(--support)]" aria-hidden />
+            <BadgeCheck className="h-5 w-5 text-[var(--support)]" aria-hidden />
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               Your Stack
             </h2>
           </div>
           {!hasStackContent && !loading && (
             <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-              Pin the projects you use and value. They&apos;ll appear here and your
-              endorsement is visible to the network.
+              Endorse the projects you use and value. Click{' '}
+              <span className="inline-flex items-center gap-0.5 font-medium text-slate-600 dark:text-slate-300">
+                <BadgePlus className="inline h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+                Endorse
+              </span>{' '}
+              on any project below to add it here. Your endorsements are
+              visible to the network.
             </p>
           )}
 
@@ -352,7 +358,7 @@ export function GiveClient() {
             {/* Add by name input */}
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/20">
               <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
-                Know a project not listed? Add by name, handle, or DID.
+                Want to endorse a project not listed below? Add it by name, handle, or DID.
               </p>
               <div className="flex max-w-xl flex-col gap-2 sm:flex-row">
                 <input
