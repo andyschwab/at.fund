@@ -2,14 +2,14 @@
 
 import Link from 'next/link'
 import {
+  AppWindow,
   ArrowRight,
-  BookOpen,
-  CreditCard,
-  ExternalLink,
-  GitBranch,
+  Banknote,
+  HardHat,
   HeartHandshake,
   LogIn,
-  Wrench,
+  User,
+  Users,
 } from 'lucide-react'
 import { useSession } from '@/components/SessionContext'
 
@@ -75,17 +75,20 @@ export function LandingPage() {
           )}
         </div>
 
-        {/* ── Three audiences ──────────────────────────────────────────── */}
-        <div className="grid gap-4 sm:grid-cols-3">
+        {/* ── Four audiences ───────────────────────────────────────────── */}
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
 
           {/* Users */}
           <div className="flex flex-col gap-4 rounded-2xl border border-[var(--discover-border)] bg-[var(--discover-muted)] p-6">
-            <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--discover-border)] bg-white/70 text-[var(--discover)] dark:bg-slate-900/60"
-              aria-hidden
-            >
-              <CreditCard className="h-5 w-5" strokeWidth={1.75} />
-            </span>
+            <div className="flex items-center justify-center gap-2" aria-hidden>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--discover-border)] bg-white/70 text-[var(--discover)] dark:bg-slate-900/60">
+                <User className="h-5 w-5" strokeWidth={1.75} />
+              </span>
+              <HeartHandshake className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" strokeWidth={1.75} />
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--discover-border)] bg-white/70 text-[var(--discover)] dark:bg-slate-900/60">
+                <HardHat className="h-5 w-5" strokeWidth={1.75} />
+              </span>
+            </div>
             <div className="flex flex-col gap-2">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
                 Pay the builders you rely on
@@ -100,12 +103,15 @@ export function LandingPage() {
 
           {/* Communities */}
           <div className="flex flex-col gap-4 rounded-2xl border border-[var(--network-border)] bg-[var(--network-muted)] p-6">
-            <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--network-border)] bg-white/70 text-[var(--network)] dark:bg-slate-900/60"
-              aria-hidden
-            >
-              <GitBranch className="h-5 w-5" strokeWidth={1.75} />
-            </span>
+            <div className="flex items-center justify-center gap-2" aria-hidden>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--network-border)] bg-white/70 text-[var(--network)] dark:bg-slate-900/60">
+                <Users className="h-5 w-5" strokeWidth={1.75} />
+              </span>
+              <HeartHandshake className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" strokeWidth={1.75} />
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--network-border)] bg-white/70 text-[var(--network)] dark:bg-slate-900/60">
+                <HardHat className="h-5 w-5" strokeWidth={1.75} />
+              </span>
+            </div>
             <div className="flex flex-col gap-2">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
                 Help the builders your people depend on get paid
@@ -128,12 +134,15 @@ export function LandingPage() {
 
           {/* Builders */}
           <div className="flex flex-col gap-4 rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] p-6">
-            <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--support-border)] bg-white/70 text-[var(--support)] dark:bg-slate-900/60"
-              aria-hidden
-            >
-              <Wrench className="h-5 w-5" strokeWidth={1.75} />
-            </span>
+            <div className="flex items-center justify-center gap-2" aria-hidden>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--support-border)] bg-white/70 text-[var(--support)] dark:bg-slate-900/60">
+                <Banknote className="h-5 w-5" strokeWidth={1.75} />
+              </span>
+              <HeartHandshake className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" strokeWidth={1.75} />
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--support-border)] bg-white/70 text-[var(--support)] dark:bg-slate-900/60">
+                <HardHat className="h-5 w-5" strokeWidth={1.75} />
+              </span>
+            </div>
             <div className="flex flex-col gap-2">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
                 Make it easy for users to pay you
@@ -152,36 +161,37 @@ export function LandingPage() {
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </div>
-        </div>
 
-        {/* ── Apps / lexicon callout ────────────────────────────────────── */}
-        <div className="mx-auto w-full max-w-2xl rounded-2xl border border-slate-200 bg-slate-50/60 p-6 dark:border-slate-800 dark:bg-slate-900/40">
-          <div className="flex gap-4">
-            <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400"
-              aria-hidden
-            >
-              <BookOpen className="h-5 w-5" strokeWidth={2} />
-            </span>
-            <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                Building with ATProto?
-              </h2>
-              <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                The fund.at lexicon is open. Use it to surface contribution info
-                inside your own app — display funding options alongside the
-                tools your users already have installed, without routing them
-                through this site.
-              </p>
-              <a
-                href="/lexicon"
-                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 transition-opacity hover:opacity-80 dark:text-slate-300"
-              >
-                Read the lexicon
-                <ExternalLink className="h-4 w-4" aria-hidden />
-              </a>
+          {/* App builders */}
+          <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-6 dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="flex items-center justify-center gap-2" aria-hidden>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white/70 text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400">
+                <AppWindow className="h-5 w-5" strokeWidth={1.75} />
+              </span>
+              <HeartHandshake className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" strokeWidth={1.75} />
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white/70 text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400">
+                <User className="h-5 w-5" strokeWidth={1.75} />
+              </span>
             </div>
+            <div className="flex flex-col gap-2">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                Surface funding inside your app
+              </h2>
+              <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                The fund.at lexicon is open. Display funding options alongside
+                the tools your users already have installed — no routing through
+                this site required.
+              </p>
+            </div>
+            <Link
+              href="/lexicon"
+              className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 transition-opacity hover:opacity-80 dark:text-slate-300"
+            >
+              Read the lexicon
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
           </div>
+
         </div>
 
       </div>
