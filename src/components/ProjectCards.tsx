@@ -6,6 +6,7 @@ import type { PdsHostFunding } from '@/lib/atfund-steward'
 import Link from 'next/link'
 import {
   ArrowRight,
+  Pin,
   X,
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
@@ -566,12 +567,56 @@ export function PdsHostSupportCard({
  * When an entry carries both a primary tag (tool/labeler/feed) and a follow
  * tag, the support variant is used and a Bluesky profile link is shown.
  */
+function EndorseButton({
+  endorsed,
+  onEndorse,
+  onUnendorse,
+  uri,
+}: {
+  endorsed?: boolean
+  onEndorse?: (uri: string) => void
+  onUnendorse?: (uri: string) => void
+  uri: string
+}) {
+  if (!onEndorse && !onUnendorse) return null
+  const handler = endorsed ? onUnendorse : onEndorse
+  if (!handler) return null
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        handler(uri)
+      }}
+      title={endorsed ? 'Unpin from Your Stack' : 'Pin to Your Stack'}
+      className={`ml-auto shrink-0 rounded-md p-1 transition-colors ${
+        endorsed
+          ? 'text-[var(--support)] hover:bg-[var(--support-muted)]'
+          : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100 dark:text-slate-600 dark:hover:text-slate-400 dark:hover:bg-slate-800'
+      }`}
+    >
+      <Pin
+        className={`h-4 w-4 ${endorsed ? 'fill-current' : ''}`}
+        strokeWidth={endorsed ? 2 : 1.5}
+        aria-hidden
+      />
+      <span className="sr-only">{endorsed ? 'Unpin' : 'Pin to Your Stack'}</span>
+    </button>
+  )
+}
+
 export function StewardCard({
   entry,
   allEntries = [],
+  endorsed,
+  onEndorse,
+  onUnendorse,
 }: {
   entry: StewardEntry
   allEntries?: StewardEntry[]
+  endorsed?: boolean
+  onEndorse?: (uri: string) => void
+  onUnendorse?: (uri: string) => void
 }) {
   const variant = cardVariant(entry)
   const contributeUrl = entry.contributeUrl
@@ -608,6 +653,7 @@ export function StewardCard({
               />
               <HandleBadge handle={entry.handle} did={entry.did} />
               <TagBadges tags={entry.tags} />
+              <EndorseButton endorsed={endorsed} onEndorse={onEndorse} onUnendorse={onUnendorse} uri={entry.uri} />
             </div>
             {entry.description && (
               <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
@@ -664,6 +710,7 @@ export function StewardCard({
               />
               <HandleBadge handle={entry.handle} did={entry.did} />
               <TagBadges tags={entry.tags} />
+              <EndorseButton endorsed={endorsed} onEndorse={onEndorse} onUnendorse={onUnendorse} uri={entry.uri} />
             </div>
             {entry.description && (
               <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
@@ -717,6 +764,7 @@ export function StewardCard({
             />
             <HandleBadge handle={entry.handle} did={entry.did} />
             <TagBadges tags={entry.tags} />
+            <EndorseButton endorsed={endorsed} onEndorse={onEndorse} onUnendorse={onUnendorse} uri={entry.uri} />
           </div>
           {entry.description && (
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">

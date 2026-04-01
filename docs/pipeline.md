@@ -228,6 +228,6 @@ src/
 
 - `fund.at.contribute` — funding page URL (singleton, rkey `self`)
 - `fund.at.dependency` — upstream dependency entries (rkey TID)
-- `fund.at.watch` — watchlist entries (rkey TID)
+- `fund.at.endorse` — endorsement entries (rkey TID)
 
 See the in-app lexicon page (`/lexicon`) for full schema documentation.

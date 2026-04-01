@@ -6,7 +6,7 @@ import { xrpcQuery } from '@/lib/xrpc'
 
 export const FUND_CONTRIBUTE = 'fund.at.contribute'
 export const FUND_DEPENDENCY = 'fund.at.dependency'
-export const FUND_WATCH = 'fund.at.watch'
+export const FUND_ENDORSE = 'fund.at.endorse'
 
 const PUBLIC_IDENTITY = 'https://public.api.bsky.app'
 const publicClient = new Client(PUBLIC_IDENTITY)
@@ -184,6 +184,24 @@ export async function fetchFundAtRecords(
 // Authenticated read: use the session to list the user's own records directly,
 // bypassing public API identity resolution.
 // ---------------------------------------------------------------------------
+
+/**
+ * Fetches the user's own fund.at.endorse records — returns the endorsed URIs.
+ */
+export async function fetchOwnEndorsements(
+  session: OAuthSession,
+): Promise<string[]> {
+  const client = new Client(session)
+  try {
+    const res = await client.listRecords(FUND_ENDORSE, { limit: 100 })
+    const values = collectRecordValues(res.body.records as { value: unknown }[])
+    return values
+      .map((v) => (typeof v.uri === 'string' ? v.uri.trim() : ''))
+      .filter(Boolean)
+  } catch {
+    return []
+  }
+}
 
 export async function fetchOwnFundAtRecords(
   session: OAuthSession,

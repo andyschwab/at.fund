@@ -61,7 +61,7 @@ vi.mock('@/lib/atfund-uri', () => ({
 vi.mock('@/lib/fund-at-records', () => ({
   FUND_CONTRIBUTE: 'fund.at.contribute',
   FUND_DEPENDENCY: 'fund.at.dependency',
-  FUND_WATCH: 'fund.at.watch',
+  FUND_ENDORSE: 'fund.at.endorse',
   resolveHandleFromDid: vi.fn().mockResolvedValue(undefined),
   resolveDidFromIdentifier: vi.fn().mockResolvedValue(undefined),
   resolvePdsUrl: vi.fn().mockResolvedValue(null),

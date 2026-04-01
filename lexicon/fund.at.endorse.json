@@ -1,11 +1,11 @@
 {
   "lexicon": 1,
-  "id": "fund.at.watch",
-  "description": "A watchlist entry. The author wants to track the funding status of the referenced entity.",
+  "id": "fund.at.endorse",
+  "description": "An endorsement entry. The author publicly signals they use or value the referenced entity.",
   "defs": {
     "main": {
       "type": "record",
-      "description": "A single watchlist pointer.",
+      "description": "A single endorsement pointer.",
       "key": "tid",
       "record": {
         "type": "object",
@@ -13,12 +13,12 @@
         "properties": {
           "uri": {
             "type": "string",
-            "description": "The watched entity: a DID (did:plc:..., did:web:...) or a hostname (example.com)."
+            "description": "The endorsed entity: a DID (did:plc:..., did:web:...) or a hostname (example.com)."
           },
           "createdAt": {
             "type": "string",
             "format": "datetime",
-            "description": "When this watch was created."
+            "description": "When this endorsement was created."
           }
         }
       }

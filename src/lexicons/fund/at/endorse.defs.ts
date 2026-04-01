@@ -4,23 +4,23 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'fund.at.watch'
+const $nsid = 'fund.at.endorse'
 
 export { $nsid }
 
-/** A single watchlist pointer. */
+/** A single endorsement pointer. */
 type Main = {
-  $type: 'fund.at.watch'
+  $type: 'fund.at.endorse'
 
-  /** The watched entity: a DID (did:plc:..., did:web:...) or a hostname (example.com). */
+  /** The endorsed entity: a DID (did:plc:..., did:web:...) or a hostname (example.com). */
   uri: string
-  /** When this watch was created. */
+  /** When this endorsement was created. */
   createdAt?: l.DatetimeString
 }
 
 export type { Main }
 
-/** A single watchlist pointer. */
+/** A single endorsement pointer. */
 const main = l.record<'tid', Main>(
   'tid',
   $nsid,

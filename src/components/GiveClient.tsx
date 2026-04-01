@@ -12,6 +12,7 @@ import {
 import {
   AlertCircle,
   ExternalLink,
+  Pin,
   PlusCircle,
   RefreshCw,
 } from 'lucide-react'
@@ -26,6 +27,7 @@ type ScanCache = {
   referencedEntries: StewardEntry[]
   warnings: ScanWarning[]
   pdsHostFunding: PdsHostFunding | undefined
+  endorsedUris: Set<string>
 }
 
 let _scanCache: ScanCache | null = null
@@ -46,6 +48,10 @@ function entryTier(e: StewardEntry): number {
   return 2
 }
 
+function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
+  return uris.has(e.uri) || uris.has(e.did ?? '')
+}
+
 export function GiveClient() {
   const [loading, setLoading] = useState(false)
   const [selfReport, setSelfReport] = useState('')
@@ -57,6 +63,7 @@ export function GiveClient() {
   const [referencedEntries, setReferencedEntries] = useState<StewardEntry[]>([])
   const [warnings, setWarnings] = useState<ScanWarning[]>([])
   const [pdsHostFunding, setPdsHostFunding] = useState<PdsHostFunding | undefined>()
+  const [endorsedUris, setEndorsedUris] = useState<Set<string>>(new Set())
   const [scanDone, setScanDone] = useState(false)
   const [scanStatus, setScanStatus] = useState<string>('')
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
@@ -75,14 +82,24 @@ export function GiveClient() {
     })
   }, [entries])
 
+  // Split into endorsed (Your Stack) and discovered (main list)
+  const endorsedEntries = useMemo(
+    () => visibleEntries.filter((e) => isEndorsed(e, endorsedUris)),
+    [visibleEntries, endorsedUris],
+  )
+  const discoveredEntries = useMemo(
+    () => visibleEntries.filter((e) => !isEndorsed(e, endorsedUris)),
+    [visibleEntries, endorsedUris],
+  )
+
   const filteredEntries = useMemo(() => {
-    if (activeTag === 'all') return visibleEntries
-    return visibleEntries.filter((e) => e.tags.includes(activeTag))
-  }, [visibleEntries, activeTag])
+    if (activeTag === 'all') return discoveredEntries
+    return discoveredEntries.filter((e) => e.tags.includes(activeTag))
+  }, [discoveredEntries, activeTag])
 
   const tagCounts = useMemo(() => {
     const counts: Partial<Record<TagFilter, number>> = {}
-    for (const e of visibleEntries) {
+    for (const e of discoveredEntries) {
       for (const t of e.tags) {
         if (t === 'tool' || t === 'labeler' || t === 'feed' || t === 'follow') {
           counts[t] = (counts[t] ?? 0) + 1
@@ -90,12 +107,57 @@ export function GiveClient() {
       }
     }
     return counts
-  }, [visibleEntries])
+  }, [discoveredEntries])
 
   const allEntriesForLookup = useMemo(
     () => [...entries, ...referencedEntries],
     [entries, referencedEntries],
   )
+
+  // Endorse / unendorse handlers
+  const handleEndorse = useCallback(async (uri: string) => {
+    setEndorsedUris((prev) => new Set([...prev, uri]))
+    try {
+      const res = await fetch('/api/endorse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uri }),
+      })
+      if (!res.ok) {
+        setEndorsedUris((prev) => {
+          const next = new Set(prev)
+          next.delete(uri)
+          return next
+        })
+      }
+    } catch {
+      setEndorsedUris((prev) => {
+        const next = new Set(prev)
+        next.delete(uri)
+        return next
+      })
+    }
+  }, [])
+
+  const handleUnendorse = useCallback(async (uri: string) => {
+    setEndorsedUris((prev) => {
+      const next = new Set(prev)
+      next.delete(uri)
+      return next
+    })
+    try {
+      const res = await fetch('/api/endorse', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uri }),
+      })
+      if (!res.ok) {
+        setEndorsedUris((prev) => new Set([...prev, uri]))
+      }
+    } catch {
+      setEndorsedUris((prev) => new Set([...prev, uri]))
+    }
+  }, [])
 
   const runStreamingScan = useCallback(async (extra: string[]) => {
     _scanCache = null
@@ -107,6 +169,7 @@ export function GiveClient() {
     setReferencedEntries([])
     setWarnings([])
     setPdsHostFunding(undefined)
+    setEndorsedUris(new Set())
     setErr(null)
     setActiveTag('all')
     entryIndexRef.current = new EntryIndex()
@@ -148,6 +211,8 @@ export function GiveClient() {
             setMeta({ did: event.did, handle: event.handle, pdsUrl: event.pdsUrl })
           } else if (event.type === 'status') {
             setScanStatus(event.message)
+          } else if (event.type === 'endorsed') {
+            setEndorsedUris(new Set(event.uris))
           } else if (event.type === 'entry') {
             entryIndexRef.current.upsert(event.entry)
             setEntries(entryIndexRef.current.toArray())
@@ -180,7 +245,7 @@ export function GiveClient() {
   // Save completed scan to cache
   useEffect(() => {
     if (!scanDone) return
-    _scanCache = { meta, entries, referencedEntries, warnings, pdsHostFunding }
+    _scanCache = { meta, entries, referencedEntries, warnings, pdsHostFunding, endorsedUris }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanDone])
 
@@ -192,6 +257,7 @@ export function GiveClient() {
       setReferencedEntries(_scanCache.referencedEntries)
       setWarnings(_scanCache.warnings)
       setPdsHostFunding(_scanCache.pdsHostFunding)
+      setEndorsedUris(_scanCache.endorsedUris)
       setScanDone(true)
       return
     }
@@ -208,6 +274,7 @@ export function GiveClient() {
 
   const pdsUrl = meta?.pdsUrl
   const filterableTagCount = TAG_FILTER_LABELS.filter(({ tag }) => (tagCounts[tag] ?? 0) > 0).length
+  const hasStackContent = !!pdsUrl || endorsedEntries.length > 0
 
   return (
     <div className="page-wash min-h-full">
@@ -225,7 +292,7 @@ export function GiveClient() {
               className={`h-4 w-4 shrink-0 ${loading ? 'animate-spin' : ''}`}
               aria-hidden
             />
-            {loading ? 'Scanning…' : 'Refresh'}
+            {loading ? 'Scanning\u2026' : 'Refresh'}
           </button>
           {meta?.did && (
             <a
@@ -247,42 +314,65 @@ export function GiveClient() {
           )}
         </div>
 
-        {/* PDS host card */}
-        {pdsUrl && (
-          <PdsHostSupportCard
-            pdsHostname={new URL(pdsUrl).hostname}
-            funding={pdsHostFunding}
-          />
-        )}
-
-        {/* Add more tools / Watch list */}
-        <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-5 dark:border-slate-700 dark:bg-slate-900/30">
-          <div className="mb-3 flex items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
-            <PlusCircle className="h-5 w-5 text-[var(--support)]" aria-hidden />
-            Add to my watch list
+        {/* ── Your Stack ─────────────────────────────────────────── */}
+        <section className="rounded-2xl border border-slate-200 bg-white/60 p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/40">
+          <div className="mb-4 flex items-center gap-2">
+            <Pin className="h-5 w-5 text-[var(--support)]" aria-hidden />
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              Your Stack
+            </h2>
           </div>
-          <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
-            Paste extra names your developer or app gave you, even if
-            they&apos;re not in your saved data yet. Separate with spaces or
-            commas.
-          </p>
-          <div className="flex max-w-xl flex-col gap-2 sm:flex-row">
-            <input
-              type="text"
-              value={selfReport}
-              onChange={(e) => setSelfReport(e.target.value)}
-              placeholder="e.g. whtwnd.com or did:plc:..."
-              className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
-            />
-            <button
-              type="button"
-              onClick={() => runStreamingScan(parseSelfReportInput())}
-              disabled={loading}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
-            >
-              <PlusCircle className="h-4 w-4" aria-hidden />
-              Add to list
-            </button>
+          {!hasStackContent && !loading && (
+            <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+              Pin the projects you use and value. They&apos;ll appear here and your
+              endorsement is visible to the network.
+            </p>
+          )}
+
+          <div className="flex flex-col gap-4">
+            {/* PDS host card */}
+            {pdsUrl && (
+              <PdsHostSupportCard
+                pdsHostname={new URL(pdsUrl).hostname}
+                funding={pdsHostFunding}
+              />
+            )}
+
+            {/* Endorsed entries */}
+            {endorsedEntries.map((entry) => (
+              <StewardCard
+                key={entry.uri}
+                entry={entry}
+                allEntries={allEntriesForLookup}
+                endorsed
+                onUnendorse={handleUnendorse}
+              />
+            ))}
+
+            {/* Add by name input */}
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/20">
+              <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
+                Know a project not listed? Add by name, handle, or DID.
+              </p>
+              <div className="flex max-w-xl flex-col gap-2 sm:flex-row">
+                <input
+                  type="text"
+                  value={selfReport}
+                  onChange={(e) => setSelfReport(e.target.value)}
+                  placeholder="e.g. whtwnd.com or did:plc:..."
+                  className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+                />
+                <button
+                  type="button"
+                  onClick={() => runStreamingScan(parseSelfReportInput())}
+                  disabled={loading}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  <PlusCircle className="h-4 w-4" aria-hidden />
+                  Add
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -298,7 +388,7 @@ export function GiveClient() {
             <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-amber-800 dark:text-amber-300 [&::-webkit-details-marker]:hidden">
               <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
               {warnings.length} lookup{warnings.length === 1 ? '' : 's'} had issues
-              <span className="text-amber-600 dark:text-amber-500">▾</span>
+              <span className="text-amber-600 dark:text-amber-500">{'\u25BE'}</span>
             </summary>
             <ul className="mt-2 space-y-1 pl-6 text-amber-700 dark:text-amber-400">
               {warnings.map((w, i) => (
@@ -310,9 +400,12 @@ export function GiveClient() {
           </details>
         )}
 
-        {/* Steward list */}
+        {/* ── Discovered from your data ──────────────────────────── */}
         <section className="space-y-4">
-          {visibleEntries.length === 0 && scanDone ? (
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            Discovered from your data
+          </h2>
+          {discoveredEntries.length === 0 && scanDone ? (
             <p className="text-sm text-slate-600 dark:text-slate-400">
               We didn&apos;t find any extra tools in your saved data yet. You
               can add more above if you know them.
@@ -331,7 +424,7 @@ export function GiveClient() {
                         : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
                     }`}
                   >
-                    All ({visibleEntries.length})
+                    All ({discoveredEntries.length})
                   </button>
                   {TAG_FILTER_LABELS.map(({ tag, label }) => {
                     const count = tagCounts[tag] ?? 0
@@ -361,15 +454,16 @@ export function GiveClient() {
                     key={entry.uri}
                     entry={entry}
                     allEntries={allEntriesForLookup}
+                    onEndorse={handleEndorse}
                   />
                 ))}
-                {filteredEntries.length === 0 && visibleEntries.length === 0 && loading && (
+                {filteredEntries.length === 0 && discoveredEntries.length === 0 && loading && (
                   <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
                     <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
-                    <span>{scanStatus || 'Scanning…'}</span>
+                    <span>{scanStatus || 'Scanning\u2026'}</span>
                   </div>
                 )}
-                {filteredEntries.length === 0 && visibleEntries.length > 0 && (
+                {filteredEntries.length === 0 && discoveredEntries.length > 0 && (
                   <p className="text-sm text-slate-500 dark:text-slate-400">
                     No entries match this filter.
                   </p>
