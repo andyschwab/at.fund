@@ -1,280 +1,233 @@
-# Steward discovery pipeline
+# Scan pipeline
 
-End-to-end flow from user sign-in to rendered steward cards.
+End-to-end flow from user sign-in to rendered account cards.
 
 ## Overview
 
-The app answers one question: **what ATProto tools has this user actually used, and how can they support those projects?**
+The app answers one question: **what ATProto tools, feeds, and labelers has this user actually used, and how can they support those projects?**
 
-Everything is steward-centric. A **steward URI** (hostname like `whtwnd.com` or a DID like `did:plc:...`) is the canonical identifier for a project or service. NSIDs never reach the UI — they're resolved into steward URIs early in the pipeline and stay encapsulated after that.
-
-```
-User signs in
-  → repo collections + special record inspection
-  → set of "observed keys" (NSIDs, createdWith URLs, content $types)
-  → resolver catalog maps each key to a steward URI
-  → for each steward URI:
-      try fund.at.* records from the steward's PDS
-      fall back to catalog/*.json
-      or mark as "unknown"
-  → render steward cards
-```
-
-## 1. Triggering a scan
-
-Two entry points, same pipeline:
-
-| Entry | File | When |
-|-------|------|------|
-| Server-side initial load | `src/app/page.tsx` | Page load with active session |
-| Client-side refresh / add-more | `POST /api/lexicons` via `src/app/api/lexicons/route.ts` | User clicks Refresh or Add to list |
-
-Both call `scanRepo(session, selfReportedStewards)` from `src/lib/lexicon-scan.ts`.
-
-Self-reported steward URIs arrive as `{ selfReportedStewards: string[] }` in the POST body. The API route normalizes each through `normalizeStewardUri` (`src/lib/steward-uri.ts`) before passing them to `scanRepo`.
-
-## 2. Collecting observed keys
-
-Inside `scanRepo`:
-
-### 2a. Repo collection list
+Everything is account-centric. A card represents an **ATProto account** (identified by DID), and feeds, labelers, and tools are **capabilities** that account provides. The pipeline has four phases with clear boundaries:
 
 ```
-describeRepo(session.did)
-  → collections[]
-  → filterThirdPartyCollections (repo-inspect.ts)
-      drops app.bsky.*, com.atproto.*, chat.bsky.*
-  → thirdParty[]
+Phase 1: GATHER     Discover every account the user has a relationship with
+Phase 2: ENRICH     Resolve funding info (fund.at, manual catalog, profiles)
+Phase 3: CAPABILITIES   Attach feed/labeler details to enriched accounts
+Phase 4: DEPENDENCIES   Resolve referenced entries for drill-down modal
 ```
 
-### 2b. Static collections
+## Phase 1: Gather accounts
 
-```
-stripDerivedCollections(thirdParty)
-  → removes calendar and site.standard.* NSIDs (handled separately)
-  → staticCols[]
-```
+**File:** `src/lib/pipeline/account-gather.ts`
 
-Each static collection NSID (e.g. `space.roomy.space.personal`) becomes an observed key.
+Collects every DID the user has a relationship with. No fund.at lookups — just discovery.
 
-### 2c. Calendar `createdWith` resolution
+### Sources
 
-```
-resolveCalendarCatalogKeys(agent, did, thirdParty)
-  → for each community.lexicon.calendar* collection:
-      listRecords → read record.value.createdWith
-  → calendarKeys[] (URLs like "https://atmo.rsvp")
-```
+| Source | How | Tag |
+|--------|-----|-----|
+| Repo collections | NSIDs + `createdWith` + `$type` → resolver catalog → steward URI → DNS → DID | `tool` |
+| Follows | `app.bsky.graph.getFollows` (paginated, ALL follows) | `follow` |
+| Feed subscriptions | `app.bsky.actor.getPreferences` → saved feed URIs → extract creator DID | `feed` |
+| Labeler subscriptions | `app.bsky.actor.getPreferences` → labeler DIDs | `labeler` |
+| Self-reported | User-provided hostnames/DIDs from "Add to watch list" | `tool` |
 
-### 2d. Standard.site content type resolution
-
-```
-resolveSiteStandardPairs(agent, did, thirdParty)
-  → for each site.standard.* collection:
-      listRecords → read record.value.content.$type
-  → SiteStandardPair[] (contentType strings like "pub.leaflet.doc")
-```
-
-Only `pair.contentType` enters the observed set — the `site.standard.*` collection NSID itself is dropped.
-
-### 2e. Self-reported stewards
-
-User-supplied steward URIs (hostnames or DIDs) are merged into the same observed set.
-
-### Result
+### Output
 
 ```typescript
-observed = Set<string> {
-  ...staticCols,      // NSIDs
-  ...calendarKeys,    // URLs
-  ...contentTypes,    // NSID-like $type values
-  ...selfReported,    // hostnames or DIDs
+type GatherResult = {
+  did: string
+  handle?: string
+  pdsUrl?: string
+  accounts: Map<string, AccountStub>      // DID → stub with tags + hostnames
+  unresolvedServices: UnresolvedService[]  // hostnames that didn't resolve to a DID
+  warnings: ScanWarning[]
+  feedUris: string[]                       // AT URIs for Phase 3
+  labelerDids: string[]                    // DIDs for Phase 3
 }
 ```
 
-## 3. Observed keys → steward URIs
+An `AccountStub` accumulates tags from multiple sources. If the same DID appears as a tool AND a follow AND a feed creator, it gets all three tags on one stub.
 
-Each observed key passes through `resolveStewardUri(key)` from `src/lib/catalog.ts`:
+### Unresolved services
 
-```
-1. Check resolver-catalog.json overrides (longest prefix match)
-2. If starts with "did:" → return as-is
-3. If contains "://" → extract hostname
+When a steward URI (hostname) doesn't resolve to a DID via DNS, it becomes an `UnresolvedService`. These are still shown as "discover" cards — the user relies on the service, we just can't identify the ATProto account behind it.
+
+### Steward URI resolution
+
+Observed keys (NSIDs, URLs, `$type` values) pass through `resolveStewardUri()` from `src/lib/catalog.ts`:
+
+1. Check `resolver-catalog.json` overrides (longest prefix match)
+2. If starts with `did:` → return as-is
+3. If contains `://` → extract hostname
 4. If 3+ dot segments → NSID; infer hostname from first two segments
-   (e.g. space.roomy.space.personal → roomy.space)
 5. If 1-2 dot segments → already a hostname; normalize and return
-```
 
-### Resolver catalog overrides
+## Phase 2: Enrich accounts
 
-`src/data/resolver-catalog.json` handles cases where NSID inference would give the wrong hostname:
+**File:** `src/lib/pipeline/account-enrich.ts`
 
-| matchPrefix | stewardUri | Why |
-|-------------|------------|-----|
-| `chat.bsky.` | `bsky.app` | Same steward as `app.bsky.*` |
-| `tools.ozone.` | `bsky.app` | Bluesky-maintained moderation tools |
-| `fyi.unravel.frontpage.` | `frontpage.fyi` | Sub-namespace of `fyi.unravel.*` |
-| `im.flushing.right.now.` | `flushes.app` | 4-segment authority would infer `flushing.im` |
-| `com.shinolabs.pinksea.` | `pinksea.art` | Different brand domain |
-| `blue.zio.atfile.` | `zio.sh` | Different brand domain |
-| ... | ... | (see file for full list) |
+For each account, resolves funding info by trying **every key type**. This is where the hostname-vs-DID mismatch is handled — we try all keys in one place.
 
-### NSID hostname inference
+### Resolution order
 
-For 3+ segment strings without an override, `inferHostnameFromNsidLike` reverses the first two dot segments:
+For each `AccountStub`:
 
-```
-events.smokesignal.calendar.event → smokesignal.events
-com.whtwnd.blog.entry             → whtwnd.com
-pub.leaflet.interactions.bookmark → leaflet.pub
-```
+1. **Batch profile resolution** — `app.bsky.actor.getProfiles` for accounts missing handles/displayNames
+2. **fund.at records** — `fetchFundAtForStewardDid(did)` from the steward's PDS
+3. **Manual catalog by DID** — `lookupManualStewardRecord(did)`
+4. **Manual catalog by hostname** — `lookupManualStewardRecord(hostname)` for each associated hostname
+5. **Manual catalog by handle** — `lookupManualStewardRecord(handle)`
+6. **Fallback** — `source: 'unknown'`
+
+### URI and displayName selection
+
+- `uri`: hostname preferred (readable), then handle, then DID
+- `displayName`: profile name preferred (non-DID), then hostname, then handle, then DID
 
 ### Output
 
-A deduplicated, sorted `Set<string>` of steward URIs (hostnames and/or DIDs).
+One `StewardEntry` per account, plus entries for unresolved services.
 
-## 4. Steward URIs → card models
+## Phase 3: Attach capabilities
 
-For each steward URI, in order:
+**File:** `src/lib/pipeline/capability-scan.ts`
 
-### 4a. DNS DID lookup
+Fetches display info for feeds and labelers, then attaches them as `Capability` objects on the account's entry.
 
-If the steward URI is a hostname, resolve `_atproto.<hostname>` DNS TXT to get the steward's DID.
+### Feeds
 
-```
-lookupAtprotoDid(stewardUri)  →  stewardDid | null
-```
+`app.bsky.feed.getFeedGenerators(feedUris)` returns per-feed info:
+- `displayName` — the feed's name (e.g., "Discover")
+- `creator.did` — matched to an existing entry
+- `uri` — AT URI, parsed for rkey
+- `landingPage` — constructed as `https://bsky.app/profile/{handle}/feed/{rkey}`
 
-(Implemented in `src/lib/atfund-dns.ts`.)
+Multiple feeds by the same creator become multiple capabilities on one card.
 
-### 4b. Try fund.at.* records (primary path)
+### Labelers
 
-If we have a DID, attempt `fetchFundAtForStewardDid(stewardDid)` from `src/lib/steward-funding.ts`:
+`app.bsky.labeler.getServices(dids)` returns labeler info:
+- `creator.displayName` — the labeler name
+- `landingPage` — Bluesky profile link
 
-1. Resolve DID → PDS URL (via public identity API)
-2. `listRecords` for `fund.at.disclosure`, `fund.at.contribute`, `fund.at.dependencies`
-3. Pick best disclosure by `effectiveDate` (must have usable `meta`)
-4. Pick best contribute by `effectiveDate` (must have links)
-5. Merge host-scoped dependency URIs (ignoring NSID-scoped records)
-
-If disclosure exists → `StewardCardModel` with `source: 'fund.at'`.
-
-**Note:** This path does NOT apply `restrictToDomains` filtering — that's intentional. Steward cards show the steward's general metadata. Domain-scoped filtering is only used for PDS host funding (step 6).
-
-### 4c. Manual catalog fallback
-
-If no fund.at records found, look up `lookupManualStewardRecord(stewardUri)` from `src/lib/catalog.ts`:
-
-Reads per-steward JSON files from `src/data/catalog/`, each shaped like a real `fund.at.*` record. For example, `src/data/catalog/whtwnd.com.json`:
-
-```json
-{
-  "disclosure": {
-    "meta": {
-      "displayName": "WhiteWind",
-      "description": "Long-form blogging on ATProto.",
-      "landingPage": "https://whtwnd.com"
-    }
-  },
-  "contribute": {
-    "links": [{ "label": "...", "url": "..." }]
-  },
-  "dependencies": {
-    "uris": ["other-steward.com"]
-  }
-}
-```
-
-If found → `StewardCardModel` with `source: 'manual'`.
-
-### 4d. Unknown fallback
-
-If neither fund.at nor manual catalog have data → `StewardCardModel` with `source: 'unknown'`, `displayName: stewardUri`.
-
-### Output
+### Capability type
 
 ```typescript
-StewardCardModel {
-  stewardUri: string
-  stewardDid?: string
-  displayName: string
+type Capability = {
+  type: 'feed' | 'labeler'
+  name: string
   description?: string
+  uri?: string
   landingPage?: string
-  links?: FundLink[]          // fund.at.contribute links (funding actions)
-  dependencies?: string[]     // fund.at.dependencies URIs
-  source: 'fund.at' | 'manual' | 'unknown'
 }
 ```
 
-## 5. PDS host funding (separate path)
+## Phase 4: Resolve dependencies
 
-Independently of steward cards, the user's home PDS may also publish fund.at records:
+**File:** `src/lib/pipeline/dep-resolve.ts`
+
+For entries with `dependencies[]`, looks up each dependency URI in the manual catalog. These "referenced entries" power the dependency drill-down modal — they're not shown as primary cards.
+
+## Orchestration
+
+**File:** `src/lib/pipeline/scan-stream.ts`
+
+`scanStreaming()` runs all four phases and emits `ScanStreamEvent` objects for the client to consume progressively:
+
+1. Phase 1 → `status` events during discovery, `meta` event with user info, `warning` events
+2. Phase 2 → `entry` events as each account is enriched
+3. Phase 3 → updated `entry` events with capabilities attached
+4. Phase 4 → `referenced` events for dependency entries
+5. PDS host funding → `pds-host` event
+6. `done` event
+
+### Client-side merging
+
+The client (`GiveClient.tsx`) uses `EntryIndex` from `steward-merge.ts` to deduplicate entries by DID as they stream in. When Phase 3 re-emits entries with capabilities, the merge unions them correctly.
+
+## Rendering
+
+### Card variants
+
+| Variant | Condition | Style |
+|---------|-----------|-------|
+| `support` | Has `tool`, `labeler`, or `feed` tag | Green left border |
+| `network` | Only has `follow` tag | Violet left border |
+| `discover` | `source === 'unknown'` | Amber dashed border |
+
+### Card anatomy
 
 ```
-DID document → PDS URL → hostname → _atproto DNS → PDS steward DID
-  → fetchPdsHostFunding(stewardDid, pdsHostname)
+[Droplet icon]  Title  @handle  tag  tag
+                Description text
+                ┌ Provides ──────────────┐
+                │ Feed Name              │
+                │ Another Feed           │
+                └────────────────────────┘
+                ┌ Depends on ────────────┐
+                │ dep-name               │
+                └────────────────────────┘
 ```
 
-This path DOES apply `restrictToDomains` filtering against the PDS hostname. It uses `src/lib/atfund-steward.ts` (via `src/lib/atfund-uri.ts`).
+- **Title**: Links to domain (tools) or Bluesky profile (non-tools)
+- **@handle**: Always clickable, links via DID for provenance
+- **Tags**: Inline to the right of handle
+- **Capabilities**: "Provides" section with clickable feed/labeler names
+- **Dependencies**: "Depends on" section with drill-down modal
 
-Result is `PdsHostFunding` — rendered as a separate "Your host" card above steward cards.
+### Filtering
 
-## 6. Rendering
+Filter pills (Tools, Feeds, Labelers, Network) filter by tag. Since an account can have multiple tags, the same card may appear in multiple filtered views — showing the full card each time.
 
-`src/components/HomeClient.tsx` splits stewards into two groups:
+### Visibility rules
 
-| Group | Filter | Component |
-|-------|--------|-----------|
-| Known | `source !== 'unknown'` | `KnownStewardCard` |
-| Unknown | `source === 'unknown'` | `UnknownStewardCard` |
-
-### KnownStewardCard
-
-Renders from `StewardCardModel`:
-- **Display name** from `displayName`
-- **Description** from `description`
-- **Website button** from `landingPage` (disclosure metadata)
-- **Contribute CTA** from `links[0]` (only if the steward has published a funding link)
-- **Dependencies** from `dependencies` (listed as steward URIs)
-
-### UnknownStewardCard
-
-Shows the steward URI as the title with a prompt to get listed.
-
-### PdsHostSupportCard
-
-Shows PDS host disclosure, landing page, contribute link, and dependencies.
+- Tools, labelers, feeds: always visible
+- Follows: only visible if they have a `contributeUrl`
 
 ## File map
 
 ```
 src/
 ├── app/
-│   ├── page.tsx                    Server page: initial scanRepo call
-│   └── api/lexicons/route.ts      API: GET/POST → scanRepo
+│   ├── page.tsx                          Landing page
+│   ├── give/page.tsx                     Give page (requires auth)
+│   └── api/lexicons/
+│       ├── route.ts                      Non-streaming API (legacy)
+│       └── stream/route.ts              Streaming API → scanStreaming()
 ├── components/
-│   ├── HomeClient.tsx              Client shell: login, scan, card layout
-│   └── ProjectCards.tsx            PdsHostSupportCard, KnownStewardCard, UnknownStewardCard
+│   ├── GiveClient.tsx                    Client: streaming scan, card layout, filters
+│   ├── ProjectCards.tsx                  Card components: StewardCard, PdsHostSupportCard
+│   ├── NavBar.tsx                        Global nav + login/logout modal
+│   ├── SessionContext.tsx                Auth state context
+│   └── LandingPage.tsx                   Home page with CTA
 ├── data/
-│   ├── catalog/*.json               One file per steward — curated fund.at-shaped records
-│   └── resolver-catalog.json       NSID prefix → steward URI overrides
+│   ├── catalog/*.json                    One file per steward — manual funding data
+│   └── resolver-catalog.json            NSID prefix → steward URI overrides
 └── lib/
-    ├── catalog.ts                  resolveStewardUri + lookupManualStewardRecord
-    ├── lexicon-scan.ts             scanRepo orchestration
-    ├── steward-funding.ts          fetchFundAtForStewardDid (PDS fund.at.* fetch)
-    ├── steward-model.ts            StewardCardModel type
-    ├── steward-uri.ts              normalizeStewardUri (API input validation)
-    ├── atfund-steward.ts           fetchPdsHostFunding (domain-scoped)
-    ├── atfund-dns.ts               _atproto DNS TXT → DID
-    ├── atfund-uri.ts               URI-like → hostname → PDS host funding
-    ├── repo-inspect.ts             Filter noise collections (Bluesky core)
-    └── repo-collection-resolve.ts  Calendar createdWith + Standard.site $type extraction
+    ├── pipeline/
+    │   ├── account-gather.ts             Phase 1: discover accounts + unresolved services
+    │   ├── account-enrich.ts             Phase 2: fund.at + catalog + profile resolution
+    │   ├── capability-scan.ts            Phase 3: feed/labeler capabilities
+    │   ├── dep-resolve.ts                Phase 4: dependency entry resolution
+    │   └── scan-stream.ts                Orchestrator: runs phases, emits stream events
+    ├── catalog.ts                        resolveStewardUri + lookupManualStewardRecord
+    ├── steward-model.ts                  StewardEntry, Capability, StewardTag types
+    ├── steward-merge.ts                  EntryIndex (client-side dedup) + merge logic
+    ├── steward-funding.ts                fetchFundAtForStewardDid (PDS fund.at.* fetch)
+    ├── fund-at-records.ts                Low-level fund.at record fetching
+    ├── atfund-dns.ts                     _atproto DNS TXT → DID
+    ├── atfund-uri.ts                     URI-like → hostname → PDS host funding
+    ├── atfund-steward.ts                 PdsHostFunding type + fetch
+    ├── repo-inspect.ts                   Filter noise collections (Bluesky core)
+    ├── repo-collection-resolve.ts        Calendar createdWith + Standard.site $type
+    ├── steward-uri.ts                    normalizeStewardUri (input validation)
+    └── xrpc.ts                           Raw XRPC query helper
 ```
 
 ## Lexicon schemas
 
-- [`fund.at.disclosure`](../lexicon/fund.at.disclosure.json) — identity, contact, security, legal pointers
-- [`fund.at.contribute`](../lexicon/fund.at.contribute.json) — funding/contribution entry points
-- [`fund.at.dependencies`](../lexicon/fund.at.dependencies.json) — steward URI dependency pointers
+- `fund.at.contribute` — funding page URL (singleton, rkey `self`)
+- `fund.at.dependency` — upstream dependency entries (rkey TID)
+- `fund.at.watch` — watchlist entries (rkey TID)
 
-See also: [atfund-discovery.md](atfund-discovery.md) for DNS discovery details.
+See the in-app lexicon page (`/lexicon`) for full schema documentation.
