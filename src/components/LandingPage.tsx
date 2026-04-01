@@ -35,12 +35,15 @@ export function LandingPage({ handle, setHandle, loading, err, onLogin }: Props)
             className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)] shadow-sm"
             aria-hidden
           >
-            <span className="select-none font-mono text-5xl font-light leading-none">ƒ</span>
+            <svg viewBox="0 0 44 44" className="h-11 w-11 text-[var(--support)]" fill="none" aria-hidden="true">
+              <circle cx="22" cy="22" r="19" stroke="currentColor" strokeWidth="2" />
+              <path d="M22 10 C14 18,13 22,13 27 A9 9 0 0 1 31 27 C31 22,30 18,22 10 Z" fill="currentColor" />
+            </svg>
           </span>
 
           <div className="space-y-4">
             <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-              <span className="font-mono font-medium"><span className="text-slate-500 dark:text-slate-400">at.</span><span className="text-[var(--support)]">ƒ</span><span className="text-slate-500 dark:text-slate-400">und</span></span>
+              <span className="inline-flex items-center font-mono font-medium text-slate-500 dark:text-slate-400">at<svg viewBox="0 0 10 14" className="inline-block h-[0.72em] w-[0.52em] translate-y-[0.04em] fill-[var(--support)] mx-[0.1em]" aria-hidden="true"><path d="M5 1 C2 5,1 8,1 10 A4 4 0 0 1 9 10 C9 8,8 5,5 1 Z" /></svg>fund</span>
               {' — '}
               <span className="text-slate-900 dark:text-slate-100">
                 Keep your atmosphere clean
