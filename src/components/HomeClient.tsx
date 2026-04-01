@@ -286,7 +286,7 @@ export function HomeClient({ hasSession, error }: Props) {
         <header className="text-center">
           <div className="mx-auto flex max-w-2xl flex-col items-center gap-5">
             <span
-              className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)] shadow-sm"
+              className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-white shadow-sm dark:bg-slate-900"
               aria-hidden
             >
               <svg viewBox="0 0 44 44" className="h-11 w-11 text-[var(--support)]" fill="none" aria-hidden="true">

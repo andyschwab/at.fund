@@ -32,7 +32,7 @@ export function LandingPage({ handle, setHandle, loading, err, onLogin }: Props)
         {/* ── Hero ─────────────────────────────────────────────────────── */}
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-8 text-center">
           <span
-            className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)] shadow-sm"
+            className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-white shadow-sm dark:bg-slate-900"
             aria-hidden
           >
             <svg viewBox="0 0 44 44" className="h-11 w-11 text-[var(--support)]" fill="none" aria-hidden="true">
