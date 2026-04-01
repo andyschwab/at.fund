@@ -45,10 +45,11 @@ export const SCOPE = [
   'repo:fund.at.contribute',
   'repo:fund.at.dependencies',
   // Bluesky AppView RPCs needed for subscriptions scan.
-  // The aud must match exactly what the AppView checks for.
+  // The PDS only grants scopes with aud=did:web:api.bsky.app#bsky_appview
+  // (it silently drops the no-fragment variant).
   'rpc:app.bsky.actor.getPreferences?aud=did:web:api.bsky.app%23bsky_appview',
-  'rpc:app.bsky.labeler.getServices?aud=did:web:api.bsky.app',
-  'rpc:app.bsky.feed.getFeedGenerators?aud=did:web:api.bsky.app',
+  'rpc:app.bsky.labeler.getServices?aud=did:web:api.bsky.app%23bsky_appview',
+  'rpc:app.bsky.feed.getFeedGenerators?aud=did:web:api.bsky.app%23bsky_appview',
 ].join(' ')
 
 const globalAuth = globalThis as unknown as {
