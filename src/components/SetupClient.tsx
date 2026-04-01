@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Heart,
   HeartHandshake,
-  LogOut,
   Plus,
   Trash2,
 } from 'lucide-react'
@@ -237,59 +236,16 @@ export function SetupClient({ did, handle, existing }: Props) {
     }
   }
 
-  async function logout() {
-    await fetch('/oauth/logout', { method: 'POST' })
-    window.location.href = '/'
-  }
-
-  const displayId = handle ?? did
-
   return (
     <div className="page-wash min-h-full">
-      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-12">
+      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8">
 
-        {/* Header */}
-        <header className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <span
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)]"
-              aria-hidden
-            >
-              <DropletIcon className="h-6 w-6" strokeWidth={1.75} />
-            </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/"
-                  className="font-mono text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                >
-                  AT.fund
-                </Link>
-                <span className="text-slate-300 dark:text-slate-600">/</span>
-                <h1 className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                  Set up your profile
-                </h1>
-              </div>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                Signed in as{' '}
-                <span className="font-mono text-slate-700 dark:text-slate-300">
-                  {displayId}
-                </span>
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={logout}
-            className="inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-          >
-            <LogOut className="h-4 w-4" aria-hidden />
-            <span className="hidden sm:inline">Sign out</span>
-          </button>
-        </header>
+        <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+          Set up your profile
+        </h1>
 
         {/* Preview -- sticky at top while scrolling */}
-        <section className="sticky top-0 z-10 -mx-4 border-b border-slate-200/80 bg-[var(--background)]/95 px-4 pb-4 pt-2 backdrop-blur dark:border-slate-800">
+        <section className="sticky top-12 z-10 -mx-4 border-b border-slate-200/80 bg-[var(--background)]/95 px-4 pb-4 pt-2 backdrop-blur dark:border-slate-800">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Example -- how you appear to supporters
           </p>
@@ -417,7 +373,7 @@ export function SetupClient({ did, handle, existing }: Props) {
                   {saving ? 'Publishing…' : saved ? 'Publish again' : 'Publish records'}
                 </button>
                 <Link
-                  href="/"
+                  href="/give"
                   className="text-sm text-slate-500 underline underline-offset-2 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                 >
                   Back to your tools

@@ -1,30 +1,25 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
-  AlertCircle,
   ArrowRight,
   BookOpen,
   CreditCard,
   ExternalLink,
   GitBranch,
   LogIn,
-  Monitor,
   Wrench,
 } from 'lucide-react'
+import { useSession } from '@/components/SessionContext'
 
 const BURRITO_QUOTE_URL =
   'https://bsky.app/profile/burrito.space/post/3mi4ymt3lqs2k'
 
-type Props = {
-  handle: string
-  setHandle: (h: string) => void
-  loading: boolean
-  err: string | null
-  onLogin: (e: React.FormEvent) => void
-}
+export function LandingPage() {
+  const { hasSession } = useSession()
+  const router = useRouter()
 
-export function LandingPage({ handle, setHandle, loading, err, onLogin }: Props) {
   return (
     <div className="page-wash min-h-full">
       <div className="mx-auto flex max-w-5xl flex-col gap-16 px-4 py-14">
@@ -55,53 +50,30 @@ export function LandingPage({ handle, setHandle, loading, err, onLogin }: Props)
             </p>
           </div>
 
-          {/* Sign-in form */}
-          <form
-            onSubmit={onLogin}
-            className="w-full max-w-md space-y-3 rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80"
-          >
-            <label className="block text-left text-sm text-slate-600 dark:text-slate-400">
-              Your Bluesky handle
-              <input
-                type="text"
-                value={handle}
-                onChange={(e) => setHandle(e.target.value)}
-                placeholder="you.bsky.social"
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                disabled={loading}
-                required
-              />
-            </label>
-            {err && (
-              <p className="flex items-start gap-2 text-left text-sm text-red-600 dark:text-red-400">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                {err}
-              </p>
-            )}
-            <button
-              type="submit"
-              disabled={loading || !handle.trim()}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
+          {/* CTA button */}
+          {hasSession ? (
+            <Link
+              href="/give"
+              className="inline-flex items-center gap-2 rounded-xl bg-[var(--support)] px-6 py-3 text-base font-medium text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
             >
-              <LogIn className="h-4 w-4" aria-hidden />
-              {loading ? 'Redirecting…' : 'See who to support'}
+              <LogIn className="h-5 w-5" aria-hidden />
+              See who to support
+              <ArrowRight className="h-5 w-5" aria-hidden />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                // Open the login modal by finding the dialog in the NavBar
+                const dialog = document.querySelector<HTMLDialogElement>('dialog')
+                dialog?.showModal()
+              }}
+              className="inline-flex items-center gap-2 rounded-xl bg-[var(--support)] px-6 py-3 text-base font-medium text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
+            >
+              <LogIn className="h-5 w-5" aria-hidden />
+              See who to support
             </button>
-            <details className="rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
-              <summary className="flex cursor-pointer list-none items-center gap-2 font-medium [&::-webkit-details-marker]:hidden">
-                <Monitor className="h-4 w-4 shrink-0" aria-hidden />
-                Local development
-                <span className="text-slate-400">▾</span>
-              </summary>
-              <p className="mt-2 pl-6 leading-relaxed">
-                Use{' '}
-                <code className="font-mono text-slate-700 dark:text-slate-300">
-                  127.0.0.1
-                </code>{' '}
-                (not <code className="font-mono">localhost</code>) so sign-in
-                redirects work.
-              </p>
-            </details>
-          </form>
+          )}
         </div>
 
         {/* ── Three audiences ──────────────────────────────────────────── */}
@@ -147,7 +119,7 @@ export function LandingPage({ handle, setHandle, loading, err, onLogin }: Props)
               </p>
             </div>
             <Link
-              href="/maintainers"
+              href="/setup"
               className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-[var(--network)] transition-opacity hover:opacity-80"
             >
               Learn how
@@ -174,7 +146,7 @@ export function LandingPage({ handle, setHandle, loading, err, onLogin }: Props)
               </p>
             </div>
             <Link
-              href="/maintainers"
+              href="/lexicon"
               className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-[var(--support)] transition-opacity hover:opacity-80"
             >
               Add your project
