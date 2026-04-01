@@ -112,6 +112,49 @@ async function fetchFeedDisplayInfo(
 // Per-DID resolution: fund.at → manual catalog → Bluesky profile fallback
 // ---------------------------------------------------------------------------
 
+/**
+ * Batch-resolve handles for DIDs missing them via app.bsky.actor.getProfiles.
+ * Mutates the provided DisplayInfo maps in-place.
+ */
+async function backfillHandles(
+  publicClient: Client,
+  ...maps: Map<string, DisplayInfo>[]
+): Promise<void> {
+  const missing: string[] = []
+  for (const map of maps) {
+    for (const [did, info] of map) {
+      if (!info.handle) missing.push(did)
+    }
+  }
+  if (missing.length === 0) return
+
+  // getProfiles accepts max 25 actors per call
+  const batches: string[][] = []
+  for (let i = 0; i < missing.length; i += 25) {
+    batches.push(missing.slice(i, i + 25))
+  }
+
+  for (const batch of batches) {
+    try {
+      const data = await xrpcQuery<{
+        profiles?: Array<{ did: string; handle?: string }>
+      }>(publicClient, 'app.bsky.actor.getProfiles', { actors: batch })
+      for (const profile of data.profiles ?? []) {
+        for (const map of maps) {
+          const info = map.get(profile.did)
+          if (info && !info.handle && profile.handle) {
+            info.handle = profile.handle
+          }
+        }
+      }
+    } catch (e) {
+      logger.warn('subscriptions-scan: handle backfill failed', {
+        error: e instanceof Error ? e.message : String(e),
+      })
+    }
+  }
+}
+
 async function resolveEntry(
   did: string,
   tag: StewardTag,
@@ -228,6 +271,9 @@ export async function scanSubscriptions(
     fetchLabelerDisplayInfo(publicClient, labelerDids),
     fetchFeedDisplayInfo(publicClient, feedUris),
   ])
+
+  // Resolve handles for any creators missing them
+  await backfillHandles(publicClient, labelerInfo, feedInfo)
 
   const feedRkeyByDid = new Map<string, string>()
   for (const uri of feedUris) {
