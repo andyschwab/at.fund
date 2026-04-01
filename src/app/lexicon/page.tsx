@@ -2,12 +2,12 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import contributeSchema from '../../../lexicon/fund.at.contribute.json'
 import dependencySchema from '../../../lexicon/fund.at.dependency.json'
-import watchSchema from '../../../lexicon/fund.at.watch.json'
+import endorseSchema from '../../../lexicon/fund.at.endorse.json'
 
 export const metadata: Metadata = {
   title: 'Lexicon — at.fund',
   description:
-    'The fund.at.* AT Protocol lexicons: contribute, dependency, and watch.',
+    'The fund.at.* AT Protocol lexicons: contribute, dependency, and endorse.',
 }
 
 // ---- Schema shape types ----
@@ -255,7 +255,7 @@ export default function LexiconPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Lexicon</h1>
           <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-slate-400">
             Three AT Protocol record types for publishing funding metadata — where to support you,
-            what you build on, and what you watch. Any AT Protocol client can read them directly
+            what you build on, and what you endorse. Any AT Protocol client can read them directly
             from your repo. No central registry.
           </p>
         </div>
@@ -275,9 +275,9 @@ export default function LexiconPage() {
             summary="One record per upstream project your tool depends on. Lets AT.fund surface the full dependency tree so the infrastructure underneath you gets credit too."
           />
           <RecordSection
-            schema={watchSchema as unknown as LexSchema}
-            keyType="tid"
-            summary="Track the funding status of any entity you care about, even if you don't depend on it directly."
+            schema={endorseSchema as unknown as LexSchema}
+            keyType="any (rkey = endorsed URI)"
+            summary="Publicly endorse any entity you use or value, even if you don't depend on it directly. The record key is the endorsed URI itself (a DID or hostname), so each entity can only be endorsed once per account. Unlike contribute (published by builders) and dependency (published by projects), endorse is published by users — a protocol-native signal of trust. Endorsements live on the endorser's PDS, so counts are verifiable, not self-reported."
           />
         </section>
 
@@ -324,7 +324,7 @@ export default function LexiconPage() {
                   <span className="text-slate-400 dark:text-slate-500">, </span>
                   fund.at.dependency
                   <span className="text-slate-400 dark:text-slate-500">, </span>
-                  fund.at.watch
+                  fund.at.endorse
                 </span>
               </div>
             </div>
@@ -337,6 +337,110 @@ export default function LexiconPage() {
             Protocol content, you can attach funding context to any creator or service whose DID
             you already know.
           </p>
+        </section>
+
+        {/* Integration guide */}
+        <section className="mt-14">
+          <h2 className="text-lg font-semibold">Integrate fund.at into your app</h2>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+            The fund.at lexicon is open. Any AT Protocol client can read these records directly — no
+            dependency on this site. Here&apos;s how to get started.
+          </p>
+
+          {/* Read a funding link */}
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              Read a funding link
+            </h3>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              Fetch the <code className="font-mono text-xs">fund.at.contribute</code> record from
+              any DID&apos;s PDS to find their funding page.
+            </p>
+            <div className="mt-3 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/30 p-4 font-mono text-xs leading-relaxed overflow-x-auto">
+              <div className="text-slate-500 dark:text-slate-400">{'// Resolve DID → PDS, then fetch the record'}</div>
+              <div><span className="text-slate-500">const</span> pds = <span className="text-slate-500">await</span> resolveIdentity(did)</div>
+              <div><span className="text-slate-500">const</span> res = <span className="text-slate-500">await</span> fetch(</div>
+              <div className="pl-4">{`\`\${pds}/xrpc/com.atproto.repo.getRecord\``}</div>
+              <div className="pl-4">+ <span className="text-support">{`\`?repo=\${did}&collection=fund.at.contribute&rkey=self\``}</span></div>
+              <div>)</div>
+              <div><span className="text-slate-500">const</span> {'{'} value {'}'} = <span className="text-slate-500">await</span> res.json()</div>
+              <div className="text-slate-500">{'// value.url → "https://github.com/sponsors/..."'}</div>
+            </div>
+          </div>
+
+          {/* Show endorsements */}
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              Show endorsements
+            </h3>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              List <code className="font-mono text-xs">fund.at.endorse</code> records from a
+              user&apos;s repo to see who they endorse, or count how many users have endorsed a
+              given project. Because endorsements live on each endorser&apos;s PDS, the count is
+              independently verifiable — not a number the project controls.
+            </p>
+            <div className="mt-3 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/30 p-4 font-mono text-xs leading-relaxed overflow-x-auto">
+              <div><span className="text-slate-500">const</span> res = <span className="text-slate-500">await</span> fetch(</div>
+              <div className="pl-4">{`\`\${pds}/xrpc/com.atproto.repo.listRecords\``}</div>
+              <div className="pl-4">+ <span className="text-support">{`\`?repo=\${did}&collection=fund.at.endorse&limit=100\``}</span></div>
+              <div>)</div>
+              <div><span className="text-slate-500">const</span> {'{'} records {'}'} = <span className="text-slate-500">await</span> res.json()</div>
+              <div className="text-slate-500">{'// records[].value.uri → endorsed DID or hostname'}</div>
+            </div>
+          </div>
+
+          {/* Embed a funding button */}
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              Embed a funding button
+            </h3>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              Drop a compact funding card into any page with an iframe. Works with any DID or
+              Bluesky handle.
+            </p>
+            <div className="mt-3 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/30 p-4 font-mono text-xs leading-relaxed overflow-x-auto">
+              <div className="text-slate-500">{'<!-- Embed by DID -->'}</div>
+              <div>&lt;iframe <span className="text-support">src=&quot;https://at.fund/embed/did:plc:...&quot;</span></div>
+              <div className="pl-4">width=&quot;320&quot; height=&quot;88&quot; frameborder=&quot;0&quot; /&gt;</div>
+              <div className="mt-2 text-slate-500">{'<!-- Or by handle -->'}</div>
+              <div>&lt;iframe <span className="text-support">src=&quot;https://at.fund/embed/alice.bsky.social&quot;</span></div>
+              <div className="pl-4">width=&quot;320&quot; height=&quot;88&quot; frameborder=&quot;0&quot; /&gt;</div>
+            </div>
+          </div>
+
+          {/* Native integration vision */}
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              Native app integration
+            </h3>
+            <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+              Any AT Protocol app can surface funding natively. The records live on each
+              user&apos;s PDS — your app reads them the same way it reads any other record. No
+              API key, no centralized registry, no dependency on at.fund the website.
+            </p>
+            <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-400">
+              <li className="flex gap-2">
+                <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
+                <span><span className="font-medium text-slate-700 dark:text-slate-300">Profile chip</span> — &quot;Endorsed by 42 people&quot; next to a Bluesky handle</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
+                <span><span className="font-medium text-slate-700 dark:text-slate-300">Feed reader</span> — &quot;Support this feed&apos;s creator&quot; pulled from their contribute record</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
+                <span><span className="font-medium text-slate-700 dark:text-slate-300">Labeler settings</span> — funding link alongside subscribe/unsubscribe</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
+                <span><span className="font-medium text-slate-700 dark:text-slate-300">Journalism</span> — embed card in an article about an AT Protocol project</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
+                <span><span className="font-medium text-slate-700 dark:text-slate-300">Bots &amp; newsletters</span> — &quot;Most endorsed this week&quot; from aggregated endorsement records</span>
+              </li>
+            </ul>
+          </div>
         </section>
 
         {/* CTA */}

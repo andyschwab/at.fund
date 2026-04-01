@@ -4,4 +4,4 @@
 
 export * as contribute from './at/contribute'
 export * as dependency from './at/dependency'
-export * as watch from './at/watch'
+export * as endorse from './at/endorse'

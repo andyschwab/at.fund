@@ -1,0 +1,27 @@
+{
+  "lexicon": 1,
+  "id": "fund.at.endorse",
+  "description": "An endorsement entry. The author publicly signals they use or value the referenced entity.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A single endorsement pointer.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["uri"],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "The endorsed entity: a DID (did:plc:..., did:web:...) or a hostname (example.com)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this endorsement was created."
+          }
+        }
+      }
+    }
+  }
+}

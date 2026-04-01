@@ -3,6 +3,7 @@ import { Client } from '@atproto/lex'
 import type { StewardEntry } from '@/lib/steward-model'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
 import { fetchFundingForUriLike } from '@/lib/atfund-uri'
+import { fetchOwnEndorsements } from '@/lib/fund-at-records'
 import { gatherAccounts } from './account-gather'
 import type { ScanWarning } from './account-gather'
 import { enrichAccounts } from './account-enrich'
@@ -20,6 +21,7 @@ export type { PdsHostFunding }
 export type ScanStreamEvent =
   | { type: 'meta'; did: string; handle?: string; pdsUrl?: string }
   | { type: 'status'; message: string }
+  | { type: 'endorsed'; uris: string[] }
   | { type: 'entry'; entry: StewardEntry }
   | { type: 'referenced'; entry: StewardEntry }
   | { type: 'pds-host'; funding: PdsHostFunding }
@@ -35,6 +37,17 @@ export async function scanStreaming(
   selfReportedStewards: string[] = [],
   emit: (event: ScanStreamEvent) => void,
 ): Promise<void> {
+  // ── Endorsements: fetch early so the client can mark entries ────────────
+  try {
+    const endorsedUris = await fetchOwnEndorsements(session)
+    if (endorsedUris.length > 0) {
+      emit({ type: 'endorsed', uris: endorsedUris })
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to fetch endorsements'
+    logger.warn('scan: endorsement fetch failed', { error: msg })
+  }
+
   // ── Phase 1: Gather ────────────────────────────────────────────────────
   const gathered = await gatherAccounts(session, selfReportedStewards, (msg) => {
     emit({ type: 'status', message: msg })
