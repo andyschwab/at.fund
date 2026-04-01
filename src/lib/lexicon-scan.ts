@@ -306,7 +306,7 @@ export async function scanRepo(
 export async function scanRepoStreaming(
   session: OAuthSession,
   selfReportedStewards: string[] = [],
-  emit: (event: ScanStreamEvent) => void,
+  rawEmit: (event: ScanStreamEvent) => void,
 ): Promise<void> {
   const client = new Client(session)
 
@@ -356,6 +356,18 @@ export async function scanRepoStreaming(
 
   const emittedUris = new Set<string>()
   const pendingDepUris = new Set<string>()
+  /** Track DIDs that have been emitted — we'll backfill missing handles at the end. */
+  const emittedDids = new Map<string, string>() // did → latest handle (or empty string)
+
+  /** Wraps rawEmit to track which DIDs still need handles. */
+  function emit(event: ScanStreamEvent) {
+    if ((event.type === 'entry' || event.type === 'referenced') && event.entry.did) {
+      const prev = emittedDids.get(event.entry.did)
+      // Keep best handle seen so far
+      emittedDids.set(event.entry.did, event.entry.handle ?? prev ?? '')
+    }
+    rawEmit(event)
+  }
 
   await Promise.allSettled(
     [...stewardUris].sort().map(async (stewardUri) => {
@@ -490,6 +502,47 @@ export async function scanRepoStreaming(
       }
     })(),
   ])
+
+  // ── Final handle backfill ──────────────────────────────────────────────
+  // Batch-resolve handles for any emitted entries that still lack one.
+  // This covers tools (never set handle), feeds/labelers whose creator
+  // handle wasn't returned, and any other gaps.
+  const missingHandleDids = [...emittedDids.entries()]
+    .filter(([, handle]) => !handle)
+    .map(([did]) => did)
+
+  if (missingHandleDids.length > 0) {
+    const publicClient = new Client('https://public.api.bsky.app')
+    const BATCH = 25
+    for (let i = 0; i < missingHandleDids.length; i += BATCH) {
+      const batch = missingHandleDids.slice(i, i + BATCH)
+      try {
+        const data = await xrpcQuery<{
+          profiles?: Array<{ did: string; handle?: string }>
+        }>(publicClient, 'app.bsky.actor.getProfiles', { actors: batch })
+        for (const profile of data.profiles ?? []) {
+          if (profile.handle) {
+            // Re-emit with handle so the client-side EntryIndex picks it up
+            emit({
+              type: 'entry',
+              entry: {
+                uri: profile.did,
+                did: profile.did,
+                handle: profile.handle,
+                tags: [],
+                displayName: profile.did,
+                source: 'unknown',
+              },
+            })
+          }
+        }
+      } catch (e) {
+        logger.warn('scan-streaming: handle backfill failed', {
+          error: e instanceof Error ? e.message : String(e),
+        })
+      }
+    }
+  }
 
   logger.info('scan-streaming: completed', { did: session.did })
   emit({ type: 'done' })
