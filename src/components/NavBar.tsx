@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   AlertCircle,
+  HeartHandshake,
   LogIn,
   LogOut,
   Menu,
@@ -25,13 +26,7 @@ function Logo() {
   return (
     <span className="inline-flex items-center font-mono text-lg font-medium text-slate-500 dark:text-slate-400">
       at
-      <svg
-        viewBox="0 0 10 14"
-        className="mx-[0.12em] inline-block h-[0.72em] w-[0.52em] translate-y-[0.04em] fill-[var(--support)]"
-        aria-hidden="true"
-      >
-        <path d="M5 1 C2 5,1 8,1 10 A4 4 0 0 0 9 10 C9 8,8 5,5 1 Z" />
-      </svg>
+      <HeartHandshake className="mx-[0.12em] inline-block h-[0.85em] w-[0.85em] translate-y-[0.04em] text-[var(--support)]" strokeWidth={1.75} aria-hidden />
       fund
     </span>
   )
