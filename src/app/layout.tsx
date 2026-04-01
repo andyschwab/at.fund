@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { getDid } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
 import { SessionProvider } from "@/components/SessionContext";
 import { NavBar } from "@/components/NavBar";
 
@@ -26,7 +26,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const did = await getDid();
+  const session = await getSession();
+  const did = session?.did ?? null;
 
   return (
     <html
@@ -34,7 +35,7 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background font-sans text-foreground">
-        <SessionProvider initial={{ hasSession: !!did, did }}>
+        <SessionProvider initial={{ hasSession: !!session, did }}>
           <NavBar />
           {children}
         </SessionProvider>
