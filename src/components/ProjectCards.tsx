@@ -9,9 +9,9 @@ import {
   AtSign,
   Cog,
   Globe,
-  Heart,
   X,
 } from 'lucide-react'
+import { DropletIcon } from '@/components/DropletIcon'
 
 const TAG_LABEL: Partial<Record<StewardTag, string>> = {
   labeler: 'labeler',
@@ -92,7 +92,7 @@ type ModalState = {
   error: string | null
 }
 
-type HeartState = 'direct' | 'dependency' | 'none'
+type DropletIconState = 'direct' | 'dependency' | 'none'
 
 /**
  * 'dependency' only fires when at least one listed dep resolves to an entry
@@ -102,7 +102,7 @@ function heartState(
   contributeUrl: string | undefined,
   dependencies: string[] | undefined,
   lookup?: (uri: string) => StewardEntry | undefined,
-): HeartState {
+): DropletIconState {
   if (contributeUrl) return 'direct'
   if (dependencies?.length && lookup) {
     if (dependencies.some((uri) => !!(lookup(uri)?.contributeUrl))) return 'dependency'
@@ -134,7 +134,7 @@ function DependencyRow({
 }: {
   depUri: string
   entry?: StewardEntry
-  state: HeartState
+  state: DropletIconState
   onExpand: () => void
 }) {
   const contributeUrl = entry?.contributeUrl
@@ -152,7 +152,7 @@ function DependencyRow({
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
           onClick={(e) => e.stopPropagation()}
         >
-          <Heart className="h-3.5 w-3.5 fill-current" strokeWidth={0} aria-hidden />
+          <DropletIcon className="h-3.5 w-3.5 fill-current" strokeWidth={0} aria-hidden />
           <span className="sr-only">Contribute</span>
         </a>
       ) : state === 'dependency' ? (
@@ -160,14 +160,14 @@ function DependencyRow({
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
           title="No contribution link -- has sub-dependencies"
         >
-          <Heart className="h-3.5 w-3.5 fill-current" strokeWidth={0} aria-hidden />
+          <DropletIcon className="h-3.5 w-3.5 fill-current" strokeWidth={0} aria-hidden />
         </span>
       ) : (
         <span
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
           title="No contribution link published"
         >
-          <Heart className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+          <DropletIcon className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
         </span>
       )}
       <span className="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300">
@@ -225,7 +225,7 @@ function ModalCardContent({
               title="Contribute"
               className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
             >
-              <Heart className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
+              <DropletIcon className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
               <span className="sr-only">Contribute</span>
             </a>
           ) : state === 'dependency' ? (
@@ -233,14 +233,14 @@ function ModalCardContent({
               className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
               title="No contribution link -- has sub-dependencies"
             >
-              <Heart className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
+              <DropletIcon className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
             </span>
           ) : (
             <span
               className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
               title="No contribution link published"
             >
-              <Heart className="h-8 w-8" strokeWidth={1.5} aria-hidden />
+              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
             </span>
           )}
         </div>
@@ -463,7 +463,7 @@ export function PdsHostSupportCard({
               title="Contribute"
               className="flex h-14 w-14 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm transition-opacity hover:opacity-90 dark:bg-sky-600"
             >
-              <Heart
+              <DropletIcon
                 className="h-8 w-8 fill-current"
                 strokeWidth={0}
                 aria-hidden
@@ -475,7 +475,7 @@ export function PdsHostSupportCard({
               className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
               title="No contribution link published"
             >
-              <Heart className="h-8 w-8" strokeWidth={1.5} aria-hidden />
+              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
             </span>
           )}
         </div>
@@ -568,7 +568,7 @@ export function StewardCard({
               className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
               title="No contribution link yet"
             >
-              <Heart className="h-8 w-8" strokeWidth={1.5} aria-hidden />
+              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
             </span>
           </div>
           <div className="min-w-0 flex-1">
@@ -629,7 +629,7 @@ export function StewardCard({
                 title="Contribute"
                 className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--network)] text-white shadow-sm transition-opacity hover:opacity-90"
               >
-                <Heart className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
+                <DropletIcon className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
                 <span className="sr-only">Contribute</span>
               </a>
             ) : (
@@ -637,7 +637,7 @@ export function StewardCard({
                 className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
                 title="No contribution link published"
               >
-                <Heart className="h-8 w-8" strokeWidth={1.5} aria-hidden />
+                <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
               </span>
             )}
           </div>
@@ -690,7 +690,7 @@ export function StewardCard({
               title="Contribute"
               className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
             >
-              <Heart className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
+              <DropletIcon className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
               <span className="sr-only">Contribute</span>
             </a>
           ) : state === 'dependency' ? (
@@ -698,14 +698,14 @@ export function StewardCard({
               className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
               title="No contribution link -- has sub-dependencies"
             >
-              <Heart className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
+              <DropletIcon className="h-8 w-8 fill-current" strokeWidth={0} aria-hidden />
             </span>
           ) : (
             <span
               className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
               title="No contribution link published"
             >
-              <Heart className="h-8 w-8" strokeWidth={1.5} aria-hidden />
+              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
             </span>
           )}
         </div>

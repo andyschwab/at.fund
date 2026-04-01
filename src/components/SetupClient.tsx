@@ -11,6 +11,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
+import { DropletIcon } from '@/components/DropletIcon'
 import { StewardCard } from '@/components/ProjectCards'
 import type { StewardEntry } from '@/lib/steward-model'
 import type { FundAtResult } from '@/lib/fund-at-records'
@@ -254,7 +255,7 @@ export function SetupClient({ did, handle, existing }: Props) {
               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)]"
               aria-hidden
             >
-              <HeartHandshake className="h-6 w-6" strokeWidth={1.75} />
+              <DropletIcon className="h-6 w-6" strokeWidth={1.75} />
             </span>
             <div>
               <div className="flex items-center gap-2">
@@ -412,8 +413,8 @@ export function SetupClient({ did, handle, existing }: Props) {
                   disabled={saving || hasErrors}
                   className="inline-flex items-center gap-2 rounded-lg bg-[var(--support)] px-5 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
-                  <Heart className="h-4 w-4" aria-hidden />
-                  {saving ? 'Publishing...' : saved ? 'Publish again' : 'Publish records'}
+                  <DropletIcon className="h-4 w-4" aria-hidden />
+                  {saving ? 'Publishing…' : saved ? 'Publish again' : 'Publish records'}
                 </button>
                 <Link
                   href="/"

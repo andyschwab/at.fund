@@ -5,7 +5,7 @@ import dependencySchema from '../../../lexicon/fund.at.dependency.json'
 import watchSchema from '../../../lexicon/fund.at.watch.json'
 
 export const metadata: Metadata = {
-  title: 'Lexicon — AT.fund',
+  title: 'Lexicon — at.fund',
   description:
     'The fund.at.* ATProto lexicons: contribute, dependency, and watch.',
 }
