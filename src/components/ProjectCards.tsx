@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useMemo } from 'react'
-import type { StewardEntry, StewardTag } from '@/lib/steward-model'
+import type { StewardEntry, StewardTag, Capability } from '@/lib/steward-model'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
 import Link from 'next/link'
 import {
@@ -106,6 +106,42 @@ function HandleBadge({ handle, did }: { handle?: string; did?: string }) {
     </a>
   ) : (
     <span className="shrink-0 truncate text-xs text-slate-500 dark:text-slate-400">{label}</span>
+  )
+}
+
+/** Compact listing of feeds/labelers this account provides. */
+function CapabilitiesSection({ capabilities }: { capabilities: Capability[] }) {
+  if (capabilities.length === 0) return null
+  return (
+    <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/30">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+        Provides
+      </p>
+      <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+        {capabilities.map((cap) => {
+          const icon = cap.type === 'feed' ? '📰' : '🏷️'
+          return (
+            <div key={cap.uri ?? `${cap.type}:${cap.name}`} className="flex items-center gap-2 py-1.5">
+              <span className="shrink-0 text-sm" aria-hidden>{icon}</span>
+              <span className="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300">
+                {cap.landingPage ? (
+                  <a
+                    href={cap.landingPage}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-900 dark:decoration-slate-600 dark:hover:text-slate-100"
+                  >
+                    {cap.name}
+                  </a>
+                ) : (
+                  cap.name
+                )}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -289,6 +325,9 @@ function ModalCardContent({
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               {entry.description}
             </p>
+          )}
+          {entry.capabilities && entry.capabilities.length > 0 && (
+            <CapabilitiesSection capabilities={entry.capabilities} />
           )}
         </div>
       </div>
@@ -683,6 +722,9 @@ export function StewardCard({
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               {entry.description}
             </p>
+          )}
+          {entry.capabilities && entry.capabilities.length > 0 && (
+            <CapabilitiesSection capabilities={entry.capabilities} />
           )}
           {entry.dependencies && entry.dependencies.length > 0 && (
             <DependenciesSection
