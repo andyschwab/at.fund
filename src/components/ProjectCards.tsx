@@ -11,6 +11,7 @@ import {
 import { DropletIcon } from '@/components/DropletIcon'
 
 const TAG_LABEL: Partial<Record<StewardTag, string>> = {
+  tool: 'tool',
   labeler: 'labeler',
   feed: 'feed',
   follow: 'follow',
