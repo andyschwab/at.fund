@@ -251,7 +251,7 @@ export async function scanSubscriptions(
       preferences: Array<{
         $type: string
         labelers?: Array<{ did: string }>
-        saved?: Array<{ type: string; value: string }>
+        items?: Array<{ type: string; value: string }>
       }>
     }>(authClient, 'app.bsky.actor.getPreferences', {})
 
@@ -259,8 +259,8 @@ export async function scanSubscriptions(
       if (pref.$type === 'app.bsky.actor.defs#labelersPref' && pref.labelers) {
         labelerDids = pref.labelers.map((l) => l.did)
       }
-      if (pref.$type === 'app.bsky.actor.defs#savedFeedsPrefV2' && pref.saved) {
-        feedUris = pref.saved
+      if (pref.$type === 'app.bsky.actor.defs#savedFeedsPrefV2' && pref.items) {
+        feedUris = pref.items
           .filter((f) => f.type === 'feed')
           .map((f) => f.value)
       }
