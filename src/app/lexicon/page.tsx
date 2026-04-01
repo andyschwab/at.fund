@@ -281,77 +281,62 @@ export default function LexiconPage() {
           />
         </section>
 
-        {/* Using them */}
-        <section className="mt-14 space-y-10">
-          <h2 className="text-lg font-semibold">Using them</h2>
+        {/* Resolution */}
+        <section className="mt-14">
+          <h2 className="text-lg font-semibold">Resolution</h2>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+            Every AT Protocol entity — feed generator, labeler, PDS, relay, appview, personal
+            account — has a DID. <code className="font-mono text-xs">fund.at.*</code> records live
+            in that entity&apos;s PDS repo, so any builder can discover funding relationships
+            through the same record queries they already use.
+          </p>
 
-          {/* As a steward */}
-          <div>
-            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200">As a steward</h3>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-              If your domain already has an <code className="font-mono text-xs">_atproto</code> TXT
-              record — for handle verification or any other AT Protocol service — AT.fund can already
-              resolve your DID. Add your <code className="font-mono text-xs">fund.at.*</code> records
-              and you&apos;re done.
-            </p>
-
-            <div className="mt-5 overflow-x-auto rounded-xl border border-support-border bg-support-muted">
-              <div className="px-5 pt-4 pb-1">
-                <p className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
-                  DNS TXT record
-                </p>
-                <pre className="font-mono text-sm leading-relaxed"><span className="text-slate-400 dark:text-slate-500">_atproto.</span><span className="font-semibold text-foreground">yourdomain.com</span>
-<span className="text-slate-500 dark:text-slate-400 text-xs mt-1 block">→</span><span className="text-slate-700 dark:text-slate-200">did=did:plc:xxxxxxxxxxxxxxxxxxxx</span></pre>
+          <div className="mt-5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/30 overflow-x-auto">
+            <div className="px-5 py-4 font-mono text-sm space-y-1.5">
+              <div className="flex gap-x-2">
+                <span className="text-slate-400 dark:text-slate-500 shrink-0">feed AT URI  </span>
+                <span className="text-slate-600 dark:text-slate-300">at://did:plc:…/app.bsky.feed.generator/…</span>
               </div>
-              <div className="border-t border-support-border px-5 py-3 mt-2">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  No DNS record? There&apos;s an HTTPS fallback at{' '}
-                  <code className="font-mono">/.well-known/atproto-did</code> too.
-                </p>
+              <div className="flex gap-x-2">
+                <span className="text-slate-400 dark:text-slate-500 shrink-0">             </span>
+                <span className="text-slate-500 dark:text-slate-400">→ creator DID embedded in URI</span>
               </div>
-            </div>
-          </div>
-
-          {/* As a client */}
-          <div>
-            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200">As a client</h3>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-              Standard AT Protocol handle resolution — no new infrastructure required.
-            </p>
-
-            <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/30 overflow-x-auto">
-              <div className="px-5 py-4 font-mono text-sm space-y-1">
-                <div>
-                  <span className="text-slate-400 dark:text-slate-500">hostname   </span>
-                  <span className="text-foreground">example.com</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 dark:text-slate-500">→ DNS      </span>
-                  <span className="text-slate-600 dark:text-slate-300">_atproto.example.com TXT</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 dark:text-slate-500">→ or HTTPS </span>
-                  <span className="text-slate-600 dark:text-slate-300">example.com/.well-known/atproto-did</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 dark:text-slate-500">→ DID      </span>
-                  <span className="text-slate-600 dark:text-slate-300">did:plc:xxxxxxxxxxxxxxxxxxxx</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 dark:text-slate-500">→ PDS      </span>
-                  <span className="text-slate-600 dark:text-slate-300">their.pds.host → getRecord / listRecords</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 dark:text-slate-500">→ records  </span>
+              <div className="mt-2 flex gap-x-2">
+                <span className="text-slate-400 dark:text-slate-500 shrink-0">labeler      </span>
+                <span className="text-slate-600 dark:text-slate-300">did:plc:…</span>
+              </div>
+              <div className="flex gap-x-2">
+                <span className="text-slate-400 dark:text-slate-500 shrink-0">             </span>
+                <span className="text-slate-500 dark:text-slate-400">→ DID is the identity directly</span>
+              </div>
+              <div className="mt-2 flex gap-x-2">
+                <span className="text-slate-400 dark:text-slate-500 shrink-0">hostname     </span>
+                <span className="text-slate-600 dark:text-slate-300">example.com</span>
+              </div>
+              <div className="flex gap-x-2">
+                <span className="text-slate-400 dark:text-slate-500 shrink-0">             </span>
+                <span className="text-slate-500 dark:text-slate-400">→ AT Protocol handle resolution (_atproto DNS / .well-known)</span>
+              </div>
+              <div className="mt-3 border-t border-slate-200 dark:border-slate-700/60 pt-3 flex gap-x-2">
+                <span className="text-slate-400 dark:text-slate-500 shrink-0">all paths    </span>
+                <span className="text-slate-500 dark:text-slate-400">→ DID → PDS →{' '}
                   <span className="text-support">fund.at.contribute</span>
-                  <span className="text-slate-500 dark:text-slate-400">, </span>
-                  <span className="text-slate-600 dark:text-slate-300">fund.at.dependency</span>
-                  <span className="text-slate-500 dark:text-slate-400">, </span>
-                  <span className="text-slate-600 dark:text-slate-300">fund.at.watch</span>
-                </div>
+                  <span className="text-slate-400 dark:text-slate-500">, </span>
+                  fund.at.dependency
+                  <span className="text-slate-400 dark:text-slate-500">, </span>
+                  fund.at.watch
+                </span>
               </div>
             </div>
           </div>
+
+          <p className="mt-4 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+            If you&apos;re building a feed, labeler, or any service on AT Protocol, you already
+            have a DID — publish <code className="font-mono text-xs">fund.at.*</code> records to
+            your PDS and anyone can find them. If you&apos;re building something that surfaces AT
+            Protocol content, you can attach funding context to any creator or service whose DID
+            you already know.
+          </p>
         </section>
 
         {/* CTA */}
@@ -374,7 +359,7 @@ export default function LexiconPage() {
         <div className="mt-10 border-t border-slate-200 dark:border-slate-800 pt-8 pb-16 space-y-3 text-xs text-slate-400 dark:text-slate-500 leading-relaxed">
           <p>
             Projects that can&apos;t or don&apos;t map to an AT Protocol account still appear through
-            AT.fund&apos;s curated catalog. Stewards who publish{' '}
+            AT.fund&apos;s curated catalog. Published{' '}
             <code className="font-mono">fund.at.*</code> records always take precedence over
             catalog entries.
           </p>
