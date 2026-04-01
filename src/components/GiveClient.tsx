@@ -83,7 +83,7 @@ export function GiveClient() {
     })
   }, [entries])
 
-  // Split into endorsed (Your Stack) and discovered (main list)
+  // Split into endorsed (My Stack) and discovered (main list)
   const endorsedEntries = useMemo(
     () => visibleEntries.filter((e) => isEndorsed(e, endorsedUris)),
     [visibleEntries, endorsedUris],
@@ -315,23 +315,23 @@ export function GiveClient() {
           )}
         </div>
 
-        {/* ── Your Stack ─────────────────────────────────────────── */}
+        {/* ── My Stack ─────────────────────────────────────────── */}
         <section className="rounded-2xl border border-slate-200 bg-white/60 p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/40">
           <div className="mb-4 flex items-center gap-2">
             <BadgeCheck className="h-5 w-5 text-[var(--support)]" aria-hidden />
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Your Stack
+              My Stack
             </h2>
           </div>
           {!hasStackContent && !loading && (
             <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-              Endorse the projects you use and value. Click{' '}
+              Contribute to projects, then endorse the ones you value. Click{' '}
               <span className="inline-flex items-center gap-0.5 font-medium text-slate-600 dark:text-slate-300">
                 <BadgePlus className="inline h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
                 Endorse
               </span>{' '}
-              on any project below to add it here. Your endorsements are
-              visible to the network.
+              on any project below to add it here. Endorsements are public,
+              protocol-level signals of trust.
             </p>
           )}
 
@@ -358,7 +358,7 @@ export function GiveClient() {
             {/* Add by name input */}
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/20">
               <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
-                Want to endorse a project not listed below? Add it by name, handle, or DID.
+                Know a project not listed below? Add it by name, handle, or DID.
               </p>
               <div className="flex max-w-xl flex-col gap-2 sm:flex-row">
                 <input
@@ -413,13 +413,13 @@ export function GiveClient() {
               Discovered from your data
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              These projects were found in your Bluesky account. Endorse the ones you value to add them to Your Stack.
+              These projects were found in your Bluesky account data. Click the funding link to contribute, then endorse to add to My Stack.
             </p>
           </div>
           {discoveredEntries.length === 0 && scanDone ? (
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              We didn&apos;t find any extra tools in your saved data yet. You
-              can add more above if you know them.
+              No additional tools found in your saved data yet. Add more
+              above if you know them.
             </p>
           ) : (
             <>

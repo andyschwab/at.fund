@@ -589,7 +589,7 @@ function EndorseButton({
         e.stopPropagation()
         handler(uri)
       }}
-      title={endorsed ? 'Remove from Your Stack' : 'Endorse and add to Your Stack'}
+      title={endorsed ? 'Remove from My Stack' : 'Endorse and add to My Stack'}
       className={`ml-auto shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
         endorsed
           ? 'text-[var(--support)] bg-[var(--support-muted)] hover:bg-[var(--support-muted)]/80'

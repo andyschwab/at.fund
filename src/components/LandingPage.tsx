@@ -90,10 +90,10 @@ export function LandingPage() {
                 Pay the builders you rely on
               </h2>
               <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                Sign in and we scan your Bluesky data — the tools, feeds, and
-                labelers you use — and surface every funding option each builder
-                has published. Endorse the ones you value and your signal is
-                visible to the whole network.
+                Sign in to scan your Bluesky data — the tools, feeds, and
+                labelers you use — and see every funding option each builder
+                has published. Contribute directly, then endorse the projects
+                you value to signal trust across the network.
               </p>
             </div>
             {hasSession ? (
@@ -136,7 +136,7 @@ export function LandingPage() {
                 You run a list, a starter pack, or a project others rely on. You
                 already know what&apos;s in the stack. Publish that — your
                 community&apos;s sign-ins will surface every builder who deserves
-                credit, and their endorsements amplify the signal.
+                credit, not just you.
               </p>
             </div>
             <Link
