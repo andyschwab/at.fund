@@ -7,11 +7,11 @@ import {
   CheckCircle2,
   Heart,
   HeartHandshake,
-  Plus,
-  Trash2,
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
 import { StewardCard } from '@/components/ProjectCards'
+import { HandleChipInput } from '@/components/HandleChipInput'
+import type { ChipItem } from '@/components/HandleChipInput'
 import type { StewardEntry } from '@/lib/steward-model'
 import type { FundAtResult } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
@@ -20,7 +20,7 @@ import { validateUrl } from '@/lib/validate'
 // Types
 // ---------------------------------------------------------------------------
 
-type DependencyRow = { id: string; uri: string; label: string }
+type DependencyRow = ChipItem
 
 type FormState = {
   contributeUrl: string
@@ -157,22 +157,6 @@ export function SetupClient({ did, handle, existing }: Props) {
     setSaved(false)
   }
 
-  // Dependency rows
-  function addDependency() {
-    set('dependencies', [...form.dependencies, { id: nextId(), uri: '', label: '' }])
-  }
-
-  function updateDependency(id: string, field: 'uri' | 'label', value: string) {
-    set(
-      'dependencies',
-      form.dependencies.map((d) => (d.id === id ? { ...d, [field]: value } : d)),
-    )
-  }
-
-  function removeDependency(id: string) {
-    set('dependencies', form.dependencies.filter((d) => d.id !== id))
-  }
-
   // ---------------------------------------------------------------------------
   // Validation
   // ---------------------------------------------------------------------------
@@ -298,55 +282,11 @@ export function SetupClient({ did, handle, existing }: Props) {
                 DIDs (did:plc:...).
               </p>
 
-              {form.dependencies.length > 0 && (
-                <ul className="flex flex-col gap-3">
-                  {form.dependencies.map((dep, i) => (
-                    <li key={dep.id}>
-                      <div className="flex items-start gap-2">
-                        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row">
-                          <input
-                            type="text"
-                            value={dep.uri}
-                            onChange={(e) => updateDependency(dep.id, 'uri', e.target.value)}
-                            placeholder="example.com or did:plc:..."
-                            aria-label={`Dependency ${i + 1} URI`}
-                            disabled={saving}
-                            className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-                          />
-                          <input
-                            type="text"
-                            value={dep.label}
-                            onChange={(e) => updateDependency(dep.id, 'label', e.target.value)}
-                            placeholder="Label (optional)"
-                            aria-label={`Dependency ${i + 1} label`}
-                            disabled={saving}
-                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 disabled:opacity-50 sm:w-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeDependency(dep.id)}
-                          disabled={saving}
-                          aria-label="Remove dependency"
-                          className="mt-2 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 disabled:opacity-50 dark:hover:bg-slate-800"
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden />
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <button
-                type="button"
-                onClick={addDependency}
+              <HandleChipInput
+                chips={form.dependencies}
+                onChange={(deps) => set('dependencies', deps)}
                 disabled={saving}
-                className="inline-flex items-center gap-2 self-start rounded-lg border border-dashed border-[var(--support-border)] px-4 py-2 text-sm font-medium text-[var(--support)] transition-colors hover:bg-[var(--support-muted)] disabled:opacity-50"
-              >
-                <Plus className="h-4 w-4" aria-hidden />
-                Add a dependency
-              </button>
+              />
             </div>
 
             {/* Submit */}

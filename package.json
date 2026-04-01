@@ -13,7 +13,10 @@
   "dependencies": {
     "@atproto/did": "^0.3.0",
     "@atproto/lex": "^0.0.23",
+    "@atproto/lex-client": "^0.0.18",
+    "@atproto/oauth-client": "^0.6.0",
     "@atproto/oauth-client-node": "^0.3.17",
+    "@atproto/oauth-types": "^0.6.3",
     "@atproto/syntax": "^0.5.2",
     "lucide-react": "^1.7.0",
     "next": "16.2.1",

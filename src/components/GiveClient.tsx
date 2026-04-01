@@ -42,11 +42,24 @@ const TAG_FILTER_LABELS: { tag: TagFilter; label: string }[] = [
   { tag: 'follow', label: 'Network' },
 ]
 
-function entryTier(e: StewardEntry): number {
-  if (e.source === 'unknown') return 3
+function entryTier(
+  e: StewardEntry,
+  lookup?: (uri: string) => StewardEntry | undefined,
+): number {
   if (e.contributeUrl) return 0
-  if (e.dependencies && e.dependencies.length > 0) return 1
-  return 2
+  if (e.dependencies?.length && lookup) {
+    if (e.dependencies.some((uri) => !!(lookup(uri)?.contributeUrl))) return 1
+    if (
+      e.dependencies.some((uri) => {
+        const dep = lookup(uri)
+        return dep?.dependencies?.some((dUri) => !!(lookup(dUri)?.contributeUrl))
+      })
+    )
+      return 2
+    return 3
+  }
+  if (e.dependencies?.length) return 3
+  return 4
 }
 
 function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
@@ -70,18 +83,24 @@ export function GiveClient() {
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
   const entryIndexRef = useRef(new EntryIndex())
 
+  const allEntriesForLookup = useMemo(
+    () => [...entries, ...referencedEntries],
+    [entries, referencedEntries],
+  )
+
   // Inclusion rule: tools/labelers/feeds always; follows only if actionable
   const visibleEntries = useMemo(() => {
+    const lookup = (uri: string) => allEntriesForLookup.find((e) => e.uri === uri)
     const included = entries.filter(
       (e) =>
         e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') ||
         (e.tags.includes('follow') && !!e.contributeUrl),
     )
     return included.sort((a, b) => {
-      const diff = entryTier(a) - entryTier(b)
+      const diff = entryTier(a, lookup) - entryTier(b, lookup)
       return diff !== 0 ? diff : a.uri.localeCompare(b.uri)
     })
-  }, [entries])
+  }, [entries, allEntriesForLookup])
 
   // Split into endorsed (My Stack) and discovered (main list)
   const endorsedEntries = useMemo(
@@ -109,11 +128,6 @@ export function GiveClient() {
     }
     return counts
   }, [discoveredEntries])
-
-  const allEntriesForLookup = useMemo(
-    () => [...entries, ...referencedEntries],
-    [entries, referencedEntries],
-  )
 
   // Endorse / unendorse handlers
   const handleEndorse = useCallback(async (uri: string) => {

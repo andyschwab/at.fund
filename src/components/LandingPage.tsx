@@ -167,7 +167,7 @@ export function LandingPage() {
               </p>
             </div>
             <Link
-              href="/lexicon"
+              href="/setup"
               className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-[var(--support)] transition-opacity hover:opacity-80"
             >
               Add your project

@@ -271,7 +271,7 @@ export default function LexiconPage() {
           />
           <RecordSection
             schema={dependencySchema as unknown as LexSchema}
-            keyType="tid"
+            keyType="any (uri)"
             summary="One record per upstream project your tool depends on. Lets AT.fund surface the full dependency tree so the infrastructure underneath you gets credit too."
           />
           <RecordSection
