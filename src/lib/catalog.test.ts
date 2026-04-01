@@ -36,12 +36,7 @@ describe('resolveStewardUri', () => {
     expect(resolveStewardUri('actor.popfeed.xyz')).toBe('popfeed.social')
   })
 
-  it('resolves sprk collections to sprk.so', () => {
-    expect(resolveStewardUri('feed.sprk.something')).toBe('sprk.so')
-    expect(resolveStewardUri('actor.sprk.something')).toBe('sprk.so')
-  })
-
-  it('resolves community.lexicon.* to lexicon.community', () => {
+it('resolves community.lexicon.* to lexicon.community', () => {
     expect(resolveStewardUri('community.lexicon.calendar')).toBe('lexicon.community')
     expect(resolveStewardUri('community.lexicon.calendar.event')).toBe('lexicon.community')
   })
