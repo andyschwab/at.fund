@@ -197,6 +197,16 @@ export type SubscriptionScanResult = {
 export async function scanSubscriptions(
   session: OAuthSession,
 ): Promise<SubscriptionScanResult> {
+  // Log granted scopes so we can diagnose scope issues
+  try {
+    const tokenInfo = await session.getTokenInfo()
+    logger.info('subscriptions-scan: token scope', { scope: tokenInfo.scope })
+  } catch (e) {
+    logger.warn('subscriptions-scan: could not read token info', {
+      error: e instanceof Error ? e.message : String(e),
+    })
+  }
+
   const agent = new Agent(session)
 
   // Fetch preferences via the high-level SDK helper
