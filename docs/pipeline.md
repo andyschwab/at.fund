@@ -227,7 +227,7 @@ src/
 ## Lexicon schemas
 
 - `fund.at.contribute` — funding page URL (singleton, rkey `self`)
-- `fund.at.dependency` — upstream dependency entries (rkey TID)
+- `fund.at.dependency` — upstream dependency entries (rkey = URI)
 - `fund.at.watch` — watchlist entries (rkey TID)
 
 See the in-app lexicon page (`/lexicon`) for full schema documentation.
