@@ -7,7 +7,7 @@ import watchSchema from '../../../lexicon/fund.at.watch.json'
 export const metadata: Metadata = {
   title: 'Lexicon — at.fund',
   description:
-    'The fund.at.* ATProto lexicons: contribute, dependency, and watch.',
+    'The fund.at.* AT Protocol lexicons: contribute, dependency, and watch.',
 }
 
 // ---- Schema shape types ----
@@ -254,115 +254,104 @@ export default function LexiconPage() {
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">Lexicon</h1>
           <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-slate-400">
-            <code className="font-mono text-sm">fund.at.*</code> is a small family of
-            ATProto lexicons. They let a project steward publish funding metadata —
-            how to support them, what they depend on, and what they watch — directly from their
-            ATProto repo. Any client that speaks ATProto can discover and render these records
-            without a central registry.
+            Three AT Protocol record types for publishing funding metadata — where to support you,
+            what you build on, and what you watch. Any AT Protocol client can read them directly
+            from your repo. No central registry.
           </p>
         </div>
 
-        {/* Quick start for maintainers */}
+        {/* Records — lead section */}
         <section className="mt-14">
-          <h2 className="text-lg font-semibold">Get found on AT.fund</h2>
-          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-            If your domain already has an <code className="font-mono text-xs">_atproto</code> TXT
-            record — for handle verification, or because you run an ATProto service — AT.fund can
-            already resolve your DID. Add your <code className="font-mono text-xs">fund.at.*</code>{' '}
-            records and you&apos;re done.
-          </p>
-
-          <div className="mt-5 overflow-x-auto rounded-xl border border-support-border bg-support-muted">
-            <div className="px-5 pt-4 pb-1">
-              <p className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
-                DNS TXT record
-              </p>
-              <pre className="font-mono text-sm leading-relaxed"><span className="text-slate-400 dark:text-slate-500">_atproto.</span><span className="font-semibold text-foreground">yourdomain.com</span>
-<span className="text-slate-500 dark:text-slate-400 text-xs mt-1 block">→</span><span className="text-slate-700 dark:text-slate-200">did=did:plc:xxxxxxxxxxxxxxxxxxxx</span></pre>
-            </div>
-            <div className="border-t border-support-border px-5 py-3 mt-2">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                No DNS record? There&apos;s an HTTPS fallback at{' '}
-                <code className="font-mono">/.well-known/atproto-did</code> too.
-              </p>
-            </div>
-          </div>
-
-          <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
-            Once AT.fund resolves your DID, it finds your PDS and fetches your{' '}
-            <code className="font-mono text-xs">fund.at.*</code> records. The setup page
-            handles the ATProto details so you don&apos;t have to.
-          </p>
-        </section>
-
-        {/* Discovery flow */}
-        <section className="mt-14">
-          <h2 className="text-lg font-semibold">How discovery works</h2>
-          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-            AT.fund starts from the domains and NSIDs it finds in your ATProto repo and
-            resolves them to stewards. Discovery follows the same DNS handle-resolution that
-            ATProto already uses for identity — no new infrastructure required.
-          </p>
-
-          <div className="mt-5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/30 overflow-x-auto">
-            <div className="px-5 py-4 font-mono text-sm space-y-1">
-              <div>
-                <span className="text-slate-400 dark:text-slate-500">hostname   </span>
-                <span className="text-foreground">example.com</span>
-              </div>
-              <div>
-                <span className="text-slate-400 dark:text-slate-500">→ DNS      </span>
-                <span className="text-slate-600 dark:text-slate-300">_atproto.example.com TXT</span>
-              </div>
-              <div>
-                <span className="text-slate-400 dark:text-slate-500">→ or HTTPS </span>
-                <span className="text-slate-600 dark:text-slate-300">example.com/.well-known/atproto-did</span>
-              </div>
-              <div>
-                <span className="text-slate-400 dark:text-slate-500">→ DID      </span>
-                <span className="text-slate-600 dark:text-slate-300">did:plc:xxxxxxxxxxxxxxxxxxxx</span>
-              </div>
-              <div>
-                <span className="text-slate-400 dark:text-slate-500">→ PDS      </span>
-                <span className="text-slate-600 dark:text-slate-300">their.pds.host → getRecord / listRecords</span>
-              </div>
-              <div>
-                <span className="text-slate-400 dark:text-slate-500">→ records  </span>
-                <span className="text-support">fund.at.contribute</span>
-                <span className="text-slate-500 dark:text-slate-400">, </span>
-                <span className="text-slate-600 dark:text-slate-300">fund.at.dependency</span>
-                <span className="text-slate-500 dark:text-slate-400">, </span>
-                <span className="text-slate-600 dark:text-slate-300">fund.at.watch</span>
-              </div>
-            </div>
-          </div>
-
-          <p className="mt-4 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-            When a steward hasn&apos;t yet published{' '}
-            <code className="font-mono text-xs">fund.at.*</code> records, AT.fund falls back
-            to a manually curated catalog so well-known projects still appear.
-          </p>
-        </section>
-
-        {/* Record schemas — auto-rendered from the JSON schema files */}
-        <section className="mt-14">
-          <h2 className="text-lg font-semibold">Record schemas</h2>
+          <h2 className="text-lg font-semibold">The records</h2>
 
           <RecordSection
             schema={contributeSchema as unknown as LexSchema}
             keyType="literal:self"
-            summary="Your funding page URL — GitHub Sponsors, Open Collective, Patreon, or any page where people can support you. One record per repo, read with getRecord."
+            summary="Your funding page — GitHub Sponsors, Open Collective, Patreon, or anywhere people can support you. One record per repo."
           />
           <RecordSection
             schema={dependencySchema as unknown as LexSchema}
             keyType="tid"
-            summary="One record per dependency: a DID or hostname for each project your tool builds on. This lets AT.fund surface the full dependency tree so the infrastructure underneath you gets credit too."
+            summary="One record per upstream project your tool depends on. Lets AT.fund surface the full dependency tree so the infrastructure underneath you gets credit too."
           />
           <RecordSection
             schema={watchSchema as unknown as LexSchema}
             keyType="tid"
-            summary="A watchlist entry: track the funding status of an entity you care about, even if you don't depend on it directly."
+            summary="Track the funding status of any entity you care about, even if you don't depend on it directly."
           />
+        </section>
+
+        {/* Using them */}
+        <section className="mt-14 space-y-10">
+          <h2 className="text-lg font-semibold">Using them</h2>
+
+          {/* As a steward */}
+          <div>
+            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200">As a steward</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+              If your domain already has an <code className="font-mono text-xs">_atproto</code> TXT
+              record — for handle verification or any other AT Protocol service — AT.fund can already
+              resolve your DID. Add your <code className="font-mono text-xs">fund.at.*</code> records
+              and you&apos;re done.
+            </p>
+
+            <div className="mt-5 overflow-x-auto rounded-xl border border-support-border bg-support-muted">
+              <div className="px-5 pt-4 pb-1">
+                <p className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
+                  DNS TXT record
+                </p>
+                <pre className="font-mono text-sm leading-relaxed"><span className="text-slate-400 dark:text-slate-500">_atproto.</span><span className="font-semibold text-foreground">yourdomain.com</span>
+<span className="text-slate-500 dark:text-slate-400 text-xs mt-1 block">→</span><span className="text-slate-700 dark:text-slate-200">did=did:plc:xxxxxxxxxxxxxxxxxxxx</span></pre>
+              </div>
+              <div className="border-t border-support-border px-5 py-3 mt-2">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  No DNS record? There&apos;s an HTTPS fallback at{' '}
+                  <code className="font-mono">/.well-known/atproto-did</code> too.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* As a client */}
+          <div>
+            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200">As a client</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+              Standard AT Protocol handle resolution — no new infrastructure required.
+            </p>
+
+            <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/30 overflow-x-auto">
+              <div className="px-5 py-4 font-mono text-sm space-y-1">
+                <div>
+                  <span className="text-slate-400 dark:text-slate-500">hostname   </span>
+                  <span className="text-foreground">example.com</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 dark:text-slate-500">→ DNS      </span>
+                  <span className="text-slate-600 dark:text-slate-300">_atproto.example.com TXT</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 dark:text-slate-500">→ or HTTPS </span>
+                  <span className="text-slate-600 dark:text-slate-300">example.com/.well-known/atproto-did</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 dark:text-slate-500">→ DID      </span>
+                  <span className="text-slate-600 dark:text-slate-300">did:plc:xxxxxxxxxxxxxxxxxxxx</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 dark:text-slate-500">→ PDS      </span>
+                  <span className="text-slate-600 dark:text-slate-300">their.pds.host → getRecord / listRecords</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 dark:text-slate-500">→ records  </span>
+                  <span className="text-support">fund.at.contribute</span>
+                  <span className="text-slate-500 dark:text-slate-400">, </span>
+                  <span className="text-slate-600 dark:text-slate-300">fund.at.dependency</span>
+                  <span className="text-slate-500 dark:text-slate-400">, </span>
+                  <span className="text-slate-600 dark:text-slate-300">fund.at.watch</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* CTA */}
@@ -370,8 +359,7 @@ export default function LexiconPage() {
           <div className="rounded-2xl border border-support-border bg-support-muted px-6 py-8 text-center">
             <h2 className="text-lg font-semibold">Ready?</h2>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              The setup page creates your records for you — step by step, no ATProto
-              expertise required.
+              The setup page creates your records step by step — no AT Protocol expertise required.
             </p>
             <Link
               href="/setup"
@@ -382,26 +370,26 @@ export default function LexiconPage() {
           </div>
         </section>
 
-        {/* Record keys footnote */}
-        <section className="mt-10 border-t border-slate-200 dark:border-slate-800 pt-8">
-          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Record keys
-          </h3>
-          <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-            <code className="font-mono text-xs">fund.at.contribute</code> uses a{' '}
-            <code className="font-mono text-xs">literal:self</code> key — one record per repo.{' '}
-            <code className="font-mono text-xs">fund.at.dependency</code> and{' '}
-            <code className="font-mono text-xs">fund.at.watch</code> use{' '}
-            <code className="font-mono text-xs">tid</code> keys so you can create multiple
-            records per repo.
+        {/* Footer notes */}
+        <div className="mt-10 border-t border-slate-200 dark:border-slate-800 pt-8 pb-16 space-y-3 text-xs text-slate-400 dark:text-slate-500 leading-relaxed">
+          <p>
+            Projects that can&apos;t or don&apos;t map to an AT Protocol account still appear through
+            AT.fund&apos;s curated catalog. Stewards who publish{' '}
+            <code className="font-mono">fund.at.*</code> records always take precedence over
+            catalog entries.
           </p>
-        </section>
-
-        {/* Status note */}
-        <div className="mt-8 pb-16 text-center">
-          <p className="text-xs text-slate-400 dark:text-slate-500">
-            These schemas are a work in progress. This page always reflects the current
-            definitions in <code className="font-mono">lexicon/</code>.
+          <p>
+            These schemas are a work in progress. This page always reflects the current definitions
+            in{' '}
+            <a
+              href="https://github.com/andyschwab/at.fund"
+              className="underline hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              github.com/andyschwab/at.fund
+            </a>
+            .
           </p>
         </div>
 
