@@ -162,7 +162,7 @@ export function LandingPage() {
               </h2>
               <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                 Publish a few records from your ATProto account and you&apos;ll show
-                up in anyone&apos;s scan who uses your work. Takes minutes. No
+                up in anyone&apos;s scan who uses your work. Takes seconds. No
                 dependency on this site — users find you through the protocol.
               </p>
             </div>
