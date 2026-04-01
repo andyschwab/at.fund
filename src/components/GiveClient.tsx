@@ -408,9 +408,14 @@ export function GiveClient() {
 
         {/* ── Discovered from your data ──────────────────────────── */}
         <section className="space-y-4">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-            Discovered from your data
-          </h2>
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              Discovered from your data
+            </h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              These projects were found in your Bluesky account. Endorse the ones you value to add them to Your Stack.
+            </p>
+          </div>
           {discoveredEntries.length === 0 && scanDone ? (
             <p className="text-sm text-slate-600 dark:text-slate-400">
               We didn&apos;t find any extra tools in your saved data yet. You

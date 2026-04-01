@@ -92,7 +92,8 @@ export function LandingPage() {
               <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                 Sign in and we scan your Bluesky data — the tools, feeds, and
                 labelers you use — and surface every funding option each builder
-                has published. No digging around required.
+                has published. Endorse the ones you value and your signal is
+                visible to the whole network.
               </p>
             </div>
             {hasSession ? (
@@ -133,9 +134,9 @@ export function LandingPage() {
               </h2>
               <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                 You run a list, a starter pack, or a project others rely on. You
-                already know what&apos;s in the stack. Publish that — and your
+                already know what&apos;s in the stack. Publish that — your
                 community&apos;s sign-ins will surface every builder who deserves
-                credit, not just you.
+                credit, and their endorsements amplify the signal.
               </p>
             </div>
             <Link
@@ -187,16 +188,16 @@ export function LandingPage() {
                 Surface funding inside your app
               </h2>
               <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                The fund.at lexicon is open. Display funding options alongside
-                the tools your users already have installed — no routing through
-                this site required.
+                The fund.at lexicon is open. Show funding links, display
+                endorsement counts, or embed a compact funding card — all from
+                protocol records, no routing through this site.
               </p>
             </div>
             <Link
               href="/lexicon"
               className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 transition-opacity hover:opacity-80 dark:text-slate-300"
             >
-              Read the lexicon
+              Read the guide
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[var(--background)] to-transparent" aria-hidden />

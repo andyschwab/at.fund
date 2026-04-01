@@ -277,7 +277,7 @@ export default function LexiconPage() {
           <RecordSection
             schema={endorseSchema as unknown as LexSchema}
             keyType="tid"
-            summary="Publicly endorse any entity you use or value, even if you don't depend on it directly. Endorsements are visible to the network and help surface projects that matter."
+            summary="Publicly endorse any entity you use or value, even if you don't depend on it directly. Unlike contribute (published by builders) and dependency (published by projects), endorse is published by users — a protocol-native signal of trust. Endorsements live on the endorser's PDS, so counts are verifiable, not self-reported."
           />
         </section>
 
@@ -376,7 +376,8 @@ export default function LexiconPage() {
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
               List <code className="font-mono text-xs">fund.at.endorse</code> records from a
               user&apos;s repo to see who they endorse, or count how many users have endorsed a
-              given project.
+              given project. Because endorsements live on each endorser&apos;s PDS, the count is
+              independently verifiable — not a number the project controls.
             </p>
             <div className="mt-3 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/30 p-4 font-mono text-xs leading-relaxed overflow-x-auto">
               <div><span className="text-slate-500">const</span> res = <span className="text-slate-500">await</span> fetch(</div>
@@ -413,12 +414,32 @@ export default function LexiconPage() {
               Native app integration
             </h3>
             <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-              Any AT Protocol app can surface funding natively. Imagine an &quot;Endorsed by
-              42 people&quot; chip on a Bluesky profile, or a &quot;Support this project&quot;
-              button inside a feed reader. The records live on each user&apos;s PDS — your app
-              reads them the same way it reads any other AT Protocol record. No API key, no
-              centralized registry, no dependency on at.fund the website.
+              Any AT Protocol app can surface funding natively. The records live on each
+              user&apos;s PDS — your app reads them the same way it reads any other record. No
+              API key, no centralized registry, no dependency on at.fund the website.
             </p>
+            <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-400">
+              <li className="flex gap-2">
+                <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
+                <span><span className="font-medium text-slate-700 dark:text-slate-300">Profile chip</span> — &quot;Endorsed by 42 people&quot; next to a Bluesky handle</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
+                <span><span className="font-medium text-slate-700 dark:text-slate-300">Feed reader</span> — &quot;Support this feed&apos;s creator&quot; pulled from their contribute record</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
+                <span><span className="font-medium text-slate-700 dark:text-slate-300">Labeler settings</span> — funding link alongside subscribe/unsubscribe</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
+                <span><span className="font-medium text-slate-700 dark:text-slate-300">Journalism</span> — embed card in an article about an AT Protocol project</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
+                <span><span className="font-medium text-slate-700 dark:text-slate-300">Bots &amp; newsletters</span> — &quot;Most endorsed this week&quot; from aggregated endorsement records</span>
+              </li>
+            </ul>
           </div>
         </section>
 
