@@ -596,7 +596,7 @@ export function HomeClient({ hasSession, error }: Props) {
                 to support you—no dependency on this app.
               </p>
               <a
-                href="/maintainers"
+                href="/lexicon"
                 className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--support)]"
               >
                 How to add your project

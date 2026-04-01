@@ -499,7 +499,7 @@ export function PdsHostSupportCard({
               </a>
             )}
             <Link
-              href="/maintainers"
+              href="/lexicon"
               className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               title="Maintainers"
               aria-label="Maintainers"
@@ -591,7 +591,7 @@ export function StewardCard({
                 </a>
               )}
               <Link
-                href="/maintainers"
+                href="/lexicon"
                 className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                 title="Maintainers"
                 aria-label="Maintainers"
@@ -604,7 +604,7 @@ export function StewardCard({
               Your account has saved something from this service--we don&apos;t have
               details about it yet.{' '}
               <Link
-                href="/maintainers"
+                href="/lexicon"
                 className="font-medium text-[var(--discover)] underline underline-offset-2 dark:text-amber-400"
               >
                 How projects get listed
@@ -742,7 +742,7 @@ export function StewardCard({
               </a>
             )}
             <Link
-              href="/maintainers"
+              href="/lexicon"
               className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               title="Maintainers"
               aria-label="Maintainers"

@@ -76,7 +76,7 @@ describe('lookupManualStewardRecord', () => {
   })
 
   it('returns null for stewards without contribute or dependency data', () => {
-    // bsky.app was removed from catalog (only had disclosure metadata)
+    // bsky.app has no catalog entry with contribute or dependency data
     expect(lookupManualStewardRecord('bsky.app')).toBeNull()
   })
 
