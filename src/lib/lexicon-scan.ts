@@ -518,11 +518,12 @@ export async function scanRepoStreaming(
       const batch = missingHandleDids.slice(i, i + BATCH)
       try {
         const data = await xrpcQuery<{
-          profiles?: Array<{ did: string; handle?: string }>
+          profiles?: Array<{ did: string; handle?: string; displayName?: string }>
         }>(publicClient, 'app.bsky.actor.getProfiles', { actors: batch })
         for (const profile of data.profiles ?? []) {
-          if (profile.handle) {
-            // Re-emit with handle so the client-side EntryIndex picks it up
+          if (profile.handle || profile.displayName) {
+            // Re-emit with handle + displayName so the client EntryIndex
+            // can merge them in (the merge prefers non-DID displayNames)
             emit({
               type: 'entry',
               entry: {
@@ -530,7 +531,7 @@ export async function scanRepoStreaming(
                 did: profile.did,
                 handle: profile.handle,
                 tags: [],
-                displayName: profile.did,
+                displayName: profile.displayName ?? profile.handle ?? profile.did,
                 source: 'unknown',
               },
             })
