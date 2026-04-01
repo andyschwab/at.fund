@@ -15,7 +15,6 @@ import {
   AlertCircle,
   BookOpen,
   ExternalLink,
-  HeartHandshake,
   LogOut,
   Pencil,
   PlusCircle,
@@ -290,13 +289,11 @@ export function HomeClient({ hasSession, error }: Props) {
               className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)] shadow-sm"
               aria-hidden
             >
-              <HeartHandshake className="h-11 w-11" strokeWidth={1.75} />
+              <span className="select-none font-mono text-5xl font-light leading-none">ƒ</span>
             </span>
             <div className="w-full space-y-3">
               <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
-                <span className="font-mono font-medium text-slate-500 dark:text-slate-400">
-                  AT.fund
-                </span>
+                <span className="font-mono font-medium"><span className="text-slate-500 dark:text-slate-400">at.</span><span className="text-[var(--support)]">ƒ</span><span className="text-slate-500 dark:text-slate-400">und</span></span>
                 <span className="text-slate-500 dark:text-slate-400">: </span>
                 <span className="text-slate-900 dark:text-slate-100">
                   We can just pay for things

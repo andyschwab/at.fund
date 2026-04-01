@@ -8,7 +8,6 @@ import {
   CreditCard,
   ExternalLink,
   GitBranch,
-  HeartHandshake,
   LogIn,
   Monitor,
   Wrench,
@@ -36,14 +35,12 @@ export function LandingPage({ handle, setHandle, loading, err, onLogin }: Props)
             className="flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center rounded-2xl border border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)] shadow-sm"
             aria-hidden
           >
-            <HeartHandshake className="h-11 w-11" strokeWidth={1.75} />
+            <span className="select-none font-mono text-5xl font-light leading-none">ƒ</span>
           </span>
 
           <div className="space-y-4">
             <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-              <span className="font-mono font-medium text-slate-500 dark:text-slate-400">
-                at.fund
-              </span>
+              <span className="font-mono font-medium"><span className="text-slate-500 dark:text-slate-400">at.</span><span className="text-[var(--support)]">ƒ</span><span className="text-slate-500 dark:text-slate-400">und</span></span>
               {' — '}
               <span className="text-slate-900 dark:text-slate-100">
                 Keep your atmosphere clean
