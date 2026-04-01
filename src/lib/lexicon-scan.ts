@@ -1,7 +1,8 @@
-import { Agent } from '@atproto/api'
+import { Client } from '@atproto/lex'
 import { extractPdsUrl } from '@atproto/did'
 import type { AtprotoDidDocument } from '@atproto/did'
 import type { OAuthSession } from '@atproto/oauth-client'
+import { xrpcQuery } from '@/lib/xrpc'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
 import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
@@ -32,7 +33,7 @@ import { logger } from '@/lib/logger'
  */
 async function resolveSessionPdsUrl(
   session: OAuthSession,
-  agent: Agent,
+  client: Client,
 ): Promise<URL | null> {
   try {
     const info = await session.getTokenInfo(false)
@@ -44,10 +45,12 @@ async function resolveSessionPdsUrl(
     // ignore
   }
   try {
-    const resolved = await agent.com.atproto.identity.resolveIdentity({
-      identifier: session.did,
-    })
-    return extractPdsUrl(resolved.data.didDoc as AtprotoDidDocument)
+    const resolved = await xrpcQuery<{ didDoc: unknown }>(
+      client,
+      'com.atproto.identity.resolveIdentity',
+      { identifier: session.did },
+    )
+    return extractPdsUrl(resolved.didDoc as AtprotoDidDocument)
   } catch {
     return null
   }
@@ -87,28 +90,29 @@ export async function scanRepo(
   session: OAuthSession,
   selfReportedStewards: string[] = [],
 ): Promise<ScanResult> {
-  const agent = new Agent(session)
+  const client = new Client(session)
 
-  const pdsUrl = await resolveSessionPdsUrl(session, agent)
+  const pdsUrl = await resolveSessionPdsUrl(session, client)
 
-  const repoInfo = await agent.com.atproto.repo.describeRepo({
-    repo: session.did,
-  })
-  const collections = repoInfo.data.collections ?? []
+  const repoInfo = await xrpcQuery<{
+    collections?: string[]
+    handle?: string
+  }>(client, 'com.atproto.repo.describeRepo', { repo: session.did })
+  const collections = repoInfo.collections ?? []
 
   const handle =
-    handleFromDescribeRepo(repoInfo.data) ??
+    handleFromDescribeRepo(repoInfo) ??
     (await getBlueskyHandleFallback(session))
 
   const thirdParty = filterThirdPartyCollections(collections)
   const staticCols = stripDerivedCollections(thirdParty)
   const calendarKeys = await resolveCalendarCatalogKeys(
-    agent,
+    client,
     session.did,
     thirdParty,
   )
   const siteStandardPairs = await resolveSiteStandardPairs(
-    agent,
+    client,
     session.did,
     thirdParty,
   )
@@ -160,7 +164,7 @@ export async function scanRepo(
           const ownRecords = await fetchOwnFundAtRecords(session)
           fundAt = ownRecords ? { stewardDid, ...ownRecords } : null
         } else {
-          fundAt = await fetchFundAtForStewardDid(stewardDid, agent)
+          fundAt = await fetchFundAtForStewardDid(stewardDid, client)
         }
         if (fundAt) {
           const {
@@ -266,7 +270,7 @@ export async function scanRepo(
   const pdsHostPromise = (async () => {
     if (!pdsUrl) return
     try {
-      pdsHostFunding = (await fetchFundingForUriLike(pdsUrl.origin, agent)) ?? undefined
+      pdsHostFunding = (await fetchFundingForUriLike(pdsUrl.origin, client)) ?? undefined
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'
       logger.warn('scan: PDS host funding lookup failed', {
@@ -279,7 +283,7 @@ export async function scanRepo(
 
   const followsPromise = (async () => {
     try {
-      followedAccounts = await scanFollows(session.did, agent)
+      followedAccounts = await scanFollows(session.did, client)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Follow scan failed'
       logger.warn('scan: follow scan failed', { did: session.did, error: msg })
@@ -334,16 +338,19 @@ export async function scanRepoStreaming(
   selfReportedStewards: string[] = [],
   emit: (event: ScanStreamEvent) => void,
 ): Promise<void> {
-  const agent = new Agent(session)
+  const client = new Client(session)
 
   emit({ type: 'status', message: 'Reading your repository…' })
 
-  const pdsUrl = await resolveSessionPdsUrl(session, agent)
+  const pdsUrl = await resolveSessionPdsUrl(session, client)
 
-  const repoInfo = await agent.com.atproto.repo.describeRepo({ repo: session.did })
-  const collections = repoInfo.data.collections ?? []
+  const repoInfo = await xrpcQuery<{
+    collections?: string[]
+    handle?: string
+  }>(client, 'com.atproto.repo.describeRepo', { repo: session.did })
+  const collections = repoInfo.collections ?? []
   const handle =
-    handleFromDescribeRepo(repoInfo.data) ??
+    handleFromDescribeRepo(repoInfo) ??
     (await getBlueskyHandleFallback(session))
 
   emit({ type: 'meta', did: session.did, handle: handle ?? undefined, pdsUrl: pdsUrl?.origin })
@@ -351,8 +358,8 @@ export async function scanRepoStreaming(
   const thirdParty = filterThirdPartyCollections(collections)
   const staticCols = stripDerivedCollections(thirdParty)
   const [calendarKeys, siteStandardPairs] = await Promise.all([
-    resolveCalendarCatalogKeys(agent, session.did, thirdParty),
-    resolveSiteStandardPairs(agent, session.did, thirdParty),
+    resolveCalendarCatalogKeys(client, session.did, thirdParty),
+    resolveSiteStandardPairs(client, session.did, thirdParty),
   ])
 
   const observed = new Set<string>()
@@ -409,7 +416,7 @@ export async function scanRepoStreaming(
             const ownRecords = await fetchOwnFundAtRecords(session)
             fundAt = ownRecords ? { stewardDid, ...ownRecords } : null
           } else {
-            fundAt = await fetchFundAtForStewardDid(stewardDid, agent)
+            fundAt = await fetchFundAtForStewardDid(stewardDid, client)
           }
           if (fundAt) {
             const { displayName: dName, description: dDesc, landingPage: dLanding, ...disclosureExtras } = fundAt.disclosure
@@ -496,7 +503,7 @@ export async function scanRepoStreaming(
     (async () => {
       if (!pdsUrl) return
       try {
-        const funding = await fetchFundingForUriLike(pdsUrl.origin, agent)
+        const funding = await fetchFundingForUriLike(pdsUrl.origin, client)
         if (funding) emit({ type: 'pds-host', funding })
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'
@@ -506,7 +513,7 @@ export async function scanRepoStreaming(
     })(),
     (async () => {
       try {
-        const followedAccounts = await scanFollows(session.did, agent)
+        const followedAccounts = await scanFollows(session.did, client)
         for (const account of followedAccounts) {
           emit({ type: 'entry', entry: followedAccountToEntry(account) })
         }
