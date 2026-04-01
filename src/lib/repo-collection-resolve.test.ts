@@ -30,7 +30,7 @@ describe('stripDerivedCollections', () => {
     const input = [
       'fyi.unravel.frontpage.post',
       'blue.zio.atfile.upload',
-      'fund.at.disclosure',
+      'fund.at.contribute',
     ]
     expect(stripDerivedCollections(input)).toEqual(input)
   })

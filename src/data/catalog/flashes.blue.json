@@ -1,22 +1,3 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "Flashes",
-      "description": "Photo-oriented sharing. Creator: seabass.",
-      "landingPage": "https://www.flashes.blue"
-    },
-    "contact": {
-      "general": {
-        "handle": "flashes.blue"
-      }
-    }
-  },
-  "contribute": {
-    "links": [
-      {
-        "label": "GoFundMe (Flashes for Android)",
-        "url": "https://www.gofundme.com/f/help-bring-flashes-for-bluesky-to-android"
-      }
-    ]
-  }
+  "contributeUrl": "https://www.gofundme.com/f/help-bring-flashes-for-bluesky-to-android"
 }

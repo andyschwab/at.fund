@@ -1,22 +1,3 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "Smoke Signal",
-      "description": "Events and RSVPs on ATProto. Creator: Nick Gerakines.",
-      "landingPage": "https://smokesignal.events"
-    },
-    "contact": {
-      "general": {
-        "handle": "nickgerakines.com"
-      }
-    }
-  },
-  "contribute": {
-    "links": [
-      {
-        "label": "Open Collective",
-        "url": "https://opencollective.com/smoke-signal"
-      }
-    ]
-  }
+  "contributeUrl": "https://opencollective.com/smoke-signal"
 }

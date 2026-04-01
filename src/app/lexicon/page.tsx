@@ -1,13 +1,13 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import disclosureSchema from '../../../lexicon/fund.at.disclosure.json'
 import contributeSchema from '../../../lexicon/fund.at.contribute.json'
-import dependenciesSchema from '../../../lexicon/fund.at.dependencies.json'
+import dependencySchema from '../../../lexicon/fund.at.dependency.json'
+import watchSchema from '../../../lexicon/fund.at.watch.json'
 
 export const metadata: Metadata = {
   title: 'Lexicon — AT.fund',
   description:
-    'The fund.at.* ATProto lexicons: disclosure, contribute, and dependencies.',
+    'The fund.at.* ATProto lexicons: contribute, dependency, and watch.',
 }
 
 // ---- Schema shape types ----
@@ -19,6 +19,7 @@ type LexProp = {
   ref?: string
   items?: { type?: string; ref?: string }
   minItems?: number
+  maxLength?: number
 }
 
 type LexDef = {
@@ -26,6 +27,7 @@ type LexDef = {
   description?: string
   required?: string[]
   properties?: Record<string, LexProp>
+  key?: string
   record?: {
     type: string
     required?: string[]
@@ -36,7 +38,7 @@ type LexDef = {
 type LexSchema = {
   lexicon: number
   id: string
-  description: string
+  description?: string
   defs: Record<string, LexDef>
 }
 
@@ -200,10 +202,10 @@ function PropList({
 
 function RecordSection({
   schema,
-  isRequired,
+  keyType,
 }: {
   schema: LexSchema
-  isRequired: boolean
+  keyType: string
 }) {
   const main = schema.defs.main
   const properties = main.record?.properties ?? main.properties ?? {}
@@ -214,15 +216,9 @@ function RecordSection({
     <section className="mt-14">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
         <h2 className="font-mono text-base font-semibold">{schema.id}</h2>
-        {isRequired ? (
-          <span className="rounded-full bg-support px-2.5 py-0.5 text-xs font-semibold text-support-foreground">
-            required
-          </span>
-        ) : (
-          <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-            optional
-          </span>
-        )}
+        <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+          key: {keyType}
+        </span>
       </div>
       <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
         {main.description ?? schema.description}
@@ -256,9 +252,9 @@ export default function LexiconPage() {
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">Lexicon</h1>
           <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-slate-400">
-            <code className="font-mono text-sm">fund.at.*</code> is a small family of three
-            ATProto lexicons. Together they let a project steward publish funding metadata —
-            who they are, how to support them, and what they build on — directly from their
+            <code className="font-mono text-sm">fund.at.*</code> is a small family of
+            ATProto lexicons. They let a project steward publish funding metadata —
+            how to support them, what they depend on, and what they watch — directly from their
             ATProto repo. Any client that speaks ATProto can discover and render these records
             without a central registry.
           </p>
@@ -295,15 +291,15 @@ export default function LexiconPage() {
               </div>
               <div>
                 <span className="text-slate-400 dark:text-slate-500">→ PDS      </span>
-                <span className="text-slate-600 dark:text-slate-300">their.pds.host → listRecords</span>
+                <span className="text-slate-600 dark:text-slate-300">their.pds.host → getRecord / listRecords</span>
               </div>
               <div>
                 <span className="text-slate-400 dark:text-slate-500">→ records  </span>
-                <span className="text-support">fund.at.disclosure</span>
+                <span className="text-support">fund.at.contribute</span>
                 <span className="text-slate-500 dark:text-slate-400">, </span>
-                <span className="text-slate-600 dark:text-slate-300">fund.at.contribute</span>
+                <span className="text-slate-600 dark:text-slate-300">fund.at.dependency</span>
                 <span className="text-slate-500 dark:text-slate-400">, </span>
-                <span className="text-slate-600 dark:text-slate-300">fund.at.dependencies</span>
+                <span className="text-slate-600 dark:text-slate-300">fund.at.watch</span>
               </div>
             </div>
           </div>
@@ -317,37 +313,20 @@ export default function LexiconPage() {
 
         {/* Record sections — auto-rendered from the JSON schema files */}
         <RecordSection
-          schema={disclosureSchema as unknown as LexSchema}
-          isRequired={true}
-        />
-        <RecordSection
           schema={contributeSchema as unknown as LexSchema}
-          isRequired={false}
+          keyType="literal:self"
         />
         <RecordSection
-          schema={dependenciesSchema as unknown as LexSchema}
-          isRequired={false}
+          schema={dependencySchema as unknown as LexSchema}
+          keyType="tid"
         />
-
-        {/* Scoping note */}
-        <section className="mt-12 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/30 px-5 py-4">
-          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Record scoping
-          </h3>
-          <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-            Every record supports an optional{' '}
-            <code className="font-mono text-xs">restrictToDomains</code> allowlist. When set,
-            the record only applies when AT.fund encounters that specific hostname — useful
-            when one DID covers multiple products. Omit it and the record applies everywhere
-            your DID is found.{' '}
-            <code className="font-mono text-xs">fund.at.dependencies</code> also supports{' '}
-            <code className="font-mono text-xs">appliesToNsidPrefix</code> for tool-scoped
-            dependency lists.
-          </p>
-        </section>
+        <RecordSection
+          schema={watchSchema as unknown as LexSchema}
+          keyType="tid"
+        />
 
         {/* Status note */}
-        <div className="mt-8 pb-16 text-center">
+        <div className="mt-12 pb-16 text-center">
           <p className="text-xs text-slate-400 dark:text-slate-500">
             These schemas are a work in progress. This page always reflects the current
             definitions in <code className="font-mono">lexicon/</code>.

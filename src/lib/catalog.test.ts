@@ -52,12 +52,10 @@ describe('resolveStewardUri', () => {
 
   // NSID hostname inference (3+ segments, no override match)
   it('infers hostname from 3-segment NSIDs', () => {
-    // NSID like "com.example.app" → "example.com"
     expect(resolveStewardUri('com.example.app')).toBe('example.com')
   })
 
   it('infers hostname from deep NSIDs', () => {
-    // NSID like "io.github.myapp.feature" → "github.io"
     expect(resolveStewardUri('io.github.myapp.feature')).toBe('github.io')
   })
 
@@ -77,32 +75,37 @@ describe('lookupManualStewardRecord', () => {
     expect(lookupManualStewardRecord('')).toBeNull()
   })
 
-  it('finds bsky.app in the manual catalog', () => {
-    const record = lookupManualStewardRecord('bsky.app')
+  it('returns null for stewards without contribute or dependency data', () => {
+    // bsky.app was removed from catalog (only had disclosure metadata)
+    expect(lookupManualStewardRecord('bsky.app')).toBeNull()
+  })
+
+  it('finds deck.blue in the manual catalog with contributeUrl', () => {
+    const record = lookupManualStewardRecord('deck.blue')
     expect(record).not.toBeNull()
-    expect(record!.stewardUri).toBe('bsky.app')
-    expect(record!.displayName).toBeTruthy()
-    expect(record!.links).toBeInstanceOf(Array)
+    expect(record!.stewardUri).toBe('deck.blue')
+    expect(record!.contributeUrl).toBeTruthy()
+  })
+
+  it('finds frontpage.fyi in the manual catalog with dependencies', () => {
+    const record = lookupManualStewardRecord('frontpage.fyi')
+    expect(record).not.toBeNull()
+    expect(record!.stewardUri).toBe('frontpage.fyi')
+    expect(record!.dependencies).toBeInstanceOf(Array)
+    expect(record!.dependencies!.length).toBeGreaterThan(0)
   })
 
   it('is case-insensitive', () => {
-    const lower = lookupManualStewardRecord('bsky.app')
-    const upper = lookupManualStewardRecord('Bsky.App')
+    const lower = lookupManualStewardRecord('deck.blue')
+    const upper = lookupManualStewardRecord('Deck.Blue')
     expect(lower).toEqual(upper)
   })
 
   it('returns structured data with expected fields', () => {
-    const record = lookupManualStewardRecord('bsky.app')
-    if (!record) throw new Error('Expected bsky.app to be in manual catalog')
+    const record = lookupManualStewardRecord('deck.blue')
+    if (!record) throw new Error('Expected deck.blue to be in manual catalog')
     expect(record).toHaveProperty('stewardUri')
-    expect(record).toHaveProperty('displayName')
-    expect(record).toHaveProperty('links')
-    // links should be FundLink[] shape
-    for (const link of record.links) {
-      expect(link).toHaveProperty('label')
-      expect(link).toHaveProperty('url')
-      expect(typeof link.label).toBe('string')
-      expect(typeof link.url).toBe('string')
-    }
+    expect(record).toHaveProperty('contributeUrl')
+    expect(typeof record.contributeUrl).toBe('string')
   })
 })

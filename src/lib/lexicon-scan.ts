@@ -9,7 +9,7 @@ import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { resolveStewardUri, lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { fetchOwnFundAtRecords } from '@/lib/fund-at-records'
-import type { StewardCardModel, StewardEntry } from '@/lib/steward-model'
+import type { StewardEntry } from '@/lib/steward-model'
 import { scanFollows } from '@/lib/follow-scan'
 import type { FollowedAccountCard } from '@/lib/follow-scan'
 import { mergeIntoEntries, referencedStewardsToEntries, followedAccountToEntry } from '@/lib/steward-merge'
@@ -26,11 +26,6 @@ import {
 } from '@/lib/repo-collection-resolve'
 import { logger } from '@/lib/logger'
 
-/**
- * OAuth requests use the token `aud` (resource server) as the PDS base URL.
- * `extractPdsUrl(didDoc)` can fail on some documents; `aud` matches the live
- * connection and should always be present for an OAuth session.
- */
 async function resolveSessionPdsUrl(
   session: OAuthSession,
   client: Client,
@@ -78,9 +73,7 @@ export type ScanResult = {
   did: string
   handle?: string
   pdsUrl?: string
-  /** Unified, deduplicated list of all discovered stewards. */
   entries: StewardEntry[]
-  /** Resolved models for dependency URIs not in entries — used for lookup only, not rendered as cards. */
   referencedEntries: StewardEntry[]
   warnings: ScanWarning[]
   pdsHostFunding?: PdsHostFunding
@@ -135,7 +128,7 @@ export async function scanRepo(
     stewardUris: [...stewardUris].sort(),
   })
 
-  const stewards: StewardCardModel[] = []
+  const stewards: StewardEntry[] = []
   const warnings: ScanWarning[] = []
 
   for (const stewardUri of [...stewardUris].sort((a, b) => a.localeCompare(b))) {
@@ -167,25 +160,14 @@ export async function scanRepo(
           fundAt = await fetchFundAtForStewardDid(stewardDid, client)
         }
         if (fundAt) {
-          const {
-            displayName: dName,
-            description: dDesc,
-            landingPage: dLanding,
-            ...disclosureExtras
-          } = fundAt.disclosure
           stewards.push({
-            stewardUri,
-            stewardDid: stewardDidOrUndefined,
-            displayName: dName ?? manual?.displayName ?? stewardUri,
-            description: dDesc ?? manual?.description,
-            landingPage: dLanding,
-            links: fundAt.links,
-            dependencies: fundAt.dependencyUris,
+            uri: stewardUri,
+            did: stewardDidOrUndefined,
+            tags: ['tool'],
+            displayName: stewardUri,
+            contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
+            dependencies: fundAt.dependencies?.map((d) => d.uri) ?? manual?.dependencies,
             source: 'fund.at',
-            ...disclosureExtras,
-            contactGeneralHandle:
-              fundAt.disclosure.contactGeneralHandle ??
-              manual?.contactGeneralHandle,
           })
           continue
         }
@@ -197,19 +179,16 @@ export async function scanRepo(
           error: msg,
         })
         warnings.push({ stewardUri, step: 'fund-at-fetch', message: msg })
-        // Fall through to manual catalog
       }
     }
 
     if (manual) {
       stewards.push({
-        stewardUri,
-        stewardDid: stewardDidOrUndefined,
-        displayName: manual.displayName,
-        description: manual.description,
-        landingPage: manual.landingPage,
-        contactGeneralHandle: manual.contactGeneralHandle,
-        links: manual.links.length > 0 ? manual.links : undefined,
+        uri: stewardUri,
+        did: stewardDidOrUndefined,
+        tags: ['tool'],
+        displayName: stewardUri,
+        contributeUrl: manual.contributeUrl,
         dependencies: manual.dependencies,
         source: 'manual',
       })
@@ -217,16 +196,16 @@ export async function scanRepo(
     }
 
     stewards.push({
-      stewardUri,
-      stewardDid: stewardDidOrUndefined,
+      uri: stewardUri,
+      did: stewardDidOrUndefined,
+      tags: ['tool'],
       displayName: stewardUri,
       source: 'unknown',
     })
   }
 
-  // Resolve dep URIs that weren't in the main scan (catalog-only, no extra network calls).
-  // These are needed so the UI can determine whether a steward's deps accept contributions.
-  const referencedStewards: StewardCardModel[] = []
+  // Resolve dep URIs that weren't in the main scan
+  const referencedStewards: StewardEntry[] = []
   const resolvedDepUris = new Set<string>()
   for (const s of stewards) {
     for (const depUri of s.dependencies ?? []) {
@@ -235,12 +214,10 @@ export async function scanRepo(
         const manual = lookupManualStewardRecord(depUri)
         if (manual) {
           referencedStewards.push({
-            stewardUri: depUri,
-            displayName: manual.displayName,
-            description: manual.description,
-            landingPage: manual.landingPage,
-            contactGeneralHandle: manual.contactGeneralHandle,
-            links: manual.links.length > 0 ? manual.links : undefined,
+            uri: depUri,
+            tags: ['tool'],
+            displayName: depUri,
+            contributeUrl: manual.contributeUrl,
             dependencies: manual.dependencies,
             source: 'manual',
           })
@@ -249,17 +226,16 @@ export async function scanRepo(
     }
   }
 
-  /** Sort: direct (has contribute link) → dependency (has deps, no link) → none → unknown */
-  function stewardTier(s: StewardCardModel): number {
+  function stewardTier(s: StewardEntry): number {
     if (s.source === 'unknown') return 3
-    if (s.links && s.links.length > 0) return 0
+    if (s.contributeUrl) return 0
     if (s.dependencies && s.dependencies.length > 0) return 1
     return 2
   }
   stewards.sort((a, b) => {
     const diff = stewardTier(a) - stewardTier(b)
     if (diff !== 0) return diff
-    return a.stewardUri.localeCompare(b.stewardUri)
+    return a.uri.localeCompare(b.uri)
   })
 
   // Run PDS host funding, follow scan, and subscriptions scan in parallel
@@ -327,12 +303,6 @@ export async function scanRepo(
   }
 }
 
-/**
- * Streaming variant of scanRepo. Emits events progressively as each steward
- * resolves rather than waiting for the full scan to complete.
- * Tool stewards are resolved in parallel; follows and subscriptions run
- * concurrently with the last resolution phase.
- */
 export async function scanRepoStreaming(
   session: OAuthSession,
   selfReportedStewards: string[] = [],
@@ -340,7 +310,7 @@ export async function scanRepoStreaming(
 ): Promise<void> {
   const client = new Client(session)
 
-  emit({ type: 'status', message: 'Reading your repository…' })
+  emit({ type: 'status', message: 'Reading your repository\u2026' })
 
   const pdsUrl = await resolveSessionPdsUrl(session, client)
 
@@ -381,14 +351,12 @@ export async function scanRepoStreaming(
   })
 
   if (stewardUris.size > 0) {
-    emit({ type: 'status', message: `Resolving ${stewardUris.size} steward${stewardUris.size === 1 ? '' : 's'}…` })
+    emit({ type: 'status', message: `Resolving ${stewardUris.size} steward${stewardUris.size === 1 ? '' : 's'}\u2026` })
   }
 
-  // Track emitted URIs so dep entries aren't duplicated
   const emittedUris = new Set<string>()
   const pendingDepUris = new Set<string>()
 
-  // Resolve all tool stewards in parallel — emit each as it resolves
   await Promise.allSettled(
     [...stewardUris].sort().map(async (stewardUri) => {
       const isDid = stewardUri.startsWith('did:')
@@ -419,23 +387,18 @@ export async function scanRepoStreaming(
             fundAt = await fetchFundAtForStewardDid(stewardDid, client)
           }
           if (fundAt) {
-            const { displayName: dName, description: dDesc, landingPage: dLanding, ...disclosureExtras } = fundAt.disclosure
+            const deps = fundAt.dependencies?.map((d) => d.uri) ?? manual?.dependencies
             const entry: StewardEntry = {
               uri: stewardUri,
               did: stewardDidOrUndefined,
               tags: ['tool'],
-              displayName: dName ?? manual?.displayName ?? stewardUri,
-              description: dDesc ?? manual?.description,
-              landingPage: dLanding,
-              links: fundAt.links,
-              dependencies: fundAt.dependencyUris,
-              dependencyNotes: fundAt.dependencyNotes,
+              displayName: stewardUri,
+              contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
+              dependencies: deps,
               source: 'fund.at',
-              ...disclosureExtras,
-              contactGeneralHandle: fundAt.disclosure.contactGeneralHandle ?? manual?.contactGeneralHandle,
             }
             emittedUris.add(stewardUri)
-            for (const dep of fundAt.dependencyUris ?? []) pendingDepUris.add(dep)
+            for (const dep of deps ?? []) pendingDepUris.add(dep)
             emit({ type: 'entry', entry })
             return
           }
@@ -443,7 +406,6 @@ export async function scanRepoStreaming(
           const msg = e instanceof Error ? e.message : 'Failed to fetch fund.at records'
           logger.warn('scan-streaming: fund.at fetch failed', { stewardUri, stewardDid, error: msg })
           emit({ type: 'warning', warning: { stewardUri, step: 'fund-at-fetch', message: msg } })
-          // fall through to manual catalog
         }
       }
 
@@ -452,11 +414,8 @@ export async function scanRepoStreaming(
           uri: stewardUri,
           did: stewardDidOrUndefined,
           tags: ['tool'],
-          displayName: manual.displayName,
-          description: manual.description,
-          landingPage: manual.landingPage,
-          contactGeneralHandle: manual.contactGeneralHandle,
-          links: manual.links.length > 0 ? manual.links : undefined,
+          displayName: stewardUri,
+          contributeUrl: manual.contributeUrl,
           dependencies: manual.dependencies,
           source: 'manual',
         }
@@ -474,7 +433,6 @@ export async function scanRepoStreaming(
     }),
   )
 
-  // Emit catalog-only dep entries (no extra network calls)
   for (const depUri of pendingDepUris) {
     if (!emittedUris.has(depUri)) {
       const manual = lookupManualStewardRecord(depUri)
@@ -484,11 +442,8 @@ export async function scanRepoStreaming(
           entry: {
             uri: depUri,
             tags: ['tool'],
-            displayName: manual.displayName,
-            description: manual.description,
-            landingPage: manual.landingPage,
-            contactGeneralHandle: manual.contactGeneralHandle,
-            links: manual.links.length > 0 ? manual.links : undefined,
+            displayName: depUri,
+            contributeUrl: manual.contributeUrl,
             dependencies: manual.dependencies,
             source: 'manual',
           },
@@ -497,8 +452,7 @@ export async function scanRepoStreaming(
     }
   }
 
-  // PDS host funding, follows, and subscriptions all in parallel
-  emit({ type: 'status', message: 'Loading follows and subscriptions…' })
+  emit({ type: 'status', message: 'Loading follows and subscriptions\u2026' })
   await Promise.all([
     (async () => {
       if (!pdsUrl) return

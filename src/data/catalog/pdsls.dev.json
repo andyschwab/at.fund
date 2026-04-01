@@ -1,19 +1,5 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "PDSls",
-      "description": "ATProto repository browser for inspecting PDS contents and records.",
-      "landingPage": "https://pdsls.dev"
-    },
-    "contact": {
-      "general": {
-        "handle": "pdsls.dev"
-      }
-    }
-  },
-  "dependencies": {
-    "uris": [
-      "juli.ee"
-    ]
-  }
+  "dependencies": [
+    "juli.ee"
+  ]
 }

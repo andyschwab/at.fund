@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger'
 
 /**
  * Resolve a single steward URI to its full StewardEntry.
- * Does not require authentication — all data is public.
+ * Does not require authentication -- all data is public.
  */
 export async function GET(request: NextRequest) {
   const raw = request.nextUrl.searchParams.get('uri')
@@ -45,26 +45,14 @@ export async function GET(request: NextRequest) {
       try {
         const fundAt = await fetchFundAtForStewardDid(stewardDid)
         if (fundAt) {
-          const {
-            displayName: dName,
-            description: dDesc,
-            landingPage: dLanding,
-            ...disclosureExtras
-          } = fundAt.disclosure
           const entry: StewardEntry = {
             uri: stewardUri,
             did: stewardDidOrUndefined,
             tags: ['tool'],
-            displayName: dName ?? manual?.displayName ?? stewardUri,
-            description: dDesc ?? manual?.description,
-            landingPage: dLanding,
-            links: fundAt.links,
-            dependencies: fundAt.dependencyUris,
-            dependencyNotes: fundAt.dependencyNotes,
+            displayName: manual?.stewardUri ?? stewardUri,
+            contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
+            dependencies: fundAt.dependencies?.map((d) => d.uri) ?? manual?.dependencies,
             source: 'fund.at',
-            ...disclosureExtras,
-            contactGeneralHandle:
-              fundAt.disclosure.contactGeneralHandle ?? manual?.contactGeneralHandle,
           }
           return NextResponse.json(entry)
         }
@@ -82,11 +70,8 @@ export async function GET(request: NextRequest) {
         uri: stewardUri,
         did: stewardDidOrUndefined,
         tags: ['tool'],
-        displayName: manual.displayName,
-        description: manual.description,
-        landingPage: manual.landingPage,
-        contactGeneralHandle: manual.contactGeneralHandle,
-        links: manual.links.length > 0 ? manual.links : undefined,
+        displayName: stewardUri,
+        contributeUrl: manual.contributeUrl,
         dependencies: manual.dependencies,
         source: 'manual',
       }

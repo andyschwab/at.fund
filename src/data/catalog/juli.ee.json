@@ -1,22 +1,3 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "Juliet",
-      "description": "French open-source developer building ATProto tools including PDSls, pronouns-bsky, and cleanfollow-bsky.",
-      "landingPage": "https://juli.ee"
-    },
-    "contact": {
-      "general": {
-        "handle": "juli.ee"
-      }
-    }
-  },
-  "contribute": {
-    "links": [
-      {
-        "label": "GitHub Sponsors (@notjuliet)",
-        "url": "https://github.com/sponsors/notjuliet"
-      }
-    ]
-  }
+  "contributeUrl": "https://github.com/sponsors/notjuliet"
 }

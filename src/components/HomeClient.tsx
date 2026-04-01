@@ -63,7 +63,7 @@ function userInitial(handleOrDid: string): string {
 
 function entryTier(e: StewardEntry): number {
   if (e.source === 'unknown') return 3
-  if (e.links && e.links.length > 0) return 0
+  if (e.contributeUrl) return 0
   if (e.dependencies && e.dependencies.length > 0) return 1
   return 2
 }
@@ -92,7 +92,7 @@ export function HomeClient({ hasSession, error }: Props) {
     const included = entries.filter(
       (e) =>
         e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') ||
-        (e.tags.includes('follow') && e.links?.length),
+        (e.tags.includes('follow') && !!e.contributeUrl),
     )
     return included.sort((a, b) => {
       const diff = entryTier(a) - entryTier(b)

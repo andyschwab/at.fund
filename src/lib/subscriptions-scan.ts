@@ -42,10 +42,6 @@ type DisplayInfo = {
   landingPage?: string
 }
 
-/**
- * Batch-fetch Bluesky labeler service views for a list of DIDs.
- * Uses the public API — no auth or rpc: scope needed.
- */
 async function fetchLabelerDisplayInfo(
   publicClient: Client,
   dids: string[],
@@ -79,10 +75,6 @@ async function fetchLabelerDisplayInfo(
   return result
 }
 
-/**
- * Batch-fetch Bluesky feed generator views for a list of AT-URIs.
- * Uses the public API — no auth or rpc: scope needed.
- */
 async function fetchFeedDisplayInfo(
   publicClient: Client,
   feedUris: string[],
@@ -129,25 +121,17 @@ async function resolveEntry(
   try {
     const fundAt = await fetchFundAtForStewardDid(did)
     if (fundAt) {
-      const {
-        displayName: dName,
-        description: dDesc,
-        landingPage: dLanding,
-        ...disclosureExtras
-      } = fundAt.disclosure
       return {
         uri: did,
         did,
         handle: fallback?.handle,
         tags: [tag],
-        displayName: dName ?? fallback?.displayName ?? did,
-        description: dDesc ?? fallback?.description,
-        landingPage: dLanding,
-        links: fundAt.links,
-        dependencies: fundAt.dependencyUris,
-        dependencyNotes: fundAt.dependencyNotes,
+        displayName: fallback?.displayName ?? did,
+        description: fallback?.description,
+        landingPage: fallback?.landingPage,
+        contributeUrl: fundAt.contributeUrl,
+        dependencies: fundAt.dependencies?.map((d) => d.uri),
         source: 'fund.at',
-        ...disclosureExtras,
       }
     }
   } catch {
@@ -162,11 +146,10 @@ async function resolveEntry(
       did,
       handle: fallback?.handle,
       tags: [tag],
-      displayName: manual.displayName,
-      description: manual.description,
-      landingPage: manual.landingPage,
-      contactGeneralHandle: manual.contactGeneralHandle,
-      links: manual.links.length > 0 ? manual.links : undefined,
+      displayName: fallback?.displayName ?? did,
+      description: fallback?.description,
+      landingPage: fallback?.landingPage,
+      contributeUrl: manual.contributeUrl,
       dependencies: manual.dependencies,
       source: 'manual',
     }
@@ -195,26 +178,14 @@ export type SubscriptionScanResult = {
   feedCount: number
 }
 
-/**
- * Scans the authenticated user's Bluesky preferences to find:
- *   - Labeler services they subscribe to (tag: 'labeler')
- *   - Feed generators they have saved/pinned (tag: 'feed')
- *
- * Uses the authenticated session for getPreferences (user-private data)
- * and the public Bluesky API for getServices/getFeedGenerators (public data).
- */
 export async function scanSubscriptions(
   session: OAuthSession,
 ): Promise<SubscriptionScanResult> {
-  // Authenticated client with AppView proxy for getPreferences
   const authClient = new Client(session, {
     service: 'did:web:api.bsky.app#bsky_appview',
   })
-
-  // Public client for labeler/feed display info (no scope needed)
   const publicClient = new Client(PUBLIC_API)
 
-  // Fetch preferences via authenticated session
   let labelerDids: string[] = []
   let feedUris: string[] = []
 
@@ -253,27 +224,21 @@ export async function scanSubscriptions(
     return { entries: [], labelerCount: 0, feedCount: 0 }
   }
 
-  // Batch-fetch display info for both types in parallel (public API)
   const [labelerInfo, feedInfo] = await Promise.all([
     fetchLabelerDisplayInfo(publicClient, labelerDids),
     fetchFeedDisplayInfo(publicClient, feedUris),
   ])
 
-  // Build DID → rkey map from AT-URIs (at://did:.../app.bsky.feed.generator/rkey).
-  // Used as a display-name fallback when getFeedGenerators doesn't return the feed.
   const feedRkeyByDid = new Map<string, string>()
   for (const uri of feedUris) {
     const m = uri.match(/^at:\/\/(did:[^/]+)\/[^/]+\/([^/]+)$/)
     if (m) feedRkeyByDid.set(m[1]!, m[2]!)
   }
 
-  // Build feed DID list: start with DIDs parsed directly from the saved AT-URIs
-  // so feeds that getFeedGenerators failed to resolve still produce entries.
   const feedDids = [
     ...new Set([...feedRkeyByDid.keys(), ...feedInfo.keys()]),
   ]
 
-  // Resolve all entries concurrently (fund.at calls)
   const [labelerEntries, feedEntries] = await Promise.all([
     runWithConcurrency(labelerDids, CONCURRENCY, (did) =>
       resolveEntry(did, 'labeler', labelerInfo.get(did)),

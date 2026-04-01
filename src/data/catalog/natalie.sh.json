@@ -1,22 +1,3 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "Natalie",
-      "description": "Developer of teal.fm and atp.tools. Based in Nashville.",
-      "landingPage": "https://atp.tools"
-    },
-    "contact": {
-      "general": {
-        "handle": "natalie.sh"
-      }
-    }
-  },
-  "contribute": {
-    "links": [
-      {
-        "label": "GitHub Sponsors (@espeon)",
-        "url": "https://github.com/sponsors/espeon"
-      }
-    ]
-  }
+  "contributeUrl": "https://github.com/sponsors/espeon"
 }

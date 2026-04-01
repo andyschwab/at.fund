@@ -1,22 +1,3 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "Germ Network",
-      "description": "E2EE messaging on ATProto.",
-      "landingPage": "https://www.germnetwork.com"
-    },
-    "contact": {
-      "general": {
-        "handle": "germnetwork.com"
-      }
-    }
-  },
-  "contribute": {
-    "links": [
-      {
-        "label": "Support Germ",
-        "url": "https://www.germnetwork.com/support-germnetwork"
-      }
-    ]
-  }
+  "contributeUrl": "https://www.germnetwork.com/support-germnetwork"
 }

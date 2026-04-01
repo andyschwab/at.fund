@@ -21,7 +21,7 @@ describe('isNoiseCollection', () => {
     expect(isNoiseCollection('fyi.unravel.frontpage.post')).toBe(false)
     expect(isNoiseCollection('community.lexicon.calendar')).toBe(false)
     expect(isNoiseCollection('blue.zio.atfile.upload')).toBe(false)
-    expect(isNoiseCollection('fund.at.disclosure')).toBe(false)
+    expect(isNoiseCollection('fund.at.contribute')).toBe(false)
   })
 })
 

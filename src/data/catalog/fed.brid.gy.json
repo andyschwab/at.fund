@@ -1,22 +1,3 @@
 {
-  "disclosure": {
-    "meta": {
-      "displayName": "Bridgy Fed",
-      "description": "Bridge between ATProto, ActivityPub (Mastodon), and the IndieWeb. Built by Ryan Barrett.",
-      "landingPage": "https://fed.brid.gy"
-    },
-    "contact": {
-      "general": {
-        "handle": "fed.brid.gy"
-      }
-    }
-  },
-  "contribute": {
-    "links": [
-      {
-        "label": "Patreon (A New Social)",
-        "url": "https://www.patreon.com/c/ANewSocial"
-      }
-    ]
-  }
+  "contributeUrl": "https://www.patreon.com/c/ANewSocial"
 }

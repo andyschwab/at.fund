@@ -70,64 +70,62 @@ export default function MaintainersPage() {
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-support text-support-foreground text-sm font-bold">
               2
             </span>
-            <h2 className="text-xl font-semibold">Publish three records</h2>
+            <h2 className="text-xl font-semibold">Publish your records</h2>
           </div>
 
           <p className="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
             All records live in your ATProto repo, on any PDS. Use the setup page to create
-            them — it handles the ATProto details so you don't have to.
+            them -- it handles the ATProto details so you don&apos;t have to.
           </p>
 
           <div className="mt-6 space-y-3">
 
-            {/* disclosure — required */}
+            {/* contribute */}
             <div className="rounded-xl border border-support-border bg-support-muted p-5">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <code className="font-mono text-sm font-semibold text-support">
-                  fund.at.disclosure
-                </code>
-                <span className="rounded-full bg-support px-2.5 py-0.5 text-xs font-semibold text-support-foreground">
-                  required
-                </span>
-              </div>
-              <p className="mt-2.5 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                Who you are: display name, description, landing page, contact channels, security
-                policy URI, and legal/tax pointers. This is what AT.fund shows to donors when
-                they're deciding whether to support you.
-              </p>
-            </div>
-
-            {/* contribute — optional */}
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-5">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <code className="font-mono text-sm font-semibold">
                   fund.at.contribute
                 </code>
                 <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  optional
+                  singleton
                 </span>
               </div>
               <p className="mt-2.5 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                Where to donate: an array of labeled links. GitHub Sponsors, Open Collective,
-                Patreon, a direct donation page — include as many as apply. AT.fund surfaces
-                all of them.
+                Your funding page URL -- GitHub Sponsors, Open Collective, Patreon,
+                or any page where people can support you. One record per repo.
               </p>
             </div>
 
-            {/* dependencies — optional */}
+            {/* dependency */}
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-5">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <code className="font-mono text-sm font-semibold">
-                  fund.at.dependencies
+                  fund.at.dependency
                 </code>
                 <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  optional
+                  one per dep
                 </span>
               </div>
               <p className="mt-2.5 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                What you build on: a list of DIDs or hostnames for the projects your tool depends
+                What you build on: a DID or hostname for each project your tool depends
                 on. This lets AT.fund surface the full dependency tree to your users, so the
                 infrastructure underneath you gets credit too.
+              </p>
+            </div>
+
+            {/* watch */}
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <code className="font-mono text-sm font-semibold">
+                  fund.at.watch
+                </code>
+                <span className="rounded-full bg-sky-200 dark:bg-sky-700 px-2.5 py-0.5 text-xs font-semibold text-sky-800 dark:text-sky-100">
+                  new
+                </span>
+              </div>
+              <p className="mt-2.5 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                A watchlist entry: track the funding status of an entity you care about,
+                even if you don&apos;t depend on it directly.
               </p>
             </div>
           </div>
@@ -138,7 +136,7 @@ export default function MaintainersPage() {
           <div className="rounded-2xl border border-support-border bg-support-muted px-6 py-8 text-center">
             <h2 className="text-lg font-semibold">Ready?</h2>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              The setup page creates all three records for you — step by step, no ATProto
+              The setup page creates your records for you -- step by step, no ATProto
               expertise required.
             </p>
             <Link
@@ -150,17 +148,22 @@ export default function MaintainersPage() {
           </div>
         </section>
 
-        {/* Domain scoping footnote */}
+        {/* Record keys footnote */}
         <section className="mt-10 border-t border-slate-200 dark:border-slate-800 pt-8 pb-12">
           <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Domain scoping
+            Record keys
           </h3>
           <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-            Each record supports an optional{' '}
-            <code className="font-mono text-xs">restrictToDomains</code> allowlist. When set,
-            the record only applies when AT.fund is looking up that specific hostname — useful
-            if you have multiple products under one DID. Leave it empty and your record applies
-            everywhere your DID is found.
+            <code className="font-mono text-xs">fund.at.contribute</code> uses a{' '}
+            <code className="font-mono text-xs">literal:self</code> key -- one record per repo.{' '}
+            <code className="font-mono text-xs">fund.at.dependency</code> and{' '}
+            <code className="font-mono text-xs">fund.at.watch</code> use{' '}
+            <code className="font-mono text-xs">tid</code> keys so you can create multiple
+            records per repo. See the{' '}
+            <Link href="/lexicon" className="text-sky-700 underline dark:text-sky-400">
+              lexicon page
+            </Link>{' '}
+            for full schema details.
           </p>
         </section>
 

@@ -1,22 +1,18 @@
 import type { Client } from '@atproto/lex'
 import { fetchFundAtRecords } from '@/lib/fund-at-records'
-import type { FundLink, DisclosureMeta } from '@/lib/fund-at-records'
-
-export type { FundLink }
 
 export type PdsHostFunding = {
   pdsHostname: string
   stewardDid: string
   pdsStewardUri?: string
   pdsStewardHandle?: string
-  links?: FundLink[]
-  dependencyUris?: string[]
-  disclosure?: DisclosureMeta
+  contributeUrl?: string
+  dependencies?: Array<{ uri: string; label?: string }>
 }
 
 /**
- * Fetches fund.at.* records for a steward DID, scoped to a PDS hostname
- * via restrictToDomains filtering. Returns null when no disclosure exists.
+ * Fetches fund.at.* records for a steward DID scoped to a PDS hostname.
+ * Returns null when no fund.at records exist.
  */
 export async function fetchPdsHostFunding(
   stewardDid: string,
@@ -27,7 +23,7 @@ export async function fetchPdsHostFunding(
   },
   client?: Client,
 ): Promise<PdsHostFunding | null> {
-  const result = await fetchFundAtRecords(stewardDid, pdsHostname, client)
+  const result = await fetchFundAtRecords(stewardDid, client)
   if (!result) return null
   return { pdsHostname, stewardDid, ...opts, ...result }
 }
