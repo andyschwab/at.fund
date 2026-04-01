@@ -1,5 +1,7 @@
-// Drop-in replacement for Lucide's Heart icon, using the at.fund droplet mark.
+// Drop-in replacement using the at.fund handshake heart mark.
 // Matches the Lucide prop API exactly so call sites only need to change the import.
+
+import { HeartHandshake } from 'lucide-react'
 
 type Props = {
   className?: string
@@ -9,18 +11,10 @@ type Props = {
 
 export function DropletIcon({ className, strokeWidth = 1.5, 'aria-hidden': ariaHidden }: Props) {
   return (
-    <svg
-      viewBox="0 0 24 24"
+    <HeartHandshake
       className={className}
-      fill="none"
-      stroke="currentColor"
       strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
       aria-hidden={ariaHidden}
-    >
-      {/* Teardrop: pointed tip at top, rounded base — sweep 0 = counterclockwise arc downward */}
-      <path d="M12 2 C7 9,5 14,5 17 A7 7 0 0 0 19 17 C19 14,17 9,12 2 Z" />
-    </svg>
+    />
   )
 }
