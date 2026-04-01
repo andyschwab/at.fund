@@ -1,5 +1,6 @@
-import { Agent } from '@atproto/api'
+import { Client } from '@atproto/lex'
 import type { FundLink } from '@/lib/fund-at-records'
+import { xrpcQuery } from '@/lib/xrpc'
 import { lookupManualStewardByHandle } from '@/lib/catalog'
 import { logger } from '@/lib/logger'
 
@@ -54,29 +55,21 @@ function readDisclosureMeta(value: Record<string, unknown>): {
 
 async function checkFollowForFundAt(
   follow: FollowRef,
-  agent: Agent,
+  readClient: Client,
 ): Promise<FollowedAccountCard | null> {
   const { did, handle } = follow
 
-  // Try fund.at records via the authenticated agent
+  // Try fund.at records via the client
   try {
-    const discRes = await agent.com.atproto.repo.getRecord({
-      repo: did,
-      collection: FUND_DISCLOSURE,
-      rkey: 'self',
-    })
-    const discValue = discRes.data.value as Record<string, unknown> | undefined
+    const discRes = await readClient.getRecord(FUND_DISCLOSURE, 'self', { repo: did as import('@atproto/lex-client').AtIdentifierString })
+    const discValue = discRes.body.value as Record<string, unknown> | undefined
     if (discValue) {
       const meta = readDisclosureMeta(discValue)
       if (meta.displayName || meta.description || meta.landingPage) {
         let links: FundLink[] | undefined
         try {
-          const contRes = await agent.com.atproto.repo.getRecord({
-            repo: did,
-            collection: FUND_CONTRIBUTE,
-            rkey: 'self',
-          })
-          const contValue = contRes.data.value as Record<string, unknown> | undefined
+          const contRes = await readClient.getRecord(FUND_CONTRIBUTE, 'self', { repo: did as import('@atproto/lex-client').AtIdentifierString })
+          const contValue = contRes.body.value as Record<string, unknown> | undefined
           if (contValue) {
             const l = readLinks(contValue)
             if (l.length > 0) links = l
@@ -138,32 +131,34 @@ async function runWithConcurrency<T, R>(
 
 /**
  * Fetches the user's follow list and checks each for fund.at records using
- * the provided authenticated agent, falling back to the manual catalog for
+ * the provided client, falling back to the manual catalog for
  * users identified by their handle.
  * Returns only followed accounts that have fund.at.disclosure records or a catalog entry.
  */
 export async function scanFollows(
   did: string,
-  agent?: Agent,
+  client?: Client,
 ): Promise<FollowedAccountCard[]> {
-  const readAgent = agent ?? new Agent(PUBLIC_API)
-  // getFollows is a public Bluesky AppView endpoint — always use the public
-  // agent to avoid needing the rpc:app.bsky.graph.getFollows scope.
-  const publicAgent = new Agent(PUBLIC_API)
+  const readClient = client ?? new Client(PUBLIC_API)
+  // getFollows is a public Bluesky AppView endpoint
+  const publicClient = new Client(PUBLIC_API)
 
   // Paginate through follows, keeping handle alongside DID
   const follows: FollowRef[] = []
   let cursor: string | undefined
   do {
-    const res = await publicAgent.app.bsky.graph.getFollows({
+    const res = await xrpcQuery<{
+      follows: Array<{ did: string; handle?: string }>
+      cursor?: string
+    }>(publicClient, 'app.bsky.graph.getFollows', {
       actor: did,
       limit: 100,
-      cursor,
+      ...(cursor ? { cursor } : {}),
     })
-    for (const follow of res.data.follows) {
+    for (const follow of res.follows) {
       follows.push({ did: follow.did, handle: follow.handle })
     }
-    cursor = res.data.cursor
+    cursor = res.cursor
   } while (cursor)
 
   logger.info('follow-scan: fetched follows', {
@@ -176,7 +171,7 @@ export async function scanFollows(
   // Check each follow for fund.at records or manual catalog entry
   const results = await runWithConcurrency(follows, CONCURRENCY, async (follow) => {
     try {
-      return await checkFollowForFundAt(follow, readAgent)
+      return await checkFollowForFundAt(follow, readClient)
     } catch (e) {
       logger.warn('follow-scan: error checking follow', {
         did: follow.did,

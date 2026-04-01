@@ -3,6 +3,7 @@ import type { OAuthSession } from '@atproto/oauth-client'
 import type { StewardEntry, StewardTag } from '@/lib/steward-model'
 import { lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
+import { xrpcQuery } from '@/lib/xrpc'
 import { logger } from '@/lib/logger'
 
 const CONCURRENCY = 8
@@ -27,35 +28,6 @@ async function runWithConcurrency<T, R>(
   )
   await Promise.all(workers)
   return results
-}
-
-// ---------------------------------------------------------------------------
-// XRPC helpers — raw fetch through the lex Client
-// ---------------------------------------------------------------------------
-
-async function xrpcQuery<T>(
-  client: Client,
-  nsid: string,
-  params: Record<string, string | string[] | boolean | number>,
-): Promise<T> {
-  const qs = new URLSearchParams()
-  for (const [k, v] of Object.entries(params)) {
-    if (Array.isArray(v)) {
-      for (const item of v) qs.append(k, item)
-    } else {
-      qs.set(k, String(v))
-    }
-  }
-  const path = `/xrpc/${nsid}?${qs.toString()}` as `/${string}`
-  const res = await client.fetchHandler(path, {
-    method: 'GET',
-    headers: new Headers(),
-  })
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`${nsid}: ${res.status} ${body}`)
-  }
-  return (await res.json()) as T
 }
 
 // ---------------------------------------------------------------------------

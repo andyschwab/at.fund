@@ -96,47 +96,52 @@ loopback client ID URL. The `%23` in the scope gets double-encoded to
 `%2523` in the URL, then decoded back to `%23` when parsed. This round-trips
 correctly — no special handling needed.
 
-## SDK Migration: @atproto/api → @atproto/lex
+## SDK: @atproto/lex (Client)
 
-The `@atproto/lex` SDK (`Client` class) is the modern replacement for
-`@atproto/api` (`Agent` class). Key differences:
+This project uses `@atproto/lex` exclusively. The older `@atproto/api`
+(`Agent` class) has been fully removed.
 
-| Feature | Agent (@atproto/api) | Client (@atproto/lex) |
-|---------|---------------------|----------------------|
-| Typed Bluesky methods | `agent.app.bsky.*` | Not included |
-| Service proxy | `agent.configureProxy()` | `service` constructor option |
-| Raw XRPC | Not directly | `client.fetchHandler()` |
-| Record operations | `agent.com.atproto.repo.*` | `client.listRecords()`, `client.getRecord()`, etc. |
-| Auth | Session passed to constructor | Session passed to constructor |
-
-For Bluesky-specific calls not covered by the lex Client, use a raw XRPC
-helper:
+### Client patterns
 
 ```typescript
-async function xrpcQuery<T>(
-  client: Client,
-  nsid: string,
-  params: Record<string, string | string[] | boolean | number>,
-): Promise<T> {
-  const qs = new URLSearchParams()
-  for (const [k, v] of Object.entries(params)) {
-    if (Array.isArray(v)) {
-      for (const item of v) qs.append(k, item)
-    } else {
-      qs.set(k, String(v))
-    }
-  }
-  const path = `/xrpc/${nsid}?${qs.toString()}` as `/${string}`
-  const res = await client.fetchHandler(path, {
-    method: 'GET',
-    headers: new Headers(),
-  })
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`${nsid}: ${res.status} ${body}`)
-  }
-  return (await res.json()) as T
-}
+import { Client } from '@atproto/lex'
+
+// Authenticated client (for user's own PDS)
+const client = new Client(session)
+
+// Authenticated with AppView proxy (for getPreferences etc.)
+const authClient = new Client(session, {
+  service: 'did:web:api.bsky.app#bsky_appview',
+})
+
+// Public client (for read-only queries — no auth needed)
+const publicClient = new Client('https://public.api.bsky.app')
+```
+
+### Built-in record operations
+
+The Client provides typed methods for common repo operations:
+
+- `client.listRecords(collection, { repo, limit })`
+- `client.getRecord(collection, rkey, { repo })`
+- `client.createRecord(record, rkey)`
+- `client.putRecord(record, rkey)`
+- `client.deleteRecord(collection, rkey)`
+
+### Raw XRPC queries
+
+For endpoints not covered by the Client's built-in methods (e.g.
+`app.bsky.*` or `com.atproto.identity.*`), use the shared `xrpcQuery`
+helper from `src/lib/xrpc.ts`:
+
+```typescript
+import { xrpcQuery } from '@/lib/xrpc'
+
+const res = await xrpcQuery<{ handle?: string }>(
+  publicClient,
+  'app.bsky.actor.getProfile',
+  { actor: did },
+)
 ```
 
 ## Bluesky Preference Parsing
