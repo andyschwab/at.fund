@@ -15,6 +15,7 @@ import type { ChipItem } from '@/components/HandleChipInput'
 import type { StewardEntry } from '@/lib/steward-model'
 import type { FundAtResult } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
+import { useSession } from '@/components/SessionContext'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -144,6 +145,7 @@ function TextInput({
 // ---------------------------------------------------------------------------
 
 export function SetupClient({ did, handle, existing }: Props) {
+  const { authFetch } = useSession()
   const [form, setForm] = useState<FormState>(() => initialFormState(existing))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -196,7 +198,7 @@ export function SetupClient({ did, handle, existing }: Props) {
     setSaved(false)
 
     try {
-      const res = await fetch('/api/setup', {
+      const res = await authFetch('/api/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

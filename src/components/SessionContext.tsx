@@ -12,6 +12,8 @@ type SessionState = {
 type SessionContextValue = SessionState & {
   login: (handle: string) => Promise<void>
   logout: () => Promise<void>
+  invalidateSession: () => Promise<void>
+  authFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
   loginError: string | null
   loginLoading: boolean
 }
@@ -52,6 +54,26 @@ export function SessionProvider({
   const pathname = usePathname()
   const lastValidatedPath = useRef<string>(pathname)
 
+  const invalidateSession = useCallback(async () => {
+    // Fire-and-forget logout to clear server cookie
+    try { await fetch('/oauth/logout', { method: 'POST' }) } catch {}
+    setState({ hasSession: false, did: null })
+    // Full reload so SSR re-evaluates session state cleanly
+    window.location.href = '/'
+  }, [])
+
+  const authFetch = useCallback(
+    async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const res = await fetch(input, init)
+      if (res.status === 401) {
+        await invalidateSession()
+        throw new Error('Session expired')
+      }
+      return res
+    },
+    [invalidateSession],
+  )
+
   const validateSession = useCallback(async () => {
     // Only validate if the client thinks it has a session
     if (!state.hasSession) return
@@ -59,9 +81,9 @@ export function SessionProvider({
     const result = await checkSession()
     if (!result.valid) {
       console.warn('[auth] session invalidated — server could not restore session')
-      setState({ hasSession: false, did: null })
+      await invalidateSession()
     }
-  }, [state.hasSession])
+  }, [state.hasSession, invalidateSession])
 
   // Validate on route change (client-side navigation)
   useEffect(() => {
@@ -124,6 +146,8 @@ export function SessionProvider({
         ...state,
         login,
         logout,
+        invalidateSession,
+        authFetch,
         loginError,
         loginLoading,
       }}

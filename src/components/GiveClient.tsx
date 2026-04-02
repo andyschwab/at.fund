@@ -72,7 +72,7 @@ function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
 }
 
 export function GiveClient() {
-  const { did: sessionDid } = useSession()
+  const { did: sessionDid, authFetch } = useSession()
   const [loading, setLoading] = useState(false)
   const [selfReport, setSelfReport] = useState('')
   const [err, setErr] = useState<string | null>(null)
@@ -157,7 +157,7 @@ export function GiveClient() {
   const handleEndorse = useCallback(async (uri: string) => {
     setEndorsedUris((prev) => new Set([...prev, uri]))
     try {
-      const res = await fetch('/api/endorse', {
+      const res = await authFetch('/api/endorse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uri }),
@@ -194,7 +194,7 @@ export function GiveClient() {
       return next
     })
     try {
-      const res = await fetch('/api/endorse', {
+      const res = await authFetch('/api/endorse', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uri }),
@@ -252,7 +252,7 @@ export function GiveClient() {
     try {
       const params = new URLSearchParams()
       if (extra.length) params.set('extraStewards', extra.join(','))
-      const res = await fetch(`/api/lexicons/stream?${params}`)
+      const res = await authFetch(`/api/lexicons/stream?${params}`)
       if (!res.ok || !res.body) {
         let msg = 'Scan failed'
         try {
