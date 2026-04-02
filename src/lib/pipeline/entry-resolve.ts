@@ -158,7 +158,7 @@ export async function resolveEntry(uri: string): Promise<ResolveResult> {
   }
 
   // ── 4. Dependencies — resolve transitive deps from catalog ────────────
-  const referenced = resolveDependencies([entry])
+  const referenced = await resolveDependencies([entry])
 
   return { entry, referenced }
 }
