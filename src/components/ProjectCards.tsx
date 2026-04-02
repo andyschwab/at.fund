@@ -192,7 +192,7 @@ function depRowTier(
   return 2
 }
 
-/** A single row in the "Depends on" inset section. */
+/** A single row in the "Depends on" inset section. Clicking anywhere opens the detail modal. */
 function DependencyRow({
   depUri,
   entry,
@@ -204,139 +204,148 @@ function DependencyRow({
   state: DropletIconState
   onExpand: () => void
 }) {
-  const contributeUrl = entry?.contributeUrl
   const name = entry?.displayName ?? depUri
-  const websiteUrl = entry?.landingPage ?? websiteFallbackForUri(depUri)
+  const stub = entry ?? { uri: depUri, displayName: name, avatar: undefined }
+
+  // Droplet badge color reflects fund state
+  const dropletClass =
+    state === 'direct'
+      ? 'bg-[var(--support)] text-[var(--support-foreground)]'
+      : state === 'dependency'
+        ? 'bg-amber-100 text-amber-500 dark:bg-amber-500/20 dark:text-amber-400'
+        : 'bg-slate-100 text-slate-300 dark:bg-slate-800 dark:text-slate-600'
 
   return (
-    <div className="flex items-center gap-2 py-1.5">
-      {state === 'direct' ? (
-        <a
-          href={contributeUrl!}
-          target="_blank"
-          rel="noreferrer"
-          title="Contribute"
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <DropletIcon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
-          <span className="sr-only">Contribute</span>
-        </a>
-      ) : state === 'dependency' ? (
-        <span
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
-          title="No contribution link -- has sub-dependencies"
-        >
-          <DropletIcon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+    <button
+      type="button"
+      onClick={onExpand}
+      title={`View details for ${name}`}
+      className="flex w-full items-center gap-2 py-1.5 text-left transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/50"
+    >
+      {/* Avatar with a small droplet badge overlay */}
+      <div className="relative shrink-0">
+        <ProfileAvatar entry={stub} size="sm" />
+        <span className={`absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full shadow-sm ${dropletClass}`}>
+          <DropletIcon className="h-2 w-2" strokeWidth={state === 'none' ? 1.5 : 2} aria-hidden />
         </span>
-      ) : (
-        <span
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-          title="No contribution link published"
-        >
-          <DropletIcon className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
-        </span>
-      )}
+      </div>
       <span className="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300">
-        {websiteUrl ? (
-          <a
-            href={websiteUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {name}
-          </a>
-        ) : (
-          name
-        )}
+        {name}
       </span>
-      <button
-        type="button"
-        onClick={onExpand}
-        title={`View details for ${name}`}
-        className="shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-      >
-        <ArrowRight className="h-4 w-4" aria-hidden />
-        <span className="sr-only">View details for {name}</span>
-      </button>
-    </div>
+      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden />
+    </button>
   )
 }
 
-/** Card content rendered inside the modal -- same layout as the main card but without the outer article shell. */
+/** Card content rendered inside the modal — compact row layout matching the main give list. */
 function ModalCardContent({
   entry,
   onExpandDep,
   lookup,
+  endorsedSet,
+  onEndorse,
+  onUnendorse,
 }: {
   entry: StewardEntry
   onExpandDep: (uri: string) => void
   lookup?: (uri: string) => StewardEntry | undefined
+  endorsedSet?: Set<string>
+  onEndorse?: (uri: string) => void
+  onUnendorse?: (uri: string) => void
 }) {
   const contributeUrl = entry.contributeUrl
   const state = heartState(entry.contributeUrl, entry.dependencies, lookup)
+  const variant = cardVariant(entry)
   const websiteFallback = websiteFallbackForUri(entry.uri)
   const websiteUrl = entry.landingPage ?? websiteFallback
   const profileUrl = profileUrlFor(entry)
   const isTool = entry.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed')
-  const nameHref = isTool ? websiteUrl : profileUrl
+  const linkHref = isTool ? websiteUrl : profileUrl
+
+  const endorsed = endorsedSet
+    ? (endorsedSet.has(entry.uri) || endorsedSet.has(entry.did ?? ''))
+    : false
+  const endorseHandler = onEndorse || onUnendorse
+    ? (endorsed ? onUnendorse : onEndorse)
+    : undefined
 
   return (
     <div>
-      <div className="flex gap-3">
-        <div className="flex shrink-0 flex-col items-center gap-1">
-          {state === 'direct' ? (
-            <a
-              href={contributeUrl!}
-              target="_blank"
-              rel="noreferrer"
-              title="Contribute"
-              className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-              <span className="sr-only">Contribute</span>
-            </a>
-          ) : state === 'dependency' ? (
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
-              title="No contribution link -- has sub-dependencies"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-            </span>
-          ) : (
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-              title="No contribution link published"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
-            </span>
-          )}
-        </div>
+      {/* Header row — matches compact card style */}
+      <div className={`-mx-5 -mt-5 mb-4 flex items-start gap-3 px-5 py-4 ${
+        state === 'none'
+          ? 'bg-slate-50 dark:bg-slate-900/40'
+          : 'bg-emerald-50/60 dark:bg-emerald-950/20'
+      }`}>
+        <ProfileAvatar entry={entry} href={linkHref} />
+
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <StewardNameHeading
               name={entry.displayName}
-              href={nameHref}
-              linkVariant="support"
+              href={linkHref}
+              linkVariant={variant}
             />
             <HandleBadge handle={entry.handle} did={entry.did} />
             <TagBadges tags={entry.tags} />
           </div>
           {entry.description && (
-            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
               {entry.description}
             </p>
           )}
-          {entry.capabilities && entry.capabilities.length > 0 && (
-            <CapabilitiesSection capabilities={entry.capabilities} />
+        </div>
+
+        {/* Action buttons: Fund + Endorse */}
+        <div className="flex shrink-0 items-start gap-1">
+          {contributeUrl ? (
+            <a
+              href={contributeUrl}
+              target="_blank"
+              rel="noreferrer"
+              title="Opens their contribution page"
+              className="flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium text-[var(--support)] transition-opacity hover:opacity-75"
+            >
+              <DropletIcon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+              <span>Fund</span>
+            </a>
+          ) : (
+            <span
+              title="This account hasn't configured a contribution link yet"
+              className="flex w-11 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600"
+            >
+              <DropletIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+              <span>Fund</span>
+            </span>
+          )}
+          {endorseHandler && (
+            <button
+              type="button"
+              onClick={() => endorseHandler(entry.uri)}
+              title={endorsed ? 'Remove from your stack' : 'Public signal of trust — adds this project to your stack'}
+              className={`flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium transition-colors ${
+                endorsed
+                  ? 'text-[var(--support)]'
+                  : 'text-slate-400 hover:text-[var(--support)] dark:text-slate-500 dark:hover:text-[var(--support)]'
+              }`}
+            >
+              {endorsed ? (
+                <BadgeCheck className="h-4 w-4" strokeWidth={2} aria-hidden />
+              ) : (
+                <BadgePlus className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+              )}
+              <span>{endorsed ? 'Endorsed' : 'Endorse'}</span>
+            </button>
           )}
         </div>
       </div>
 
+      {entry.capabilities && entry.capabilities.length > 0 && (
+        <CapabilitiesSection capabilities={entry.capabilities} />
+      )}
+
       {entry.dependencies && entry.dependencies.length > 0 && (
-        <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/30">
+        <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/30">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
             Depends on
           </p>
@@ -366,9 +375,15 @@ function ModalCardContent({
 function DependenciesSection({
   dependencies,
   allEntries,
+  endorsedSet,
+  onEndorse,
+  onUnendorse,
 }: {
   dependencies: string[]
   allEntries: StewardEntry[]
+  endorsedSet?: Set<string>
+  onEndorse?: (uri: string) => void
+  onUnendorse?: (uri: string) => void
 }) {
   const [modal, setModal] = useState<ModalState | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -460,7 +475,14 @@ function DependenciesSection({
           {modal?.loading && <p className="text-sm text-slate-500">Loading…</p>}
           {modal?.error && <p className="text-sm text-red-600 dark:text-red-400">{modal.error}</p>}
           {modal?.entry && (
-            <ModalCardContent entry={modal.entry} onExpandDep={openDep} lookup={lookup} />
+            <ModalCardContent
+              entry={modal.entry}
+              onExpandDep={openDep}
+              lookup={lookup}
+              endorsedSet={endorsedSet}
+              onEndorse={onEndorse}
+              onUnendorse={onUnendorse}
+            />
           )}
         </div>
       </dialog>
@@ -473,6 +495,164 @@ function DependenciesSection({
 // ---------------------------------------------------------------------------
 
 type CardVariant = 'support' | 'network' | 'discover'
+
+// ---------------------------------------------------------------------------
+// ProfileAvatar — identity image linking to the entry's primary URL
+// ---------------------------------------------------------------------------
+
+function ProfileAvatar({
+  entry,
+  href,
+  size = 'md',
+}: {
+  entry: Pick<StewardEntry, 'displayName' | 'uri' | 'avatar'>
+  href?: string
+  size?: 'sm' | 'md'
+}) {
+  const [failed, setFailed] = useState(false)
+  const initials = (entry.displayName ?? entry.uri).slice(0, 2).toUpperCase()
+  const dim = size === 'sm' ? 'h-7 w-7' : 'h-9 w-9'
+
+  const img =
+    entry.avatar && !failed ? (
+      <img
+        src={entry.avatar}
+        alt=""
+        onError={() => setFailed(true)}
+        className={`${dim} rounded-xl object-cover`}
+      />
+    ) : (
+      <span className={`flex ${dim} items-center justify-center rounded-xl bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400`}>
+        {initials}
+      </span>
+    )
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="shrink-0 transition-opacity hover:opacity-75"
+        tabIndex={-1}
+        aria-hidden
+      >
+        {img}
+      </a>
+    )
+  }
+  return <div className="shrink-0">{img}</div>
+}
+
+// ---------------------------------------------------------------------------
+// CardIconSlot — avatar image (with contribute badge) or plain droplet icon
+// ---------------------------------------------------------------------------
+
+function CardIconSlot({
+  avatar,
+  state,
+  contributeUrl,
+  variant,
+  compact = false,
+}: {
+  avatar?: string
+  state: DropletIconState
+  contributeUrl?: string
+  variant: CardVariant
+  compact?: boolean
+}) {
+  const [avatarFailed, setAvatarFailed] = useState(false)
+  const slot = compact ? 'h-9 w-9' : 'h-12 w-12'
+  const icon = compact ? 'h-5 w-5' : 'h-7 w-7'
+  const badgeSlot = compact ? 'h-4 w-4' : 'h-5 w-5'
+  const badgeIcon = compact ? 'h-2.5 w-2.5' : 'h-3 w-3'
+
+  const supportBadge = 'bg-[var(--support)] text-[var(--support-foreground)]'
+  const networkBadge = 'bg-[var(--network)] text-white'
+
+  if (avatar && !avatarFailed) {
+    const badge =
+      state === 'direct' && contributeUrl ? (
+        <a
+          href={contributeUrl}
+          target="_blank"
+          rel="noreferrer"
+          title="Contribute"
+          className={`absolute -bottom-1 -right-1 flex ${badgeSlot} items-center justify-center rounded-full shadow-sm transition-opacity hover:opacity-90 ${variant === 'network' ? networkBadge : supportBadge}`}
+        >
+          <DropletIcon className={badgeIcon} strokeWidth={1.75} aria-hidden />
+          <span className="sr-only">Contribute</span>
+        </a>
+      ) : state === 'dependency' ? (
+        <span
+          className={`absolute -bottom-1 -right-1 flex ${badgeSlot} items-center justify-center rounded-full bg-amber-100 text-amber-500 shadow-sm dark:bg-amber-500/20 dark:text-amber-400`}
+        >
+          <DropletIcon className={badgeIcon} strokeWidth={1.75} aria-hidden />
+        </span>
+      ) : null
+
+    return (
+      <div className={`relative shrink-0 ${slot}`}>
+        <img
+          src={avatar}
+          alt=""
+          onError={() => setAvatarFailed(true)}
+          className={`${slot} rounded-xl object-cover transition-opacity ${state !== 'direct' ? 'grayscale opacity-50' : ''}`}
+        />
+        {badge}
+      </div>
+    )
+  }
+
+  // No avatar — plain droplet icon slot
+  if (variant === 'support' && state === 'direct' && contributeUrl) {
+    return (
+      <a
+        href={contributeUrl}
+        target="_blank"
+        rel="noreferrer"
+        title="Contribute"
+        className={`flex shrink-0 ${slot} items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90`}
+      >
+        <DropletIcon className={icon} strokeWidth={1.75} aria-hidden />
+        <span className="sr-only">Contribute</span>
+      </a>
+    )
+  }
+  if (variant === 'support' && state === 'dependency') {
+    return (
+      <span
+        className={`flex shrink-0 ${slot} items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400`}
+        title="No contribution link — has sub-dependencies"
+      >
+        <DropletIcon className={icon} strokeWidth={1.75} aria-hidden />
+      </span>
+    )
+  }
+  if (variant === 'network' && contributeUrl) {
+    return (
+      <a
+        href={contributeUrl}
+        target="_blank"
+        rel="noreferrer"
+        title="Contribute"
+        className={`flex shrink-0 ${slot} items-center justify-center rounded-xl bg-[var(--network)] text-white shadow-sm transition-opacity hover:opacity-90`}
+      >
+        <DropletIcon className={icon} strokeWidth={1.75} aria-hidden />
+        <span className="sr-only">Contribute</span>
+      </a>
+    )
+  }
+  const emptyTitle = variant === 'discover' ? 'No contribution link yet' : 'No contribution link published'
+  return (
+    <span
+      className={`flex shrink-0 ${slot} items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600`}
+      title={emptyTitle}
+    >
+      <DropletIcon className={icon} strokeWidth={1.5} aria-hidden />
+    </span>
+  )
+}
 
 function cardVariant(entry: StewardEntry): CardVariant {
   if (entry.source === 'unknown') return 'discover'
@@ -510,52 +690,64 @@ export function PdsHostSupportCard({
       : `Your account's home server (${pdsHostname}) -- support options if published.`
 
   const websiteUrl = websiteFallback
+  const initials = pdsHostname.slice(0, 2).toUpperCase()
 
   return (
-    <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-sky-400/90 bg-gradient-to-br from-sky-50/90 to-white p-4 shadow-sm dark:border-slate-800 dark:from-sky-950/40 dark:to-slate-950">
-      <div className="flex gap-3">
-        <div className="flex shrink-0 flex-col items-center gap-1">
+    <li className={`px-4 py-3.5 transition-all duration-100 ${
+      contributeUrl
+        ? 'bg-sky-50/70 hover:bg-sky-100 dark:bg-sky-950/20 dark:hover:bg-sky-950/50'
+        : 'opacity-60 hover:opacity-100 hover:bg-slate-100 dark:hover:bg-slate-800/50'
+    }`}>
+      <div className="flex items-start gap-3">
+        {/* Left: hostname initials → PDS/steward website */}
+        <a
+          href={websiteUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 transition-opacity hover:opacity-75"
+          tabIndex={-1}
+          aria-hidden
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-xs font-semibold text-sky-600 dark:bg-sky-950/40 dark:text-sky-400">
+            {initials}
+          </span>
+        </a>
+
+        {/* Center: title + summary */}
+        <div className="min-w-0 flex-1">
+          <StewardNameHeading name={title} href={websiteUrl} linkVariant="sky" />
+          <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+            {summary}
+          </p>
+        </div>
+
+        {/* Right: Fund button + placeholder (aligns with Fund+Endorse on other rows) */}
+        <div className="flex shrink-0 items-start gap-1">
           {contributeUrl ? (
             <a
               href={contributeUrl}
               target="_blank"
               rel="noreferrer"
-              title="Contribute"
-              className="flex h-14 w-14 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm transition-opacity hover:opacity-90 dark:bg-sky-600"
+              title="Opens their contribution page"
+              className="flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium text-sky-600 transition-opacity hover:opacity-75 dark:text-sky-400"
             >
-              <DropletIcon
-                className="h-8 w-8"
-                strokeWidth={1.75}
-                aria-hidden
-              />
-              <span className="sr-only">Contribute</span>
+              <DropletIcon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+              <span>Fund</span>
             </a>
           ) : (
             <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-              title="No contribution link published"
+              title="This account hasn't configured a contribution link yet"
+              className="flex w-11 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600"
             >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
+              <DropletIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+              <span>Fund</span>
             </span>
           )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <StewardNameHeading
-            name={title}
-            href={websiteUrl}
-            linkVariant="sky"
-          />
-          <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-            {summary}
-          </p>
-          {pdsStewardLabel && (
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Steward: <span className="font-mono">{pdsStewardLabel}</span>
-            </p>
-          )}
+          {/* Placeholder so Fund column aligns with Fund+Endorse rows */}
+          <span className="w-11" aria-hidden />
         </div>
       </div>
-    </article>
+    </li>
   )
 }
 
@@ -611,14 +803,18 @@ export function StewardCard({
   entry,
   allEntries = [],
   endorsed,
+  endorsedSet,
   onEndorse,
   onUnendorse,
+  compact = false,
 }: {
   entry: StewardEntry
   allEntries?: StewardEntry[]
   endorsed?: boolean
+  endorsedSet?: Set<string>
   onEndorse?: (uri: string) => void
   onUnendorse?: (uri: string) => void
+  compact?: boolean
 }) {
   const variant = cardVariant(entry)
   const contributeUrl = entry.contributeUrl
@@ -634,18 +830,110 @@ export function StewardCard({
   const websiteUrl = entry.landingPage ?? websiteFallback
   const profileUrl = profileUrlFor(entry)
 
+  // Compact row — used inside a divided <ul> container in give lists
+  if (compact) {
+    const linkHref = variant === 'network' ? profileUrl : websiteUrl
+    const endorseHandler = endorsed ? onUnendorse : onEndorse
+    return (
+      <li className={`px-4 py-3.5 transition-all duration-100 ${
+        state === 'none'
+          ? 'opacity-60 hover:opacity-100 hover:bg-slate-100 dark:hover:bg-slate-800/50'
+          : 'bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/50'
+      }`}>
+        <div className="flex items-start gap-3">
+          {/* Left: profile avatar → links to card title URI */}
+          <ProfileAvatar entry={entry} href={linkHref} />
+
+          {/* Center: identity info */}
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <StewardNameHeading
+                name={entry.displayName}
+                href={linkHref}
+                linkVariant={variant}
+              />
+              <HandleBadge handle={entry.handle} did={entry.did} />
+              <TagBadges tags={entry.tags} />
+            </div>
+            {entry.description && (
+              <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+                {entry.description}
+              </p>
+            )}
+          </div>
+
+          {/* Right: action buttons — icon + label */}
+          <div className="flex shrink-0 items-start gap-1">
+            {/* Fund */}
+            {contributeUrl ? (
+              <a
+                href={contributeUrl}
+                target="_blank"
+                rel="noreferrer"
+                title="Opens their contribution page"
+                className="flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium text-[var(--support)] transition-opacity hover:opacity-75"
+              >
+                <DropletIcon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+                <span>Fund</span>
+              </a>
+            ) : (
+              <span
+                title="This account hasn't configured a contribution link yet"
+                className="flex w-11 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600"
+              >
+                <DropletIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                <span>Fund</span>
+              </span>
+            )}
+
+            {/* Endorse */}
+            {endorseHandler && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); endorseHandler(entry.uri) }}
+                title={endorsed ? 'Remove from your stack' : 'Public signal of trust — adds this project to your stack'}
+                className={`flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium transition-colors ${
+                  endorsed
+                    ? 'text-[var(--support)]'
+                    : 'text-slate-400 hover:text-[var(--support)] dark:text-slate-500 dark:hover:text-[var(--support)]'
+                }`}
+              >
+                {endorsed ? (
+                  <BadgeCheck className="h-4 w-4" strokeWidth={2} aria-hidden />
+                ) : (
+                  <BadgePlus className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+                )}
+                <span>{endorsed ? 'Endorsed' : 'Endorse'}</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {entry.dependencies && entry.dependencies.length > 0 && (
+          <div className="pl-12">
+            <DependenciesSection
+              dependencies={entry.dependencies}
+              allEntries={allEntries}
+              endorsedSet={endorsedSet}
+              onEndorse={onEndorse}
+              onUnendorse={onUnendorse}
+            />
+          </div>
+        )}
+      </li>
+    )
+  }
+
   if (variant === 'discover') {
     return (
       <article className="relative overflow-hidden rounded-xl border border-dashed border-[var(--discover-border)] bg-[var(--discover-muted)] p-4 pl-5 before:absolute before:inset-y-3 before:left-0 before:w-1 before:rounded-full before:bg-[var(--discover)] before:content-[''] dark:border-amber-500/35 dark:bg-amber-500/[0.07]">
         <div className="flex gap-3">
-          <div className="flex shrink-0 flex-col items-center gap-1">
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-              title="No contribution link yet"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
-            </span>
-          </div>
+          <CardIconSlot
+            avatar={entry.avatar}
+            state={state}
+            contributeUrl={contributeUrl}
+            variant="discover"
+          />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <StewardNameHeading
@@ -682,27 +970,12 @@ export function StewardCard({
     return (
       <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--network-border)] bg-gradient-to-br from-[var(--network-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--network-muted)] dark:to-slate-950">
         <div className="flex gap-3">
-          <div className="flex shrink-0 flex-col items-center gap-1">
-            {contributeUrl ? (
-              <a
-                href={contributeUrl}
-                target="_blank"
-                rel="noreferrer"
-                title="Contribute"
-                className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--network)] text-white shadow-sm transition-opacity hover:opacity-90"
-              >
-                <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-                <span className="sr-only">Contribute</span>
-              </a>
-            ) : (
-              <span
-                className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-                title="No contribution link published"
-              >
-                <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
-              </span>
-            )}
-          </div>
+          <CardIconSlot
+            avatar={entry.avatar}
+            state={state}
+            contributeUrl={contributeUrl}
+            variant="network"
+          />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <StewardNameHeading
@@ -729,34 +1002,12 @@ export function StewardCard({
   return (
     <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--support-border)] bg-gradient-to-br from-[var(--support-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--support-muted)] dark:to-slate-950">
       <div className="flex gap-3">
-        <div className="flex shrink-0 flex-col items-center gap-1">
-          {state === 'direct' ? (
-            <a
-              href={contributeUrl!}
-              target="_blank"
-              rel="noreferrer"
-              title="Contribute"
-              className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-              <span className="sr-only">Contribute</span>
-            </a>
-          ) : state === 'dependency' ? (
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
-              title="No contribution link -- has sub-dependencies"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-            </span>
-          ) : (
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-              title="No contribution link published"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
-            </span>
-          )}
-        </div>
+        <CardIconSlot
+          avatar={entry.avatar}
+          state={state}
+          contributeUrl={contributeUrl}
+          variant="support"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <StewardNameHeading

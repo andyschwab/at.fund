@@ -25,6 +25,7 @@ export type AccountStub = {
   handle?: string
   displayName?: string
   description?: string
+  avatar?: string
   tags: Set<StewardTag>
   /** Tool hostnames associated with this DID (for catalog lookup). */
   hostnames: Set<string>
