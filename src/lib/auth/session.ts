@@ -11,12 +11,14 @@ export async function getSession(): Promise<OAuthSession | null> {
     const client = await getOAuthClient()
     return await client.restore(did)
   } catch (error) {
-    logger.warn('session: restore failed, clearing stale cookie', {
+    logger.warn('session: restore failed', {
       did,
       error: error instanceof Error ? error.message : String(error),
     })
-    const cookieStore = await cookies()
-    cookieStore.delete('did')
+    // Don't delete the cookie here — cookie mutation is only allowed in
+    // Server Actions or Route Handlers, and getSession() is also called
+    // during SSR render (layout.tsx). The stale cookie will be cleaned up
+    // by /api/auth/check or by authFetch triggering invalidateSession().
     return null
   }
 }
