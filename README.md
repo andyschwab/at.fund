@@ -6,7 +6,7 @@ Fund what you use. Sign in with ATProto OAuth, and the app discovers the tools, 
 
 1. **Sign in** with your Bluesky handle
 2. **Scan** — the app reads your repo collections, follows, feed subscriptions, and labeler subscriptions
-3. **Resolve** — each account is enriched with `fund.at.*` records from their PDS, or from a curated manual catalog
+3. **Resolve** — each account is enriched with `fund.at.*` records from their PDS. For projects without an AT Protocol account, a curated catalog provides a fallback
 4. **Cards** — one card per account showing contribution links, capabilities (feeds/labelers), and dependencies
 
 See **[docs/pipeline.md](docs/pipeline.md)** for the full pipeline architecture.
@@ -79,6 +79,8 @@ src/
 ```
 
 ## Adding a project to the catalog
+
+> **Lexicon records are the primary way to publish funding info.** If a project has an AT Protocol account, it should publish `fund.at.*` records via the [setup page](https://at.fund/setup) or directly to its PDS. The catalog is a fallback for projects that can't or don't yet have AT Protocol accounts.
 
 Create a JSON file in `src/data/catalog/` named after the steward's hostname:
 

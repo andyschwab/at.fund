@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   AlertCircle,
+  Bug,
   HeartHandshake,
   LogIn,
   LogOut,
@@ -22,6 +23,8 @@ const NAV_LINKS = [
   { href: '/setup', label: 'Receive' },
   { href: '/lexicon', label: 'Build' },
 ] as const
+
+const BUG_REPORT_URL = 'https://github.com/andyschwab/at.fund/issues/new'
 
 function Logo() {
   return (
@@ -97,6 +100,15 @@ export function NavBar() {
                 </>
               )}
             </button>
+            <a
+              href={BUG_REPORT_URL}
+              target="_blank"
+              rel="noreferrer"
+              title="Report a bug"
+              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+            >
+              <Bug className="h-4 w-4" aria-hidden />
+            </a>
           </div>
 
           {/* Mobile hamburger */}
@@ -155,6 +167,15 @@ export function NavBar() {
                   </>
                 )}
               </button>
+              <a
+                href={BUG_REPORT_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+              >
+                <Bug className="h-4 w-4" aria-hidden />
+                Report a bug
+              </a>
             </div>
           </div>
         )}

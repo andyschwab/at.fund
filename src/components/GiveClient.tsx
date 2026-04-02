@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import Link from 'next/link'
 import type { ScanStreamEvent, ScanWarning, PdsHostFunding } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
 import { EntryIndex } from '@/lib/steward-merge'
 import { pdslsRepoUrl } from '@/lib/pdsls'
+import { useSession } from '@/components/SessionContext'
 import {
   StewardCard,
   PdsHostSupportCard,
@@ -12,8 +14,10 @@ import {
 import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
   AlertCircle,
+  ArrowRight,
   BadgeCheck,
   BadgePlus,
+  CheckCircle2,
   ExternalLink,
   PlusCircle,
   RefreshCw,
@@ -68,9 +72,11 @@ function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
 }
 
 export function GiveClient() {
+  const { did: sessionDid } = useSession()
   const [loading, setLoading] = useState(false)
   const [selfReport, setSelfReport] = useState('')
   const [err, setErr] = useState<string | null>(null)
+  const [hasOwnRecords, setHasOwnRecords] = useState<boolean | null>(null)
 
   // Streaming scan state
   const [meta, setMeta] = useState<{ did: string; handle?: string; pdsUrl?: string } | null>(null)
@@ -83,6 +89,23 @@ export function GiveClient() {
   const [scanStatus, setScanStatus] = useState<string>('')
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
   const entryIndexRef = useRef(new EntryIndex())
+
+  // Check whether the logged-in user has published fund.at records
+  useEffect(() => {
+    if (!sessionDid) return
+    let cancelled = false
+    fetch(`/api/entry?uri=${encodeURIComponent(sessionDid)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled) setHasOwnRecords(!!data?.contributeUrl)
+      })
+      .catch(() => {
+        if (!cancelled) setHasOwnRecords(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [sessionDid])
 
   const allEntriesForLookup = useMemo(
     () => [...entries, ...referencedEntries],
@@ -363,6 +386,21 @@ export function GiveClient() {
               <RefreshCw className="h-3 w-3 animate-spin shrink-0" aria-hidden />
               <span>{scanStatus}</span>
             </div>
+          )}
+          {!loading && hasOwnRecords === true && (
+            <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Receive records published
+            </span>
+          )}
+          {!loading && hasOwnRecords === false && (
+            <Link
+              href="/setup"
+              className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-[var(--support)] transition-opacity hover:opacity-80"
+            >
+              Set up Receive
+              <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            </Link>
           )}
         </div>
 
