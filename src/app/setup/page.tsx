@@ -1,8 +1,8 @@
-import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth/session'
 import { getSessionHandle } from '@/lib/auth/session-handle'
 import { fetchOwnFundAtRecords } from '@/lib/fund-at-records'
 import { SetupClient } from '@/components/SetupClient'
+import { RequireSession } from '@/components/RequireSession'
 import type { FundAtResult } from '@/lib/fund-at-records'
 
 export const metadata = {
@@ -12,7 +12,7 @@ export const metadata = {
 export default async function SetupPage() {
   const session = await getSession()
   if (!session) {
-    redirect('/')
+    return <RequireSession>{null}</RequireSession>
   }
 
   const [handle, existing] = await Promise.all([
