@@ -365,6 +365,8 @@ export function GiveClient() {
                     entry={entry}
                     allEntries={allEntriesForLookup}
                     endorsed
+                    endorsedSet={endorsedUris}
+                    onEndorse={handleEndorse}
                     onUnendorse={handleUnendorse}
                     compact
                   />
@@ -483,7 +485,9 @@ export function GiveClient() {
                       key={entry.uri}
                       entry={entry}
                       allEntries={allEntriesForLookup}
+                      endorsedSet={endorsedUris}
                       onEndorse={handleEndorse}
+                      onUnendorse={handleUnendorse}
                       compact
                     />
                   ))}

@@ -242,10 +242,16 @@ function ModalCardContent({
   entry,
   onExpandDep,
   lookup,
+  endorsedSet,
+  onEndorse,
+  onUnendorse,
 }: {
   entry: StewardEntry
   onExpandDep: (uri: string) => void
   lookup?: (uri: string) => StewardEntry | undefined
+  endorsedSet?: Set<string>
+  onEndorse?: (uri: string) => void
+  onUnendorse?: (uri: string) => void
 }) {
   const contributeUrl = entry.contributeUrl
   const state = heartState(entry.contributeUrl, entry.dependencies, lookup)
@@ -255,6 +261,13 @@ function ModalCardContent({
   const profileUrl = profileUrlFor(entry)
   const isTool = entry.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed')
   const linkHref = isTool ? websiteUrl : profileUrl
+
+  const endorsed = endorsedSet
+    ? (endorsedSet.has(entry.uri) || endorsedSet.has(entry.did ?? ''))
+    : false
+  const endorseHandler = onEndorse || onUnendorse
+    ? (endorsed ? onUnendorse : onEndorse)
+    : undefined
 
   return (
     <div>
@@ -283,8 +296,8 @@ function ModalCardContent({
           )}
         </div>
 
-        {/* Fund button */}
-        <div className="flex shrink-0 items-start">
+        {/* Action buttons: Fund + Endorse */}
+        <div className="flex shrink-0 items-start gap-1">
           {contributeUrl ? (
             <a
               href={contributeUrl}
@@ -304,6 +317,25 @@ function ModalCardContent({
               <DropletIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               <span>Fund</span>
             </span>
+          )}
+          {endorseHandler && (
+            <button
+              type="button"
+              onClick={() => endorseHandler(entry.uri)}
+              title={endorsed ? 'Remove from your stack' : 'Public signal of trust — adds this project to your stack'}
+              className={`flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium transition-colors ${
+                endorsed
+                  ? 'text-[var(--support)]'
+                  : 'text-slate-400 hover:text-[var(--support)] dark:text-slate-500 dark:hover:text-[var(--support)]'
+              }`}
+            >
+              {endorsed ? (
+                <BadgeCheck className="h-4 w-4" strokeWidth={2} aria-hidden />
+              ) : (
+                <BadgePlus className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+              )}
+              <span>{endorsed ? 'Endorsed' : 'Endorse'}</span>
+            </button>
           )}
         </div>
       </div>
@@ -343,9 +375,15 @@ function ModalCardContent({
 function DependenciesSection({
   dependencies,
   allEntries,
+  endorsedSet,
+  onEndorse,
+  onUnendorse,
 }: {
   dependencies: string[]
   allEntries: StewardEntry[]
+  endorsedSet?: Set<string>
+  onEndorse?: (uri: string) => void
+  onUnendorse?: (uri: string) => void
 }) {
   const [modal, setModal] = useState<ModalState | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -437,7 +475,14 @@ function DependenciesSection({
           {modal?.loading && <p className="text-sm text-slate-500">Loading…</p>}
           {modal?.error && <p className="text-sm text-red-600 dark:text-red-400">{modal.error}</p>}
           {modal?.entry && (
-            <ModalCardContent entry={modal.entry} onExpandDep={openDep} lookup={lookup} />
+            <ModalCardContent
+              entry={modal.entry}
+              onExpandDep={openDep}
+              lookup={lookup}
+              endorsedSet={endorsedSet}
+              onEndorse={onEndorse}
+              onUnendorse={onUnendorse}
+            />
           )}
         </div>
       </dialog>
@@ -758,6 +803,7 @@ export function StewardCard({
   entry,
   allEntries = [],
   endorsed,
+  endorsedSet,
   onEndorse,
   onUnendorse,
   compact = false,
@@ -765,6 +811,7 @@ export function StewardCard({
   entry: StewardEntry
   allEntries?: StewardEntry[]
   endorsed?: boolean
+  endorsedSet?: Set<string>
   onEndorse?: (uri: string) => void
   onUnendorse?: (uri: string) => void
   compact?: boolean
@@ -864,7 +911,13 @@ export function StewardCard({
 
         {entry.dependencies && entry.dependencies.length > 0 && (
           <div className="pl-12">
-            <DependenciesSection dependencies={entry.dependencies} allEntries={allEntries} />
+            <DependenciesSection
+              dependencies={entry.dependencies}
+              allEntries={allEntries}
+              endorsedSet={endorsedSet}
+              onEndorse={onEndorse}
+              onUnendorse={onUnendorse}
+            />
           </div>
         )}
       </li>
