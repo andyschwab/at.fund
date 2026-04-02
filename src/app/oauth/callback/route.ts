@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
     logger.info('oauth: callback successful', { did: session.did })
 
-    const rawReturnTo = request.cookies.get('returnTo')?.value ?? '/'
+    const rawReturnTo = request.cookies.get('returnTo')?.value ?? '/give'
     const safePath =
       rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//')
         ? rawReturnTo
