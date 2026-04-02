@@ -114,11 +114,8 @@ export async function gatherAccounts(
   } catch { /* ignore */ }
   if (!pdsUrl) {
     try {
-      const { extractPdsUrl } = await import('@atproto/did')
-      const resolved = await xrpcQuery<{ didDoc: unknown }>(
-        client, 'com.atproto.identity.resolveIdentity', { identifier: session.did },
-      )
-      const url = extractPdsUrl(resolved.didDoc as import('@atproto/did').AtprotoDidDocument)
+      const { resolvePdsUrl } = await import('@/lib/fund-at-records')
+      const url = await resolvePdsUrl(session.did)
       if (url) pdsUrl = url.origin
     } catch { /* ignore */ }
   }

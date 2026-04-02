@@ -55,7 +55,6 @@ export async function enrichAccounts(
   unresolvedServices: UnresolvedService[],
   onEntry?: (entry: StewardEntry) => void,
 ): Promise<EnrichResult> {
-  const client = new Client(session)
   const publicClient = new Client(PUBLIC_API)
   const warnings: ScanWarning[] = []
 
@@ -123,7 +122,7 @@ export async function enrichAccounts(
         const own = await fetchOwnFundAtRecords(session)
         fundAt = own ? { stewardDid: stub.did, ...own } : null
       } else {
-        fundAt = await fetchFundAtForStewardDid(stub.did, client)
+        fundAt = await fetchFundAtForStewardDid(stub.did)
       }
       if (fundAt) {
         // Also check manual catalog for extra deps
