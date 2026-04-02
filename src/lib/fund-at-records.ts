@@ -22,6 +22,23 @@ export type FundAtResult = {
 // Identity resolution
 // ---------------------------------------------------------------------------
 
+const PLC_DIRECTORY = 'https://plc.directory'
+
+/**
+ * Fetches a DID document from plc.directory.
+ * This is the reliable path — com.atproto.identity.resolveIdentity is not
+ * implemented on the public Bluesky API.
+ */
+async function fetchDidDocument(did: string): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await fetch(`${PLC_DIRECTORY}/${encodeURIComponent(did)}`)
+    if (!res.ok) return null
+    return (await res.json()) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
 function handleFromAlsoKnownAs(didDoc: unknown): string | undefined {
   if (!didDoc || typeof didDoc !== 'object') return undefined
   const raw = (didDoc as { alsoKnownAs?: unknown }).alsoKnownAs
@@ -39,35 +56,25 @@ export async function resolveHandleFromDid(
   stewardDid: string,
 ): Promise<string | undefined> {
   try {
-    const res = await xrpcQuery<{
-      handle?: string
-      didDoc?: unknown
-    }>(publicClient, 'com.atproto.identity.resolveIdentity', {
-      identifier: stewardDid,
-    })
-    const fromIdentity = res.handle ?? handleFromAlsoKnownAs(res.didDoc)
-    if (fromIdentity) return fromIdentity
+    const didDoc = await fetchDidDocument(stewardDid)
+    if (didDoc) return handleFromAlsoKnownAs(didDoc)
   } catch {
     // fall through
   }
-  try {
-    const plcRes = await fetch(`https://plc.directory/${encodeURIComponent(stewardDid)}`)
-    if (!plcRes.ok) return undefined
-    const plcDoc = (await plcRes.json()) as unknown
-    return handleFromAlsoKnownAs(plcDoc)
-  } catch {
-    return undefined
-  }
+  return undefined
 }
 
 export async function resolveDidFromIdentifier(
   identifier: string,
 ): Promise<string | undefined> {
+  // If already a DID, return as-is
+  if (identifier.startsWith('did:')) return identifier
+  // Treat as a handle and resolve via the public API
   try {
     const res = await xrpcQuery<{ did: string }>(
       publicClient,
-      'com.atproto.identity.resolveIdentity',
-      { identifier },
+      'com.atproto.identity.resolveHandle',
+      { handle: identifier },
     )
     return res.did
   } catch {
@@ -81,12 +88,9 @@ export async function resolveDidFromIdentifier(
 
 export async function resolvePdsUrl(stewardDid: string): Promise<URL | null> {
   try {
-    const res = await xrpcQuery<{ didDoc: unknown }>(
-      publicClient,
-      'com.atproto.identity.resolveIdentity',
-      { identifier: stewardDid },
-    )
-    return extractPdsUrl(res.didDoc as AtprotoDidDocument)
+    const didDoc = await fetchDidDocument(stewardDid)
+    if (!didDoc) return null
+    return extractPdsUrl(didDoc as AtprotoDidDocument)
   } catch {
     return null
   }

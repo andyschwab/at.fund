@@ -1,6 +1,4 @@
 import { Client } from '@atproto/lex'
-import { extractPdsUrl } from '@atproto/did'
-import type { AtprotoDidDocument } from '@atproto/did'
 import type { OAuthSession } from '@atproto/oauth-client'
 import { xrpcQuery } from '@/lib/xrpc'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
@@ -8,7 +6,7 @@ import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { resolveStewardUri, lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
-import { fetchOwnFundAtRecords } from '@/lib/fund-at-records'
+import { fetchOwnFundAtRecords, resolvePdsUrl } from '@/lib/fund-at-records'
 import type { StewardEntry } from '@/lib/steward-model'
 import { scanFollows } from '@/lib/follow-scan'
 import type { FollowedAccountCard } from '@/lib/follow-scan'
@@ -40,12 +38,7 @@ async function resolveSessionPdsUrl(
     // ignore
   }
   try {
-    const resolved = await xrpcQuery<{ didDoc: unknown }>(
-      client,
-      'com.atproto.identity.resolveIdentity',
-      { identifier: session.did },
-    )
-    return extractPdsUrl(resolved.didDoc as AtprotoDidDocument)
+    return await resolvePdsUrl(session.did)
   } catch {
     return null
   }

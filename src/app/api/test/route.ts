@@ -38,8 +38,8 @@ export async function GET(request: NextRequest) {
       const publicClient = new Client(PUBLIC_API)
       const res = await xrpcQuery<{ did: string }>(
         publicClient,
-        'com.atproto.identity.resolveIdentity',
-        { identifier: handle },
+        'com.atproto.identity.resolveHandle',
+        { handle },
       )
       resolvedDid = res.did
       steps.push({ step: 'resolve-handle', status: 'ok', data: { handle, did: resolvedDid } })
@@ -52,38 +52,41 @@ export async function GET(request: NextRequest) {
     steps.push({ step: 'resolve-handle', status: 'skip', data: { did: resolvedDid } })
   }
 
-  // Step 2: Resolve DID to PDS URL
+  // Step 2: Resolve DID to PDS URL via plc.directory
   let pdsUrl: URL | null = null
   try {
-    const publicClient = new Client(PUBLIC_API)
-    const identityRes = await xrpcQuery<{ did: string; didDoc: unknown }>(
-      publicClient,
-      'com.atproto.identity.resolveIdentity',
-      { identifier: resolvedDid! },
-    )
-    steps.push({
-      step: 'resolve-identity',
-      status: 'ok',
-      data: {
-        did: identityRes.did,
-        didDocKeys: identityRes.didDoc ? Object.keys(identityRes.didDoc as object) : null,
-      },
-    })
-
-    try {
-      pdsUrl = extractPdsUrl(identityRes.didDoc as AtprotoDidDocument)
+    const plcRes = await fetch(`https://plc.directory/${encodeURIComponent(resolvedDid!)}`)
+    if (plcRes.ok) {
+      const didDoc = await plcRes.json()
       steps.push({
-        step: 'extract-pds-url',
-        status: pdsUrl ? 'ok' : 'fail',
-        data: { pdsUrl: pdsUrl?.origin ?? null },
+        step: 'plc-directory',
+        status: 'ok',
+        data: {
+          id: (didDoc as Record<string, unknown>).id,
+          alsoKnownAs: (didDoc as Record<string, unknown>).alsoKnownAs,
+          serviceCount: Array.isArray((didDoc as Record<string, unknown>).service)
+            ? ((didDoc as Record<string, unknown>).service as unknown[]).length
+            : 0,
+        },
       })
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      steps.push({ step: 'extract-pds-url', status: 'fail', error: msg })
+
+      try {
+        pdsUrl = extractPdsUrl(didDoc as AtprotoDidDocument)
+        steps.push({
+          step: 'extract-pds-url',
+          status: 'ok',
+          data: { pdsUrl: pdsUrl.origin },
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        steps.push({ step: 'extract-pds-url', status: 'fail', error: msg })
+      }
+    } else {
+      steps.push({ step: 'plc-directory', status: 'fail', error: `HTTP ${plcRes.status}` })
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    steps.push({ step: 'resolve-identity', status: 'fail', error: msg })
+    steps.push({ step: 'plc-directory', status: 'fail', error: msg })
   }
 
   // Also check what resolvePdsUrl returns (our helper)
