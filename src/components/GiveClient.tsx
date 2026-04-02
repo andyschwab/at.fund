@@ -97,7 +97,7 @@ export function GiveClient() {
     fetch(`/api/entry?uri=${encodeURIComponent(sessionDid)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!cancelled) setHasOwnRecords(!!data?.contributeUrl)
+        if (!cancelled) setHasOwnRecords(!!data?.contributeUrl || !!(data?.dependencies?.length))
       })
       .catch(() => {
         if (!cancelled) setHasOwnRecords(false)
@@ -388,17 +388,20 @@ export function GiveClient() {
             </div>
           )}
           {!loading && hasOwnRecords === true && (
-            <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+            <Link
+              href="/setup"
+              className="ml-auto inline-flex items-center gap-1.5 text-xs text-emerald-600 transition-opacity hover:opacity-80 dark:text-emerald-400"
+            >
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              Receive records published
-            </span>
+              Your funding records look good
+            </Link>
           )}
           {!loading && hasOwnRecords === false && (
             <Link
               href="/setup"
               className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-[var(--support)] transition-opacity hover:opacity-80"
             >
-              Set up Receive
+              Set up your funding records
               <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
             </Link>
           )}
