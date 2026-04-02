@@ -50,7 +50,11 @@ export const SCOPE = [
   'rpc:app.bsky.actor.getPreferences?aud=did:web:api.bsky.app%23bsky_appview',
 ].join(' ')
 
-const useRedis = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+const useRedis = !!(
+  (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) ||
+  (process.env.UPSTASH_KV_REST_API_URL && process.env.UPSTASH_KV_REST_API_TOKEN) ||
+  (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)
+)
 
 function getStores() {
   if (useRedis) {
