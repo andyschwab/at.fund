@@ -527,7 +527,7 @@ function CardIconSlot({
           src={avatar}
           alt=""
           onError={() => setAvatarFailed(true)}
-          className={`${slot} rounded-xl object-cover`}
+          className={`${slot} rounded-xl object-cover transition-opacity ${state !== 'direct' ? 'grayscale opacity-50' : ''}`}
         />
         {badge}
       </div>
@@ -750,36 +750,43 @@ export function StewardCard({
   if (compact) {
     const linkHref = variant === 'network' ? profileUrl : websiteUrl
     return (
-      <li className="flex items-center gap-3 px-4 py-2.5">
-        <CardIconSlot
-          avatar={entry.avatar}
-          state={state}
-          contributeUrl={contributeUrl}
-          variant={variant}
-          compact
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <StewardNameHeading
-              name={entry.displayName}
-              href={linkHref}
-              linkVariant={variant}
-            />
-            <HandleBadge handle={entry.handle} did={entry.did} />
-            <TagBadges tags={entry.tags} />
-            <EndorseButton
-              endorsed={endorsed}
-              onEndorse={onEndorse}
-              onUnendorse={onUnendorse}
-              uri={entry.uri}
-            />
+      <li className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          <CardIconSlot
+            avatar={entry.avatar}
+            state={state}
+            contributeUrl={contributeUrl}
+            variant={variant}
+            compact
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <StewardNameHeading
+                name={entry.displayName}
+                href={linkHref}
+                linkVariant={variant}
+              />
+              <HandleBadge handle={entry.handle} did={entry.did} />
+              <TagBadges tags={entry.tags} />
+              <EndorseButton
+                endorsed={endorsed}
+                onEndorse={onEndorse}
+                onUnendorse={onUnendorse}
+                uri={entry.uri}
+              />
+            </div>
+            {entry.description && (
+              <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                {entry.description}
+              </p>
+            )}
           </div>
-          {entry.description && (
-            <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-              {entry.description}
-            </p>
-          )}
         </div>
+        {entry.dependencies && entry.dependencies.length > 0 && (
+          <div className="pl-12">
+            <DependenciesSection dependencies={entry.dependencies} allEntries={allEntries} />
+          </div>
+        )}
       </li>
     )
   }
