@@ -330,15 +330,15 @@ export function GiveClient() {
         </div>
 
         {/* ── My Stack ─────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-slate-200 bg-white/60 p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/40">
-          <div className="mb-4 flex items-center gap-2">
+        <section className="rounded-2xl border border-slate-200 bg-white/60 p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/40">
+          <div className="mb-3 flex items-center gap-2">
             <BadgeCheck className="h-5 w-5 text-[var(--support)]" aria-hidden />
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               My Stack
             </h2>
           </div>
           {!hasStackContent && !loading && (
-            <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
               Contribute to projects, then endorse the ones you value. Click{' '}
               <span className="inline-flex items-center gap-0.5 font-medium text-slate-600 dark:text-slate-300">
                 <BadgePlus className="inline h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
@@ -349,25 +349,30 @@ export function GiveClient() {
             </p>
           )}
 
-          <div className="flex flex-col gap-4">
-            {/* PDS host card */}
-            {pdsUrl && (
-              <PdsHostSupportCard
-                pdsHostname={new URL(pdsUrl).hostname}
-                funding={pdsHostFunding}
-              />
+          <div className="flex flex-col gap-3">
+            {/* PDS host + endorsed entries — single compact list */}
+            {(pdsUrl || endorsedEntries.length > 0) && (
+              <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+                {pdsUrl && (
+                  <PdsHostSupportCard
+                    pdsHostname={new URL(pdsUrl).hostname}
+                    funding={pdsHostFunding}
+                  />
+                )}
+                {endorsedEntries.map((entry) => (
+                  <StewardCard
+                    key={entry.uri}
+                    entry={entry}
+                    allEntries={allEntriesForLookup}
+                    endorsed
+                    endorsedSet={endorsedUris}
+                    onEndorse={handleEndorse}
+                    onUnendorse={handleUnendorse}
+                    compact
+                  />
+                ))}
+              </ul>
             )}
-
-            {/* Endorsed entries */}
-            {endorsedEntries.map((entry) => (
-              <StewardCard
-                key={entry.uri}
-                entry={entry}
-                allEntries={allEntriesForLookup}
-                endorsed
-                onUnendorse={handleUnendorse}
-              />
-            ))}
 
             {/* Add by name input */}
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/20">
@@ -421,7 +426,7 @@ export function GiveClient() {
         )}
 
         {/* ── Discovered from your data ──────────────────────────── */}
-        <section className="space-y-4">
+        <section className="space-y-3">
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               Discovered from your data
@@ -472,28 +477,33 @@ export function GiveClient() {
                 </div>
               )}
 
-              {/* Flat entry list */}
-              <div className="flex flex-col gap-4">
-                {filteredEntries.map((entry) => (
-                  <StewardCard
-                    key={entry.uri}
-                    entry={entry}
-                    allEntries={allEntriesForLookup}
-                    onEndorse={handleEndorse}
-                  />
-                ))}
-                {filteredEntries.length === 0 && discoveredEntries.length === 0 && loading && (
-                  <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
-                    <span>{scanStatus || 'Scanning\u2026'}</span>
-                  </div>
-                )}
-                {filteredEntries.length === 0 && discoveredEntries.length > 0 && (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    No entries match this filter.
-                  </p>
-                )}
-              </div>
+              {/* Flat entry list — compact rows in a shared container */}
+              {filteredEntries.length > 0 && (
+                <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+                  {filteredEntries.map((entry) => (
+                    <StewardCard
+                      key={entry.uri}
+                      entry={entry}
+                      allEntries={allEntriesForLookup}
+                      endorsedSet={endorsedUris}
+                      onEndorse={handleEndorse}
+                      onUnendorse={handleUnendorse}
+                      compact
+                    />
+                  ))}
+                </ul>
+              )}
+              {filteredEntries.length === 0 && discoveredEntries.length === 0 && loading && (
+                <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
+                  <span>{scanStatus || 'Scanning\u2026'}</span>
+                </div>
+              )}
+              {filteredEntries.length === 0 && discoveredEntries.length > 0 && (
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  No entries match this filter.
+                </p>
+              )}
             </>
           )}
         </section>

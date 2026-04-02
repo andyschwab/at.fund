@@ -175,6 +175,7 @@ export function SetupClient({ did, handle, existing }: Props) {
     () => ({
       uri: did,
       did: did,
+      handle: handle ?? undefined,
       tags: ['tool'] as const,
       displayName: handle ?? did,
       contributeUrl: contributeUrlError ? undefined : form.contributeUrl.trim() || undefined,
@@ -231,7 +232,7 @@ export function SetupClient({ did, handle, existing }: Props) {
         {/* Preview -- sticky at top while scrolling */}
         <section className="sticky top-12 z-10 -mx-4 border-b border-slate-200/80 bg-[var(--background)]/95 px-4 pb-4 pt-2 backdrop-blur dark:border-slate-800">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Example -- how you appear to supporters
+            Preview — how you appear in others&apos; give lists
           </p>
           <div className="pointer-events-none select-none">
             <StewardCard entry={previewModel} />
