@@ -83,6 +83,7 @@ async function attachFeedCapabilities(
       const entry = entryByDid.get(did)
       if (!entry) continue
       entry.capabilities = [...(entry.capabilities ?? []), ...caps]
+      if (!entry.tags.includes('feed')) entry.tags.push('feed')
       onUpdate?.(entry)
     }
   } catch (e) {
@@ -129,6 +130,7 @@ async function attachLabelerCapabilities(
       }
 
       entry.capabilities = [...(entry.capabilities ?? []), cap]
+      if (!entry.tags.includes('labeler')) entry.tags.push('labeler')
       onUpdate?.(entry)
     }
   } catch (e) {

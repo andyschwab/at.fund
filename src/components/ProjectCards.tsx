@@ -280,7 +280,7 @@ function ModalCardContent({
   const websiteFallback = websiteFallbackForUri(entry.uri)
   const websiteUrl = entry.landingPage ?? websiteFallback
   const profileUrl = profileUrlFor(entry)
-  const isTool = entry.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed')
+  const isTool = entry.tags.includes('tool')
   const nameHref = isTool ? websiteUrl : profileUrl
 
   return (
@@ -761,7 +761,7 @@ export function StewardCard({
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <StewardNameHeading
               name={entry.displayName}
-              href={websiteUrl}
+              href={entry.tags.includes('tool') ? websiteUrl : profileUrl}
               linkVariant="support"
             />
             <HandleBadge handle={entry.handle} did={entry.did} />

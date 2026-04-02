@@ -78,6 +78,17 @@ function addToAccount(
   if (extra?.hostname) stub.hostnames.add(extra.hostname)
 }
 
+/**
+ * Ensure a DID is present in the accounts map without assigning a tag.
+ * Used for feed creators and labelers whose tags are derived from confirmed
+ * capability data in Phase 3 (capability-scan), not from the discovery source.
+ */
+function ensureAccount(accounts: Map<string, AccountStub>, did: string) {
+  if (!accounts.has(did)) {
+    accounts.set(did, { did, tags: new Set(), hostnames: new Set() })
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Phase 1: Gather all accounts
 // ---------------------------------------------------------------------------
@@ -218,14 +229,14 @@ export async function gatherAccounts(
         for (const pref of prefs.preferences) {
           if (pref.$type === 'app.bsky.actor.defs#labelersPref' && pref.labelers) {
             labelerDids = pref.labelers.map((l) => l.did)
-            for (const did of labelerDids) addToAccount(accounts, did, 'labeler')
+            for (const did of labelerDids) ensureAccount(accounts, did)
           }
           if (pref.$type === 'app.bsky.actor.defs#savedFeedsPrefV2' && pref.items) {
             feedUris = pref.items.filter((f) => f.type === 'feed').map((f) => f.value)
-            // Extract creator DIDs from feed AT URIs
+            // Ensure feed creator DIDs exist; tags derived in Phase 3
             for (const uri of feedUris) {
               const m = uri.match(/^at:\/\/(did:[^/]+)\//)
-              if (m) addToAccount(accounts, m[1]!, 'feed')
+              if (m) ensureAccount(accounts, m[1]!)
             }
           }
         }
