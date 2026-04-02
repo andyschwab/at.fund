@@ -278,10 +278,11 @@ export function DependenciesSection({
       dialogRef.current?.showModal()
     }
     try {
-      const res = await fetch(`/api/steward?uri=${encodeURIComponent(uri)}`)
+      const res = await fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
       const data = await res.json()
       if (!res.ok) throw new Error('error' in data ? (data as { error: string }).error : 'Failed to load')
-      setModal({ uri, entry: data as StewardEntry, loading: false, error: null })
+      const result = data as { entry: StewardEntry; referenced?: StewardEntry[] }
+      setModal({ uri, entry: result.entry, loading: false, error: null })
     } catch (e) {
       setModal({
         uri,

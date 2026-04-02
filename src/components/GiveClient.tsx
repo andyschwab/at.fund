@@ -175,6 +175,33 @@ export function GiveClient() {
     }
   }, [])
 
+  /** Endorse a URI and fetch its full entry via /api/entry (no rescan). */
+  const endorseAndFetch = useCallback(async (uri: string) => {
+    // Optimistic endorse
+    handleEndorse(uri)
+    try {
+      const res = await fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
+      if (!res.ok) return
+      const data = await res.json() as { entry: StewardEntry; referenced: StewardEntry[] }
+      // Upsert the entry into the index so it appears in the list
+      entryIndexRef.current.upsert(data.entry)
+      setEntries(entryIndexRef.current.toArray())
+      // Also endorse by the canonical URI/DID the entry resolved to
+      if (data.entry.uri !== uri) {
+        setEndorsedUris((prev) => new Set([...prev, data.entry.uri]))
+      }
+      if (data.entry.did && data.entry.did !== uri) {
+        setEndorsedUris((prev) => new Set([...prev, data.entry.did!]))
+      }
+      // Add referenced deps for drill-down
+      if (data.referenced.length > 0) {
+        setReferencedEntries((prev) => [...prev, ...data.referenced])
+      }
+    } catch (e) {
+      console.warn('endorseAndFetch failed', e)
+    }
+  }, [handleEndorse])
+
   const runStreamingScan = useCallback(async (extra: string[]) => {
     _scanCache = null
     setLoading(true)
@@ -391,13 +418,13 @@ export function GiveClient() {
                 <button
                   type="button"
                   onClick={() => {
-                    const uris = parseSelfReportInput()
-                    if (uris.length > 0) {
-                      for (const uri of uris) handleEndorse(uri)
-                      runStreamingScan(uris)
+                    const handle = selfReport.trim()
+                    if (handle) {
+                      endorseAndFetch(handle)
+                      setSelfReport('')
                     }
                   }}
-                  disabled={loading || !selfReport.trim()}
+                  disabled={!selfReport.trim()}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   <BadgePlus className="h-4 w-4" aria-hidden />
