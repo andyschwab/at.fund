@@ -192,7 +192,7 @@ function depRowTier(
   return 2
 }
 
-/** A single row in the "Depends on" inset section. */
+/** A single row in the "Depends on" inset section. Clicking anywhere opens the detail modal. */
 function DependencyRow({
   depUri,
   entry,
@@ -204,64 +204,34 @@ function DependencyRow({
   state: DropletIconState
   onExpand: () => void
 }) {
-  const contributeUrl = entry?.contributeUrl
   const name = entry?.displayName ?? depUri
-  const websiteUrl = entry?.landingPage ?? websiteFallbackForUri(depUri)
+
+  const dropletClass =
+    state === 'direct'
+      ? 'bg-[var(--support)] text-[var(--support-foreground)] shadow-sm'
+      : state === 'dependency'
+        ? 'border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'
+        : 'border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600'
 
   return (
-    <div className="flex items-center gap-2 py-1.5">
-      {state === 'direct' ? (
-        <a
-          href={contributeUrl!}
-          target="_blank"
-          rel="noreferrer"
-          title="Contribute"
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <DropletIcon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
-          <span className="sr-only">Contribute</span>
-        </a>
-      ) : state === 'dependency' ? (
-        <span
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
-          title="No contribution link -- has sub-dependencies"
-        >
-          <DropletIcon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
-        </span>
-      ) : (
-        <span
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-          title="No contribution link published"
-        >
-          <DropletIcon className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
-        </span>
-      )}
-      <span className="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300">
-        {websiteUrl ? (
-          <a
-            href={websiteUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {name}
-          </a>
-        ) : (
-          name
-        )}
+    <button
+      type="button"
+      onClick={onExpand}
+      title={`View details for ${name}`}
+      className="flex w-full items-center gap-2 py-1.5 text-left transition-colors hover:bg-slate-100/70 dark:hover:bg-slate-800/40"
+    >
+      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${dropletClass}`}>
+        <DropletIcon
+          className="h-3.5 w-3.5"
+          strokeWidth={state === 'none' ? 1.5 : 2}
+          aria-hidden
+        />
       </span>
-      <button
-        type="button"
-        onClick={onExpand}
-        title={`View details for ${name}`}
-        className="shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-      >
-        <ArrowRight className="h-4 w-4" aria-hidden />
-        <span className="sr-only">View details for {name}</span>
-      </button>
-    </div>
+      <span className="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300">
+        {name}
+      </span>
+      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden />
+    </button>
   )
 }
 
@@ -696,25 +666,30 @@ export function PdsHostSupportCard({
           </p>
         </div>
 
-        {/* Right: Fund button */}
-        <div className="flex shrink-0 items-start">
+        {/* Right: Fund button + placeholder (aligns with Fund+Endorse on other rows) */}
+        <div className="flex shrink-0 items-start gap-1">
           {contributeUrl ? (
             <a
               href={contributeUrl}
               target="_blank"
               rel="noreferrer"
-              title="Fund this project"
+              title="Opens their contribution page"
               className="flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium text-sky-600 transition-opacity hover:opacity-75 dark:text-sky-400"
             >
               <DropletIcon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
               <span>Fund</span>
             </a>
           ) : (
-            <span className="flex w-11 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600">
+            <span
+              title="This account hasn't configured a contribution link yet"
+              className="flex w-11 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600"
+            >
               <DropletIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               <span>Fund</span>
             </span>
           )}
+          {/* Placeholder so Fund column aligns with Fund+Endorse rows */}
+          <span className="w-11" aria-hidden />
         </div>
       </div>
     </li>
@@ -838,14 +813,17 @@ export function StewardCard({
                 href={contributeUrl}
                 target="_blank"
                 rel="noreferrer"
-                title="Fund this project"
+                title="Opens their contribution page"
                 className="flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium text-[var(--support)] transition-opacity hover:opacity-75"
               >
                 <DropletIcon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
                 <span>Fund</span>
               </a>
             ) : (
-              <span className="flex w-11 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600">
+              <span
+                title="This account hasn't configured a contribution link yet"
+                className="flex w-11 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600"
+              >
                 <DropletIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                 <span>Fund</span>
               </span>
@@ -856,7 +834,7 @@ export function StewardCard({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); endorseHandler(entry.uri) }}
-                title={endorsed ? 'Remove from My Stack' : 'Endorse and add to My Stack'}
+                title={endorsed ? 'Remove from your stack' : 'Public signal of trust — adds this project to your stack'}
                 className={`flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium transition-colors ${
                   endorsed
                     ? 'text-[var(--support)]'
