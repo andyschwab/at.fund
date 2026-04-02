@@ -1,7 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import {
+  AlertCircle,
   AppWindow,
   ArrowRight,
   Banknote,
@@ -10,18 +12,52 @@ import {
   User,
   UserCog,
   Users,
+  X,
 } from 'lucide-react'
 import { useSession } from '@/components/SessionContext'
 
 const BURRITO_QUOTE_URL =
   'https://bsky.app/profile/burrito.space/post/3mi4ymt3lqs2k'
 
+const ERROR_MESSAGES: Record<string, string> = {
+  state_lost:
+    'Login failed — the server restarted during sign-in. Please try again.',
+  callback_error:
+    'Login failed — something went wrong during sign-in. Please try again.',
+  login_failed:
+    'Login failed. Please try signing in again.',
+}
+
 export function LandingPage() {
   const { hasSession } = useSession()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  const error = searchParams.get('error')
+  const reason = searchParams.get('reason')
+  const errorMessage = error
+    ? ERROR_MESSAGES[reason ?? ''] ?? ERROR_MESSAGES[error] ?? ERROR_MESSAGES.login_failed
+    : null
 
   return (
     <div className="page-wash min-h-full">
       <div className="mx-auto flex max-w-5xl flex-col gap-16 px-4 py-14">
+
+        {/* ── Login error banner ──────────────────────────────────────── */}
+        {errorMessage && (
+          <div className="mx-auto flex w-full max-w-2xl items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span className="flex-1">{errorMessage}</span>
+            <button
+              type="button"
+              onClick={() => router.replace('/', { scroll: false })}
+              className="shrink-0 rounded p-0.5 transition-colors hover:bg-red-100 dark:hover:bg-red-900/50"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+        )}
 
         {/* ── Hero ─────────────────────────────────────────────────────── */}
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-8 text-center">
