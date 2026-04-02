@@ -356,6 +356,12 @@ export function StewardCard({
           </div>
         </div>
 
+        {entry.capabilities && entry.capabilities.length > 0 && (
+          <div className="pl-12">
+            <CapabilitiesSection capabilities={entry.capabilities} />
+          </div>
+        )}
+
         {entry.dependencies && entry.dependencies.length > 0 && (
           <div className="pl-12">
             <DependenciesSection
