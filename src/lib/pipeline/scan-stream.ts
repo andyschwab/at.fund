@@ -71,7 +71,15 @@ export async function scanStreaming(
     session,
     gathered.accounts,
     gathered.unresolvedServices,
-    (entry) => emit({ type: 'entry', entry }),
+    (entry) => {
+      // Only emit entries that have an identity (tools, follows).
+      // Feed/labeler-only accounts are held until Phase 3 confirms their
+      // capabilities — a feed is always a capability of an account, never
+      // a standalone entry.
+      if (entry.tags.length > 0) {
+        emit({ type: 'entry', entry })
+      }
+    },
   )
 
   for (const w of enriched.warnings) {

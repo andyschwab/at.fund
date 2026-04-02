@@ -35,18 +35,30 @@ See **[docs/pipeline.md](docs/pipeline.md)** for the full pipeline architecture.
 
 ## API
 
-- `GET /api/lexicons/stream?extraStewards=whtwnd.com,roomy.space` — streaming NDJSON scan (primary). Requires session cookie.
-- `GET /api/lexicons?extraStewards=...` — non-streaming JSON scan (legacy).
-- `GET /api/steward?uri=...` — single steward lookup (for dependency modal drill-down).
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /api/lexicons/stream?extraStewards=...` | Session cookie | Streaming NDJSON scan (primary) |
+| `GET /api/entry?uri=<handle-or-did>` | None | Full single-entry resolution (endorsement, dep modal) |
+| `GET /api/steward?uri=...` | None | Thin steward lookup (legacy) |
+| `POST /api/endorse` `{ uri }` | Session cookie | Create endorsement record |
+| `DELETE /api/endorse` `{ uri }` | Session cookie | Remove endorsement record |
 
 ## Project layout
 
 ```
 src/
 ├── app/                              Next.js pages and API routes
+│   └── api/
+│       ├── entry/route.ts            Full single-entry resolution endpoint
+│       ├── endorse/route.ts          Endorsement CRUD
+│       ├── lexicons/stream/route.ts  Streaming scan endpoint
+│       └── steward/route.ts          Thin steward lookup (legacy)
 ├── components/
-│   ├── GiveClient.tsx                Streaming scan client + card layout
-│   ├── ProjectCards.tsx              Card components (StewardCard, PdsHostSupportCard)
+│   ├── GiveClient.tsx                Streaming scan client + card layout + endorsement
+│   ├── ProjectCards.tsx              StewardCard, PdsHostSupportCard, CardInner
+│   ├── card-primitives.tsx           Shared building blocks (ProfileAvatar, CardIconSlot, etc.)
+│   ├── card-dependencies.tsx         DependencyRow, ModalCardContent, DependenciesSection
+│   ├── HandleAutocomplete.tsx        Bluesky handle typeahead search
 │   ├── NavBar.tsx                    Global nav bar + login/logout modal
 │   └── SessionContext.tsx            Auth state context (useSession hook)
 ├── data/
@@ -58,9 +70,10 @@ src/
     │   ├── account-enrich.ts         Phase 2: resolve funding info
     │   ├── capability-scan.ts        Phase 3: attach feed/labeler details
     │   ├── dep-resolve.ts            Phase 4: resolve dependency entries
+    │   ├── entry-resolve.ts          Full vertical resolution for a single entry
     │   └── scan-stream.ts            Orchestrator
     ├── catalog.ts                    Steward URI resolver + manual catalog lookup
-    ├── steward-model.ts              StewardEntry type (shared between pipeline and UI)
+    ├── steward-model.ts              StewardEntry, Capability, StewardTag types
     ├── steward-merge.ts              Client-side entry dedup (EntryIndex)
     └── steward-funding.ts            fund.at.* record fetching from PDS
 ```

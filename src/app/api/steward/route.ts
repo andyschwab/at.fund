@@ -11,9 +11,11 @@ import { logger } from '@/lib/logger'
 const PUBLIC_API = 'https://public.api.bsky.app'
 
 /**
- * Resolve a single steward URI to its full StewardEntry.
- * Uses the same multi-key enrichment as the main pipeline (Phase 2).
- * Does not require authentication -- all data is public.
+ * Thin steward lookup — resolves a URI to a basic StewardEntry.
+ * Handles DID resolution, profile fetch, fund.at records, and manual catalog.
+ * Does NOT discover capabilities (feeds/labelers) or resolve dependencies.
+ *
+ * For full resolution including capabilities and deps, use /api/entry instead.
  */
 export async function GET(request: NextRequest) {
   const raw = request.nextUrl.searchParams.get('uri')

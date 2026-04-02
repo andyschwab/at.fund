@@ -92,11 +92,18 @@ export async function enrichAccounts(
     // Prefer hostname as URI (readable), fall back to handle, then DID
     const hostname = [...stub.hostnames][0]
     const uri = hostname ?? stub.handle ?? stub.did
+    const isTool = stub.hostnames.size > 0
 
     // Best displayName: profile name > hostname > handle > DID
     const displayName = stub.displayName && !stub.displayName.startsWith('did:')
       ? stub.displayName
       : hostname ?? stub.handle ?? stub.did
+
+    // Non-tool accounts (feeds, labelers, follows) get a Bluesky profile link.
+    // Tool accounts leave landingPage unset — the card derives it from hostname.
+    const landingPage = !isTool && stub.handle
+      ? `https://bsky.app/profile/${stub.handle}`
+      : undefined
 
     const base: Omit<StewardEntry, 'source'> = {
       uri,
@@ -106,6 +113,7 @@ export async function enrichAccounts(
       tags,
       displayName,
       description: stub.description,
+      landingPage,
     }
 
     // 1. Try fund.at records by DID
