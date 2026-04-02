@@ -9,6 +9,7 @@ import {
   StewardCard,
   PdsHostSupportCard,
 } from '@/components/ProjectCards'
+import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
   AlertCircle,
   BadgeCheck,
@@ -374,27 +375,33 @@ export function GiveClient() {
               </ul>
             )}
 
-            {/* Add by name input */}
+            {/* Endorse by handle */}
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/20">
               <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
-                Know a project not listed below? Add it by name, handle, or DID.
+                Endorse an account not listed below by searching for their handle.
               </p>
               <div className="flex max-w-xl flex-col gap-2 sm:flex-row">
-                <input
-                  type="text"
+                <HandleAutocomplete
                   value={selfReport}
-                  onChange={(e) => setSelfReport(e.target.value)}
-                  placeholder="e.g. whtwnd.com or did:plc:..."
-                  className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+                  onChange={setSelfReport}
+                  placeholder="Search by handle…"
+                  disabled={loading}
+                  inputClassName="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
                 />
                 <button
                   type="button"
-                  onClick={() => runStreamingScan(parseSelfReportInput())}
-                  disabled={loading}
+                  onClick={() => {
+                    const uris = parseSelfReportInput()
+                    if (uris.length > 0) {
+                      for (const uri of uris) handleEndorse(uri)
+                      runStreamingScan(uris)
+                    }
+                  }}
+                  disabled={loading || !selfReport.trim()}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
-                  <PlusCircle className="h-4 w-4" aria-hidden />
-                  Add
+                  <BadgePlus className="h-4 w-4" aria-hidden />
+                  Endorse
                 </button>
               </div>
             </div>

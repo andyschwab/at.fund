@@ -7,6 +7,7 @@ import Link from 'next/link'
 import {
   BadgeCheck,
   BadgePlus,
+  X,
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
 import {
@@ -339,18 +340,25 @@ export function StewardCard({
                 type="button"
                 onClick={(e) => { e.stopPropagation(); endorseHandler(entry.uri) }}
                 title={isEndorsed ? 'Remove from your stack' : 'Public signal of trust — adds this project to your stack'}
-                className={`flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium transition-colors ${
+                className={`group flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium cursor-pointer transition-colors ${
                   isEndorsed
-                    ? 'text-[var(--support)]'
+                    ? 'text-[var(--support)] hover:text-red-600 dark:hover:text-red-400'
                     : 'text-slate-400 hover:text-[var(--support)] dark:text-slate-500 dark:hover:text-[var(--support)]'
                 }`}
               >
                 {isEndorsed ? (
-                  <BadgeCheck className="h-4 w-4" strokeWidth={2} aria-hidden />
+                  <>
+                    <BadgeCheck className="h-4 w-4 group-hover:hidden" strokeWidth={2} aria-hidden />
+                    <X className="hidden h-4 w-4 group-hover:block" strokeWidth={2} aria-hidden />
+                    <span className="group-hover:hidden">Endorsed</span>
+                    <span className="hidden group-hover:inline">Remove</span>
+                  </>
                 ) : (
-                  <BadgePlus className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+                  <>
+                    <BadgePlus className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+                    <span>Endorse</span>
+                  </>
                 )}
-                <span>{isEndorsed ? 'Endorsed' : 'Endorse'}</span>
               </button>
             )}
           </div>

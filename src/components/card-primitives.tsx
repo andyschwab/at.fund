@@ -5,6 +5,7 @@ import type { StewardEntry, StewardTag, Capability } from '@/lib/steward-model'
 import {
   BadgeCheck,
   BadgePlus,
+  X,
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
 
@@ -231,18 +232,25 @@ export function EndorseButton({
         handler(uri)
       }}
       title={endorsed ? 'Remove from My Stack' : 'Endorse and add to My Stack'}
-      className={`ml-auto shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
+      className={`group ml-auto shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium cursor-pointer transition-colors ${
         endorsed
-          ? 'text-[var(--support)] bg-[var(--support-muted)] hover:bg-[var(--support-muted)]/80'
+          ? 'text-[var(--support)] bg-[var(--support-muted)] hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-950/30'
           : 'text-slate-400 hover:text-[var(--support)] hover:bg-[var(--support-muted)] dark:text-slate-500 dark:hover:text-[var(--support)]'
       }`}
     >
       {endorsed ? (
-        <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+        <>
+          <BadgeCheck className="h-3.5 w-3.5 group-hover:hidden" strokeWidth={2} aria-hidden />
+          <X className="hidden h-3.5 w-3.5 group-hover:block" strokeWidth={2} aria-hidden />
+          <span className="group-hover:hidden">Endorsed</span>
+          <span className="hidden group-hover:inline">Remove</span>
+        </>
       ) : (
-        <BadgePlus className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+        <>
+          <BadgePlus className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+          Endorse
+        </>
       )}
-      {endorsed ? 'Endorsed' : 'Endorse'}
     </button>
   )
 }
