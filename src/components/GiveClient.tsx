@@ -156,9 +156,18 @@ export function GiveClient() {
   }, [])
 
   const handleUnendorse = useCallback(async (uri: string) => {
+    // Find the entry to remove all endorsed URI variants (handle, uri, did)
+    const entry = entryIndexRef.current.toArray().find(
+      (e) => e.uri === uri || e.did === uri,
+    )
+    const removeUris = new Set([uri])
+    if (entry?.uri) removeUris.add(entry.uri)
+    if (entry?.did) removeUris.add(entry.did)
+    if (entry?.handle) removeUris.add(entry.handle)
+
     setEndorsedUris((prev) => {
       const next = new Set(prev)
-      next.delete(uri)
+      for (const u of removeUris) next.delete(u)
       return next
     })
     try {
@@ -168,10 +177,10 @@ export function GiveClient() {
         body: JSON.stringify({ uri }),
       })
       if (!res.ok) {
-        setEndorsedUris((prev) => new Set([...prev, uri]))
+        setEndorsedUris((prev) => new Set([...prev, ...removeUris]))
       }
     } catch {
-      setEndorsedUris((prev) => new Set([...prev, uri]))
+      setEndorsedUris((prev) => new Set([...prev, ...removeUris]))
     }
   }, [])
 
