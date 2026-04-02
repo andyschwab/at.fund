@@ -665,52 +665,55 @@ export function PdsHostSupportCard({
       : `Your account's home server (${pdsHostname}) -- support options if published.`
 
   const websiteUrl = websiteFallback
+  const initials = pdsHostname.slice(0, 2).toUpperCase()
 
   return (
-    <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-sky-400/90 bg-gradient-to-br from-sky-50/90 to-white p-4 shadow-sm dark:border-slate-800 dark:from-sky-950/40 dark:to-slate-950">
-      <div className="flex gap-3">
-        <div className="flex shrink-0 flex-col items-center gap-1">
+    <li className={`px-4 py-3 transition-all duration-100 hover:bg-slate-50 dark:hover:bg-slate-800/30 ${!contributeUrl ? 'opacity-60 hover:opacity-100' : ''}`}>
+      <div className="flex items-start gap-3">
+        {/* Left: hostname initials → PDS/steward website */}
+        <a
+          href={websiteUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 transition-opacity hover:opacity-75"
+          tabIndex={-1}
+          aria-hidden
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-xs font-semibold text-sky-600 dark:bg-sky-950/40 dark:text-sky-400">
+            {initials}
+          </span>
+        </a>
+
+        {/* Center: title + summary */}
+        <div className="min-w-0 flex-1">
+          <StewardNameHeading name={title} href={websiteUrl} linkVariant="sky" />
+          <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+            {summary}
+          </p>
+        </div>
+
+        {/* Right: Fund button */}
+        <div className="flex shrink-0 items-start">
           {contributeUrl ? (
             <a
               href={contributeUrl}
               target="_blank"
               rel="noreferrer"
-              title="Contribute"
-              className="flex h-14 w-14 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm transition-opacity hover:opacity-90 dark:bg-sky-600"
+              title="Fund this project"
+              className="flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium text-sky-600 transition-opacity hover:opacity-75 dark:text-sky-400"
             >
-              <DropletIcon
-                className="h-8 w-8"
-                strokeWidth={1.75}
-                aria-hidden
-              />
-              <span className="sr-only">Contribute</span>
+              <DropletIcon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+              <span>Fund</span>
             </a>
           ) : (
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-              title="No contribution link published"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
+            <span className="flex w-11 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600">
+              <DropletIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+              <span>Fund</span>
             </span>
           )}
         </div>
-        <div className="min-w-0 flex-1">
-          <StewardNameHeading
-            name={title}
-            href={websiteUrl}
-            linkVariant="sky"
-          />
-          <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-            {summary}
-          </p>
-          {pdsStewardLabel && (
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Steward: <span className="font-mono">{pdsStewardLabel}</span>
-            </p>
-          )}
-        </div>
       </div>
-    </article>
+    </li>
   )
 }
 
@@ -796,7 +799,7 @@ export function StewardCard({
     const linkHref = variant === 'network' ? profileUrl : websiteUrl
     const endorseHandler = endorsed ? onUnendorse : onEndorse
     return (
-      <li className="px-4 py-3">
+      <li className={`px-4 py-3 transition-all duration-100 hover:bg-slate-50 dark:hover:bg-slate-800/30 ${state === 'none' ? 'opacity-60 hover:opacity-100' : ''}`}>
         <div className="flex items-start gap-3">
           {/* Left: profile avatar → links to card title URI */}
           <ProfileAvatar entry={entry} href={linkHref} />

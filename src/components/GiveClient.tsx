@@ -350,17 +350,15 @@ export function GiveClient() {
           )}
 
           <div className="flex flex-col gap-3">
-            {/* PDS host card */}
-            {pdsUrl && (
-              <PdsHostSupportCard
-                pdsHostname={new URL(pdsUrl).hostname}
-                funding={pdsHostFunding}
-              />
-            )}
-
-            {/* Endorsed entries — compact row list */}
-            {endorsedEntries.length > 0 && (
-              <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+            {/* PDS host + endorsed entries — single compact list */}
+            {(pdsUrl || endorsedEntries.length > 0) && (
+              <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+                {pdsUrl && (
+                  <PdsHostSupportCard
+                    pdsHostname={new URL(pdsUrl).hostname}
+                    funding={pdsHostFunding}
+                  />
+                )}
                 {endorsedEntries.map((entry) => (
                   <StewardCard
                     key={entry.uri}
@@ -479,7 +477,7 @@ export function GiveClient() {
 
               {/* Flat entry list — compact rows in a shared container */}
               {filteredEntries.length > 0 && (
-                <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+                <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
                   {filteredEntries.map((entry) => (
                     <StewardCard
                       key={entry.uri}
