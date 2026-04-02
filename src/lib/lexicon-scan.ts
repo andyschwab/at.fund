@@ -198,26 +198,8 @@ export async function scanRepo(
   }
 
   // Resolve dep URIs that weren't in the main scan
-  const referencedStewards: StewardEntry[] = []
-  const resolvedDepUris = new Set<string>()
-  for (const s of stewards) {
-    for (const depUri of s.dependencies ?? []) {
-      if (!stewardUris.has(depUri) && !resolvedDepUris.has(depUri)) {
-        resolvedDepUris.add(depUri)
-        const manual = lookupManualStewardRecord(depUri)
-        if (manual) {
-          referencedStewards.push({
-            uri: depUri,
-            tags: ['tool'],
-            displayName: depUri,
-            contributeUrl: manual.contributeUrl,
-            dependencies: manual.dependencies,
-            source: 'manual',
-          })
-        }
-      }
-    }
-  }
+  const { resolveDependencies } = await import('@/lib/pipeline/dep-resolve')
+  const referencedStewards = await resolveDependencies(stewards)
 
   function stewardTier(s: StewardEntry): number {
     if (s.source === 'unknown') return 3
@@ -438,23 +420,21 @@ export async function scanRepoStreaming(
     }),
   )
 
-  for (const depUri of pendingDepUris) {
-    if (!emittedUris.has(depUri)) {
-      const manual = lookupManualStewardRecord(depUri)
-      if (manual) {
-        emit({
-          type: 'referenced',
-          entry: {
-            uri: depUri,
-            tags: ['tool'],
-            displayName: depUri,
-            contributeUrl: manual.contributeUrl,
-            dependencies: manual.dependencies,
-            source: 'manual',
-          },
-        })
-      }
+  // Resolve pending dependency URIs that weren't emitted as primary entries
+  {
+    const { resolveDependencies } = await import('@/lib/pipeline/dep-resolve')
+    // Build a synthetic entry whose dependencies are the pending URIs, so
+    // resolveDependencies can walk them.
+    const depHolder: StewardEntry = {
+      uri: '_dep-holder',
+      tags: ['tool'],
+      displayName: '',
+      source: 'unknown',
+      dependencies: [...pendingDepUris].filter((u) => !emittedUris.has(u)),
     }
+    await resolveDependencies([depHolder], (entry) => {
+      emit({ type: 'referenced', entry })
+    })
   }
 
   emit({ type: 'status', message: 'Loading follows and subscriptions\u2026' })
