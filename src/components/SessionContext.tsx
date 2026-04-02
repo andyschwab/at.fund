@@ -27,9 +27,13 @@ export function useSession(): SessionContextValue {
 async function checkSession(): Promise<{ valid: boolean; did: string | null }> {
   try {
     const res = await fetch('/api/auth/check')
-    if (!res.ok) return { valid: false, did: null }
+    if (!res.ok) {
+      console.warn('[auth] session check returned', res.status)
+      return { valid: false, did: null }
+    }
     return await res.json()
-  } catch {
+  } catch (err) {
+    console.warn('[auth] session check network error:', err)
     // Network error — don't invalidate, could be transient
     return { valid: true, did: null }
   }
@@ -54,6 +58,7 @@ export function SessionProvider({
 
     const result = await checkSession()
     if (!result.valid) {
+      console.warn('[auth] session invalidated — server could not restore session')
       setState({ hasSession: false, did: null })
     }
   }, [state.hasSession])
@@ -76,6 +81,10 @@ export function SessionProvider({
   const login = useCallback(async (handle: string) => {
     setLoginLoading(true)
     setLoginError(null)
+    const timeout = setTimeout(() => {
+      setLoginError('Login is taking longer than expected. Please try again.')
+      setLoginLoading(false)
+    }, 15_000)
     try {
       const res = await fetch('/oauth/login', {
         method: 'POST',
@@ -88,8 +97,10 @@ export function SessionProvider({
         error?: string
       }
       if (!res.ok) throw new Error(data.detail ?? data.error ?? 'Login failed')
+      clearTimeout(timeout)
       window.location.href = data.redirectUrl!
     } catch (x) {
+      clearTimeout(timeout)
       setLoginError(
         x instanceof Error
           ? x.message === 'Login failed'

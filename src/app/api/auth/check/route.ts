@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getOAuthClient } from '@/lib/auth/client'
+import { logger } from '@/lib/logger'
 
 export async function GET() {
   const cookieStore = await cookies()
@@ -14,12 +15,16 @@ export async function GET() {
     const client = await getOAuthClient()
     const session = await client.restore(did)
     if (!session) {
+      logger.warn('auth/check: session restore returned null, clearing cookie', { did })
       cookieStore.delete('did')
       return NextResponse.json({ valid: false, did: null })
     }
     return NextResponse.json({ valid: true, did })
-  } catch {
-    // Session in cookie but not restorable — stale cookie, clear it
+  } catch (error) {
+    logger.warn('auth/check: session not restorable, clearing cookie', {
+      did,
+      error: error instanceof Error ? error.message : String(error),
+    })
     cookieStore.delete('did')
     return NextResponse.json({ valid: false, did: null })
   }
