@@ -475,12 +475,11 @@ function DependenciesSection({
 type CardVariant = 'support' | 'network' | 'discover'
 
 function cardVariant(entry: StewardEntry): CardVariant {
-  if (entry.source === 'unknown') return 'discover'
-  const hasPrimaryTag = entry.tags.some(
-    (t) => t === 'tool' || t === 'labeler' || t === 'feed',
-  )
-  if (!hasPrimaryTag && entry.tags.includes('follow')) return 'network'
-  return 'support'
+  // Only NSID-linked accounts (tools) get the warm "support" variant.
+  // Everything else is a blue user account card ("network").
+  if (entry.tags.includes('tool')) return 'support'
+  if (entry.source === 'unknown' && !entry.capabilities?.length) return 'discover'
+  return 'network'
 }
 
 // ---------------------------------------------------------------------------
@@ -683,9 +682,9 @@ export function StewardCard({
       <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--network-border)] bg-gradient-to-br from-[var(--network-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--network-muted)] dark:to-slate-950">
         <div className="flex gap-3">
           <div className="flex shrink-0 flex-col items-center gap-1">
-            {contributeUrl ? (
+            {state === 'direct' ? (
               <a
-                href={contributeUrl}
+                href={contributeUrl!}
                 target="_blank"
                 rel="noreferrer"
                 title="Contribute"
@@ -694,6 +693,13 @@ export function StewardCard({
                 <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
                 <span className="sr-only">Contribute</span>
               </a>
+            ) : state === 'dependency' ? (
+              <span
+                className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
+                title="No contribution link -- has sub-dependencies"
+              >
+                <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
+              </span>
             ) : (
               <span
                 className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
@@ -718,6 +724,15 @@ export function StewardCard({
               <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                 {entry.description}
               </p>
+            )}
+            {entry.capabilities && entry.capabilities.length > 0 && (
+              <CapabilitiesSection capabilities={entry.capabilities} />
+            )}
+            {entry.dependencies && entry.dependencies.length > 0 && (
+              <DependenciesSection
+                dependencies={entry.dependencies}
+                allEntries={allEntries}
+              />
             )}
           </div>
         </div>
@@ -761,7 +776,7 @@ export function StewardCard({
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <StewardNameHeading
               name={entry.displayName}
-              href={entry.tags.includes('tool') ? websiteUrl : profileUrl}
+              href={websiteUrl}
               linkVariant="support"
             />
             <HandleBadge handle={entry.handle} did={entry.did} />
