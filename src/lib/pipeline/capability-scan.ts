@@ -4,6 +4,7 @@ import { xrpcQuery } from '@/lib/xrpc'
 import { logger } from '@/lib/logger'
 
 const PUBLIC_API = 'https://public.api.bsky.app'
+const FEED_BATCH = 25
 
 // ---------------------------------------------------------------------------
 // Phase 3: Attach feed + labeler capabilities to enriched entries
@@ -31,6 +32,25 @@ export async function attachCapabilities(
 // Feeds
 // ---------------------------------------------------------------------------
 
+type FeedView = {
+  uri?: string
+  displayName?: string
+  description?: string
+  creator?: { did?: string; handle?: string; displayName?: string }
+}
+
+async function fetchFeedBatch(
+  publicClient: Client,
+  uris: string[],
+): Promise<FeedView[]> {
+  const data = await xrpcQuery<{ feeds?: FeedView[] }>(
+    publicClient,
+    'app.bsky.feed.getFeedGenerators',
+    { feeds: uris },
+  )
+  return data.feeds ?? []
+}
+
 async function attachFeedCapabilities(
   publicClient: Client,
   feedUris: string[],
@@ -39,57 +59,73 @@ async function attachFeedCapabilities(
 ): Promise<void> {
   if (feedUris.length === 0) return
 
-  try {
-    const data = await xrpcQuery<{
-      feeds?: Array<{
-        uri?: string
-        displayName?: string
-        description?: string
-        creator?: { did?: string; handle?: string }
-      }>
-    }>(publicClient, 'app.bsky.feed.getFeedGenerators', { feeds: feedUris })
+  // Fetch in batches of 25 (API limit)
+  const allViews: FeedView[] = []
+  for (let i = 0; i < feedUris.length; i += FEED_BATCH) {
+    const batch = feedUris.slice(i, i + FEED_BATCH)
+    try {
+      const views = await fetchFeedBatch(publicClient, batch)
+      allViews.push(...views)
+    } catch (e) {
+      logger.warn('capabilities: feed batch failed', {
+        offset: i,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    }
+  }
 
-    // Group capabilities by creator DID
-    const capsByDid = new Map<string, Capability[]>()
+  // Group capabilities by creator DID
+  const capsByDid = new Map<string, Capability[]>()
 
-    for (const view of data.feeds ?? []) {
-      const feedUri = view.uri
-      if (!feedUri) continue
-      const m = feedUri.match(/^at:\/\/(did:[^/]+)\/[^/]+\/([^/]+)$/)
-      const creatorDid = view.creator?.did ?? m?.[1]
-      if (!creatorDid) continue
-      const rkey = m?.[2] ?? ''
+  for (const view of allViews) {
+    const feedUri = view.uri
+    if (!feedUri) continue
+    const m = feedUri.match(/^at:\/\/(did:[^/]+)\/[^/]+\/([^/]+)$/)
+    const creatorDid = view.creator?.did ?? m?.[1]
+    if (!creatorDid) continue
+    const rkey = m?.[2] ?? ''
 
-      const entry = entryByDid.get(creatorDid)
-      const handle = view.creator?.handle ?? entry?.handle
+    const entry = entryByDid.get(creatorDid)
+    const handle = view.creator?.handle ?? entry?.handle
 
-      const cap: Capability = {
-        type: 'feed',
-        name: view.displayName ?? (rkey || creatorDid),
-        description: view.description,
-        uri: feedUri,
-        landingPage: handle
-          ? `https://bsky.app/profile/${handle}/feed/${rkey}`
-          : `https://bsky.app/profile/${creatorDid}/feed/${rkey}`,
+    // Back-fill profile data from the API response onto the entry.
+    // This ensures the "root user card" is complete even if the
+    // Phase 2 batch profile fetch returned incomplete data.
+    if (entry) {
+      if (handle && !entry.handle) {
+        entry.handle = handle
       }
-
-      const list = capsByDid.get(creatorDid) ?? []
-      list.push(cap)
-      capsByDid.set(creatorDid, list)
+      if (!entry.landingPage && (entry.handle ?? handle)) {
+        entry.landingPage = `https://bsky.app/profile/${entry.handle ?? handle}`
+      }
+      const creatorName = view.creator?.displayName
+      if (creatorName && entry.displayName === entry.did) {
+        entry.displayName = creatorName
+      }
     }
 
-    // Attach to entries
-    for (const [did, caps] of capsByDid) {
-      const entry = entryByDid.get(did)
-      if (!entry) continue
-      entry.capabilities = [...(entry.capabilities ?? []), ...caps]
-      if (!entry.tags.includes('feed')) entry.tags.push('feed')
-      onUpdate?.(entry)
+    const cap: Capability = {
+      type: 'feed',
+      name: view.displayName ?? (rkey || creatorDid),
+      description: view.description,
+      uri: feedUri,
+      landingPage: handle
+        ? `https://bsky.app/profile/${handle}/feed/${rkey}`
+        : `https://bsky.app/profile/${creatorDid}/feed/${rkey}`,
     }
-  } catch (e) {
-    logger.warn('capabilities: feed fetch failed', {
-      error: e instanceof Error ? e.message : String(e),
-    })
+
+    const list = capsByDid.get(creatorDid) ?? []
+    list.push(cap)
+    capsByDid.set(creatorDid, list)
+  }
+
+  // Attach to entries
+  for (const [did, caps] of capsByDid) {
+    const entry = entryByDid.get(did)
+    if (!entry) continue
+    entry.capabilities = [...(entry.capabilities ?? []), ...caps]
+    if (!entry.tags.includes('feed')) entry.tags.push('feed')
+    onUpdate?.(entry)
   }
 }
 
@@ -121,6 +157,18 @@ async function attachLabelerCapabilities(
       if (!entry) continue
 
       const handle = creator.handle ?? entry.handle
+
+      // Back-fill profile data from the API response onto the entry.
+      if (handle && !entry.handle) {
+        entry.handle = handle
+      }
+      if (!entry.landingPage && (entry.handle ?? handle)) {
+        entry.landingPage = `https://bsky.app/profile/${entry.handle ?? handle}`
+      }
+      if (creator.displayName && entry.displayName === entry.did) {
+        entry.displayName = creator.displayName
+      }
+
       const cap: Capability = {
         type: 'labeler',
         name: creator.displayName ?? creator.handle ?? creator.did,
