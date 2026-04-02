@@ -205,28 +205,30 @@ function DependencyRow({
   onExpand: () => void
 }) {
   const name = entry?.displayName ?? depUri
+  const stub = entry ?? { uri: depUri, displayName: name, avatar: undefined }
 
+  // Droplet badge color reflects fund state
   const dropletClass =
     state === 'direct'
-      ? 'bg-[var(--support)] text-[var(--support-foreground)] shadow-sm'
+      ? 'bg-[var(--support)] text-[var(--support-foreground)]'
       : state === 'dependency'
-        ? 'border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'
-        : 'border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600'
+        ? 'bg-amber-100 text-amber-500 dark:bg-amber-500/20 dark:text-amber-400'
+        : 'bg-slate-100 text-slate-300 dark:bg-slate-800 dark:text-slate-600'
 
   return (
     <button
       type="button"
       onClick={onExpand}
       title={`View details for ${name}`}
-      className="flex w-full items-center gap-2 py-1.5 text-left transition-colors hover:bg-slate-100/70 dark:hover:bg-slate-800/40"
+      className="flex w-full items-center gap-2 py-1.5 text-left transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/50"
     >
-      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${dropletClass}`}>
-        <DropletIcon
-          className="h-3.5 w-3.5"
-          strokeWidth={state === 'none' ? 1.5 : 2}
-          aria-hidden
-        />
-      </span>
+      {/* Avatar with a small droplet badge overlay */}
+      <div className="relative shrink-0">
+        <ProfileAvatar entry={stub} size="sm" />
+        <span className={`absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full shadow-sm ${dropletClass}`}>
+          <DropletIcon className="h-2 w-2" strokeWidth={state === 'none' ? 1.5 : 2} aria-hidden />
+        </span>
+      </div>
       <span className="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300">
         {name}
       </span>
@@ -235,7 +237,7 @@ function DependencyRow({
   )
 }
 
-/** Card content rendered inside the modal -- same layout as the main card but without the outer article shell. */
+/** Card content rendered inside the modal — compact row layout matching the main give list. */
 function ModalCardContent({
   entry,
   onExpandDep,
@@ -247,66 +249,71 @@ function ModalCardContent({
 }) {
   const contributeUrl = entry.contributeUrl
   const state = heartState(entry.contributeUrl, entry.dependencies, lookup)
+  const variant = cardVariant(entry)
   const websiteFallback = websiteFallbackForUri(entry.uri)
   const websiteUrl = entry.landingPage ?? websiteFallback
   const profileUrl = profileUrlFor(entry)
   const isTool = entry.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed')
-  const nameHref = isTool ? websiteUrl : profileUrl
+  const linkHref = isTool ? websiteUrl : profileUrl
 
   return (
     <div>
-      <div className="flex gap-3">
-        <div className="flex shrink-0 flex-col items-center gap-1">
-          {state === 'direct' ? (
-            <a
-              href={contributeUrl!}
-              target="_blank"
-              rel="noreferrer"
-              title="Contribute"
-              className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-              <span className="sr-only">Contribute</span>
-            </a>
-          ) : state === 'dependency' ? (
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
-              title="No contribution link -- has sub-dependencies"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-            </span>
-          ) : (
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-              title="No contribution link published"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
-            </span>
-          )}
-        </div>
+      {/* Header row — matches compact card style */}
+      <div className={`-mx-5 -mt-5 mb-4 flex items-start gap-3 px-5 py-4 ${
+        state === 'none'
+          ? 'bg-slate-50 dark:bg-slate-900/40'
+          : 'bg-emerald-50/60 dark:bg-emerald-950/20'
+      }`}>
+        <ProfileAvatar entry={entry} href={linkHref} />
+
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <StewardNameHeading
               name={entry.displayName}
-              href={nameHref}
-              linkVariant="support"
+              href={linkHref}
+              linkVariant={variant}
             />
             <HandleBadge handle={entry.handle} did={entry.did} />
             <TagBadges tags={entry.tags} />
           </div>
           {entry.description && (
-            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
               {entry.description}
             </p>
           )}
-          {entry.capabilities && entry.capabilities.length > 0 && (
-            <CapabilitiesSection capabilities={entry.capabilities} />
+        </div>
+
+        {/* Fund button */}
+        <div className="flex shrink-0 items-start">
+          {contributeUrl ? (
+            <a
+              href={contributeUrl}
+              target="_blank"
+              rel="noreferrer"
+              title="Opens their contribution page"
+              className="flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium text-[var(--support)] transition-opacity hover:opacity-75"
+            >
+              <DropletIcon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+              <span>Fund</span>
+            </a>
+          ) : (
+            <span
+              title="This account hasn't configured a contribution link yet"
+              className="flex w-11 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600"
+            >
+              <DropletIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+              <span>Fund</span>
+            </span>
           )}
         </div>
       </div>
 
+      {entry.capabilities && entry.capabilities.length > 0 && (
+        <CapabilitiesSection capabilities={entry.capabilities} />
+      )}
+
       {entry.dependencies && entry.dependencies.length > 0 && (
-        <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/30">
+        <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/30">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
             Depends on
           </p>
@@ -451,12 +458,15 @@ type CardVariant = 'support' | 'network' | 'discover'
 function ProfileAvatar({
   entry,
   href,
+  size = 'md',
 }: {
-  entry: StewardEntry
+  entry: Pick<StewardEntry, 'displayName' | 'uri' | 'avatar'>
   href?: string
+  size?: 'sm' | 'md'
 }) {
   const [failed, setFailed] = useState(false)
   const initials = (entry.displayName ?? entry.uri).slice(0, 2).toUpperCase()
+  const dim = size === 'sm' ? 'h-7 w-7' : 'h-9 w-9'
 
   const img =
     entry.avatar && !failed ? (
@@ -464,10 +474,10 @@ function ProfileAvatar({
         src={entry.avatar}
         alt=""
         onError={() => setFailed(true)}
-        className="h-9 w-9 rounded-xl object-cover"
+        className={`${dim} rounded-xl object-cover`}
       />
     ) : (
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+      <span className={`flex ${dim} items-center justify-center rounded-xl bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400`}>
         {initials}
       </span>
     )
@@ -640,8 +650,8 @@ export function PdsHostSupportCard({
   return (
     <li className={`px-4 py-3.5 transition-all duration-100 ${
       contributeUrl
-        ? 'bg-sky-50/70 hover:bg-sky-50 dark:bg-sky-950/20 dark:hover:bg-sky-950/35'
-        : 'opacity-60 hover:opacity-100 hover:bg-slate-50 dark:hover:bg-slate-800/30'
+        ? 'bg-sky-50/70 hover:bg-sky-100 dark:bg-sky-950/20 dark:hover:bg-sky-950/50'
+        : 'opacity-60 hover:opacity-100 hover:bg-slate-100 dark:hover:bg-slate-800/50'
     }`}>
       <div className="flex items-start gap-3">
         {/* Left: hostname initials → PDS/steward website */}
@@ -780,8 +790,8 @@ export function StewardCard({
     return (
       <li className={`px-4 py-3.5 transition-all duration-100 ${
         state === 'none'
-          ? 'opacity-60 hover:opacity-100 hover:bg-slate-50 dark:hover:bg-slate-800/30'
-          : 'bg-emerald-50/70 hover:bg-emerald-50 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/35'
+          ? 'opacity-60 hover:opacity-100 hover:bg-slate-100 dark:hover:bg-slate-800/50'
+          : 'bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/50'
       }`}>
         <div className="flex items-start gap-3">
           {/* Left: profile avatar → links to card title URI */}
