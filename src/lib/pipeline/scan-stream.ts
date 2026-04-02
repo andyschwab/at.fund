@@ -1,5 +1,4 @@
 import type { OAuthSession } from '@atproto/oauth-client'
-import { Client } from '@atproto/lex'
 import type { StewardEntry } from '@/lib/steward-model'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
 import { fetchFundingForUriLike } from '@/lib/atfund-uri'
@@ -107,8 +106,7 @@ export async function scanStreaming(
   // ── PDS host funding (parallel with nothing — runs last) ───────────────
   if (gathered.pdsUrl) {
     try {
-      const client = new Client(session)
-      const funding = await fetchFundingForUriLike(gathered.pdsUrl, client)
+      const funding = await fetchFundingForUriLike(gathered.pdsUrl)
       if (funding) emit({ type: 'pds-host', funding })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'

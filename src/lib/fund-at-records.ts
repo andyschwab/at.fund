@@ -129,9 +129,7 @@ function readDependency(value: RawValue): { uri: string; label?: string } | null
 
 async function getClientForDid(
   stewardDid: string,
-  client?: Client,
 ): Promise<Client | null> {
-  if (client) return client
   const pdsUrl = await resolvePdsUrl(stewardDid)
   if (!pdsUrl) return null
   return new Client(pdsUrl.origin)
@@ -143,9 +141,8 @@ async function getClientForDid(
  */
 export async function fetchFundAtRecords(
   stewardDid: string,
-  client?: Client,
 ): Promise<FundAtResult | null> {
-  const readClient = await getClientForDid(stewardDid, client)
+  const readClient = await getClientForDid(stewardDid)
   if (!readClient) return null
 
   let contributeUrl: string | undefined
