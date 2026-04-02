@@ -475,6 +475,51 @@ function DependenciesSection({
 type CardVariant = 'support' | 'network' | 'discover'
 
 // ---------------------------------------------------------------------------
+// ProfileAvatar — identity image linking to the entry's primary URL
+// ---------------------------------------------------------------------------
+
+function ProfileAvatar({
+  entry,
+  href,
+}: {
+  entry: StewardEntry
+  href?: string
+}) {
+  const [failed, setFailed] = useState(false)
+  const initials = (entry.displayName ?? entry.uri).slice(0, 2).toUpperCase()
+
+  const img =
+    entry.avatar && !failed ? (
+      <img
+        src={entry.avatar}
+        alt=""
+        onError={() => setFailed(true)}
+        className="h-9 w-9 rounded-xl object-cover"
+      />
+    ) : (
+      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+        {initials}
+      </span>
+    )
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="shrink-0 transition-opacity hover:opacity-75"
+        tabIndex={-1}
+        aria-hidden
+      >
+        {img}
+      </a>
+    )
+  }
+  return <div className="shrink-0">{img}</div>
+}
+
+// ---------------------------------------------------------------------------
 // CardIconSlot — avatar image (with contribute badge) or plain droplet icon
 // ---------------------------------------------------------------------------
 
@@ -749,16 +794,14 @@ export function StewardCard({
   // Compact row — used inside a divided <ul> container in give lists
   if (compact) {
     const linkHref = variant === 'network' ? profileUrl : websiteUrl
+    const endorseHandler = endorsed ? onUnendorse : onEndorse
     return (
       <li className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <CardIconSlot
-            avatar={entry.avatar}
-            state={state}
-            contributeUrl={contributeUrl}
-            variant={variant}
-            compact
-          />
+        <div className="flex items-start gap-3">
+          {/* Left: profile avatar → links to card title URI */}
+          <ProfileAvatar entry={entry} href={linkHref} />
+
+          {/* Center: identity info */}
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <StewardNameHeading
@@ -768,20 +811,58 @@ export function StewardCard({
               />
               <HandleBadge handle={entry.handle} did={entry.did} />
               <TagBadges tags={entry.tags} />
-              <EndorseButton
-                endorsed={endorsed}
-                onEndorse={onEndorse}
-                onUnendorse={onUnendorse}
-                uri={entry.uri}
-              />
             </div>
             {entry.description && (
-              <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+              <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
                 {entry.description}
               </p>
             )}
           </div>
+
+          {/* Right: action buttons — icon + label */}
+          <div className="flex shrink-0 items-start gap-1">
+            {/* Fund */}
+            {contributeUrl ? (
+              <a
+                href={contributeUrl}
+                target="_blank"
+                rel="noreferrer"
+                title="Fund this project"
+                className="flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium text-[var(--support)] transition-opacity hover:opacity-75"
+              >
+                <DropletIcon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+                <span>Fund</span>
+              </a>
+            ) : (
+              <span className="flex w-11 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600">
+                <DropletIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                <span>Fund</span>
+              </span>
+            )}
+
+            {/* Endorse */}
+            {endorseHandler && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); endorseHandler(entry.uri) }}
+                title={endorsed ? 'Remove from My Stack' : 'Endorse and add to My Stack'}
+                className={`flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium transition-colors ${
+                  endorsed
+                    ? 'text-[var(--support)]'
+                    : 'text-slate-400 hover:text-[var(--support)] dark:text-slate-500 dark:hover:text-[var(--support)]'
+                }`}
+              >
+                {endorsed ? (
+                  <BadgeCheck className="h-4 w-4" strokeWidth={2} aria-hidden />
+                ) : (
+                  <BadgePlus className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+                )}
+                <span>{endorsed ? 'Endorsed' : 'Endorse'}</span>
+              </button>
+            )}
+          </div>
         </div>
+
         {entry.dependencies && entry.dependencies.length > 0 && (
           <div className="pl-12">
             <DependenciesSection dependencies={entry.dependencies} allEntries={allEntries} />
