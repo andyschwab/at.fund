@@ -7,6 +7,7 @@ import type { NodeSavedSession, NodeSavedState } from '@atproto/oauth-client-nod
 import type { OAuthClientMetadataInput } from '@atproto/oauth-types'
 import { getPublicUrl, isLoopbackPublicUrl } from '@/lib/public-url'
 import { logger } from '@/lib/logger'
+import { createKvStore } from '@/lib/auth/kv-store'
 
 // Work around Next.js dev-mode fetch patch that breaks DPoP POST retries.
 //
@@ -49,12 +50,35 @@ export const SCOPE = [
   'rpc:app.bsky.actor.getPreferences?aud=did:web:api.bsky.app%23bsky_appview',
 ].join(' ')
 
-const globalAuth = globalThis as unknown as {
-  stateStore: Map<string, NodeSavedState>
-  sessionStore: Map<string, NodeSavedSession>
+const useRedis = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+
+function getStores() {
+  if (useRedis) {
+    return {
+      stateStore: createKvStore<NodeSavedState>('atproto:state', 600), // 10 min TTL for OAuth flow
+      sessionStore: createKvStore<NodeSavedSession>('atproto:session', 60 * 60 * 24 * 7), // 7 days
+    }
+  }
+  // Fallback: in-memory for local dev without Redis
+  const g = globalThis as unknown as {
+    stateStore: Map<string, NodeSavedState>
+    sessionStore: Map<string, NodeSavedSession>
+  }
+  g.stateStore ??= new Map()
+  g.sessionStore ??= new Map()
+  return {
+    stateStore: {
+      async get(k: string) { return g.stateStore.get(k) },
+      async set(k: string, v: NodeSavedState) { g.stateStore.set(k, v) },
+      async del(k: string) { g.stateStore.delete(k) },
+    },
+    sessionStore: {
+      async get(k: string) { return g.sessionStore.get(k) },
+      async set(k: string, v: NodeSavedSession) { g.sessionStore.set(k, v) },
+      async del(k: string) { g.sessionStore.delete(k) },
+    },
+  }
 }
-globalAuth.stateStore ??= new Map()
-globalAuth.sessionStore ??= new Map()
 
 let client: NodeOAuthClient | null = null
 let clientKey: string | null = null
@@ -95,31 +119,13 @@ export async function getOAuthClient(): Promise<NodeOAuthClient> {
     client_id: metadata.client_id,
     scope: metadata.scope,
   })
+  const stores = getStores()
+  logger.info('oauth: session store backend', { backend: useRedis ? 'redis' : 'memory' })
   client = new NodeOAuthClient({
     clientMetadata: metadata,
     fetch: safeFetch,
-    stateStore: {
-      async get(k: string) {
-        return globalAuth.stateStore.get(k)
-      },
-      async set(k: string, v: NodeSavedState) {
-        globalAuth.stateStore.set(k, v)
-      },
-      async del(k: string) {
-        globalAuth.stateStore.delete(k)
-      },
-    },
-    sessionStore: {
-      async get(k: string) {
-        return globalAuth.sessionStore.get(k)
-      },
-      async set(k: string, v: NodeSavedSession) {
-        globalAuth.sessionStore.set(k, v)
-      },
-      async del(k: string) {
-        globalAuth.sessionStore.delete(k)
-      },
-    },
+    stateStore: stores.stateStore,
+    sessionStore: stores.sessionStore,
     requestLock: requestLocalLock,
   })
 
