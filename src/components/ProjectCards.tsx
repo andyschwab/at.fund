@@ -12,6 +12,10 @@ import {
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
 
+// ---------------------------------------------------------------------------
+// Small shared helpers
+// ---------------------------------------------------------------------------
+
 const TAG_LABEL: Partial<Record<StewardTag, string>> = {
   tool: 'tool',
   labeler: 'labeler',
@@ -51,6 +55,8 @@ function profileUrlFor(entry: { handle?: string; did?: string }): string | undef
   return undefined
 }
 
+type NameLinkVariant = 'support' | 'discover' | 'sky' | 'network'
+
 function StewardNameHeading({
   name,
   href,
@@ -58,7 +64,7 @@ function StewardNameHeading({
 }: {
   name: string
   href?: string
-  linkVariant: 'support' | 'discover' | 'sky' | 'network'
+  linkVariant: NameLinkVariant
 }) {
   const base =
     'min-w-0 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100'
@@ -92,7 +98,6 @@ function StewardNameHeading({
 function HandleBadge({ handle, did }: { handle?: string; did?: string }) {
   const label = handle ? `@${handle}` : did
   if (!label) return null
-  // Always link via DID when available (stronger provenance), fall back to handle
   const profileUrl = did
     ? `https://bsky.app/profile/${did}`
     : handle
@@ -149,22 +154,11 @@ function CapabilitiesSection({ capabilities }: { capabilities: Capability[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Dependency rows + drill-down modal
+// Droplet icon state
 // ---------------------------------------------------------------------------
-
-type ModalState = {
-  uri: string
-  entry: StewardEntry | null
-  loading: boolean
-  error: string | null
-}
 
 type DropletIconState = 'direct' | 'dependency' | 'none'
 
-/**
- * 'dependency' only fires when at least one listed dep resolves to an entry
- * with a contribution link -- so we never imply actionability we can't back up.
- */
 function heartState(
   contributeUrl: string | undefined,
   dependencies: string[] | undefined,
@@ -175,6 +169,61 @@ function heartState(
     if (dependencies.some((uri) => !!(lookup(uri)?.contributeUrl))) return 'dependency'
   }
   return 'none'
+}
+
+/** The 14×14 droplet icon rendered in 3 states. Accent colour varies by card type. */
+function FundingIcon({
+  state,
+  contributeUrl,
+  accentClass,
+}: {
+  state: DropletIconState
+  contributeUrl?: string
+  accentClass: string
+}) {
+  if (state === 'direct') {
+    return (
+      <a
+        href={contributeUrl!}
+        target="_blank"
+        rel="noreferrer"
+        title="Contribute"
+        className={`flex h-14 w-14 items-center justify-center rounded-xl shadow-sm transition-opacity hover:opacity-90 ${accentClass}`}
+      >
+        <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
+        <span className="sr-only">Contribute</span>
+      </a>
+    )
+  }
+  if (state === 'dependency') {
+    return (
+      <span
+        className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
+        title="No contribution link -- has sub-dependencies"
+      >
+        <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
+      </span>
+    )
+  }
+  return (
+    <span
+      className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
+      title="No contribution link published"
+    >
+      <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Dependency rows + drill-down modal
+// ---------------------------------------------------------------------------
+
+type ModalState = {
+  uri: string
+  entry: StewardEntry | null
+  loading: boolean
+  error: string | null
 }
 
 function depRowTier(
@@ -261,101 +310,6 @@ function DependencyRow({
         <ArrowRight className="h-4 w-4" aria-hidden />
         <span className="sr-only">View details for {name}</span>
       </button>
-    </div>
-  )
-}
-
-/** Card content rendered inside the modal -- same layout as the main card but without the outer article shell. */
-function ModalCardContent({
-  entry,
-  onExpandDep,
-  lookup,
-}: {
-  entry: StewardEntry
-  onExpandDep: (uri: string) => void
-  lookup?: (uri: string) => StewardEntry | undefined
-}) {
-  const contributeUrl = entry.contributeUrl
-  const state = heartState(entry.contributeUrl, entry.dependencies, lookup)
-  const websiteFallback = websiteFallbackForUri(entry.uri)
-  const websiteUrl = entry.landingPage ?? websiteFallback
-  const profileUrl = profileUrlFor(entry)
-  const isTool = entry.tags.includes('tool')
-  const nameHref = isTool ? websiteUrl : profileUrl
-
-  return (
-    <div>
-      <div className="flex gap-3">
-        <div className="flex shrink-0 flex-col items-center gap-1">
-          {state === 'direct' ? (
-            <a
-              href={contributeUrl!}
-              target="_blank"
-              rel="noreferrer"
-              title="Contribute"
-              className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-              <span className="sr-only">Contribute</span>
-            </a>
-          ) : state === 'dependency' ? (
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
-              title="No contribution link -- has sub-dependencies"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-            </span>
-          ) : (
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-              title="No contribution link published"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
-            </span>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <StewardNameHeading
-              name={entry.displayName}
-              href={nameHref}
-              linkVariant="support"
-            />
-            <HandleBadge handle={entry.handle} did={entry.did} />
-            <TagBadges tags={entry.tags} />
-          </div>
-          {entry.description && (
-            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-              {entry.description}
-            </p>
-          )}
-          {entry.capabilities && entry.capabilities.length > 0 && (
-            <CapabilitiesSection capabilities={entry.capabilities} />
-          )}
-        </div>
-      </div>
-
-      {entry.dependencies && entry.dependencies.length > 0 && (
-        <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/30">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-            Depends on
-          </p>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-            {entry.dependencies.map((depUri) => {
-              const depEntry = lookup?.(depUri)
-              return (
-                <DependencyRow
-                  key={depUri}
-                  depUri={depUri}
-                  entry={depEntry}
-                  state={heartState(depEntry?.contributeUrl, depEntry?.dependencies, lookup)}
-                  onExpand={() => onExpandDep(depUri)}
-                />
-              )
-            })}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -460,7 +414,13 @@ function DependenciesSection({
           {modal?.loading && <p className="text-sm text-slate-500">Loading…</p>}
           {modal?.error && <p className="text-sm text-red-600 dark:text-red-400">{modal.error}</p>}
           {modal?.entry && (
-            <ModalCardContent entry={modal.entry} onExpandDep={openDep} lookup={lookup} />
+            <CardInner
+              entry={modal.entry}
+              isTool={modal.entry.tags.includes('tool')}
+              linkVariant={modal.entry.tags.includes('tool') ? 'support' : 'network'}
+              allEntries={allEntries}
+              lookup={lookup}
+            />
           )}
         </div>
       </dialog>
@@ -469,17 +429,162 @@ function DependenciesSection({
 }
 
 // ---------------------------------------------------------------------------
-// Card visual variant helpers
+// Shared card content — used by StewardCard (all variants) and the modal
 // ---------------------------------------------------------------------------
 
-type CardVariant = 'support' | 'network' | 'discover'
+function EndorseButton({
+  endorsed,
+  onEndorse,
+  onUnendorse,
+  uri,
+}: {
+  endorsed?: boolean
+  onEndorse?: (uri: string) => void
+  onUnendorse?: (uri: string) => void
+  uri: string
+}) {
+  if (!onEndorse && !onUnendorse) return null
+  const handler = endorsed ? onUnendorse : onEndorse
+  if (!handler) return null
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        handler(uri)
+      }}
+      title={endorsed ? 'Remove from My Stack' : 'Endorse and add to My Stack'}
+      className={`ml-auto shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
+        endorsed
+          ? 'text-[var(--support)] bg-[var(--support-muted)] hover:bg-[var(--support-muted)]/80'
+          : 'text-slate-400 hover:text-[var(--support)] hover:bg-[var(--support-muted)] dark:text-slate-500 dark:hover:text-[var(--support)]'
+      }`}
+    >
+      {endorsed ? (
+        <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+      ) : (
+        <BadgePlus className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+      )}
+      {endorsed ? 'Endorsed' : 'Endorse'}
+    </button>
+  )
+}
 
-function cardVariant(entry: StewardEntry): CardVariant {
-  // Only NSID-linked accounts (tools) get the warm "support" variant.
-  // Everything else is a blue user account card ("network").
-  if (entry.tags.includes('tool')) return 'support'
+/**
+ * Shared inner content for all card types and the dependency drill-down modal.
+ *
+ * Two card types:
+ *   - Tool (isTool=true):  warm accent, title links to website
+ *   - Account (isTool=false): blue accent, title links to Bluesky profile
+ *
+ * The "discover" state is just an account card with an empty-state banner.
+ */
+function CardInner({
+  entry,
+  isTool,
+  linkVariant,
+  accentClass = isTool
+    ? 'bg-[var(--support)] text-[var(--support-foreground)]'
+    : 'bg-[var(--network)] text-white',
+  allEntries = [],
+  lookup,
+  endorsed,
+  onEndorse,
+  onUnendorse,
+  discover,
+}: {
+  entry: StewardEntry
+  isTool: boolean
+  linkVariant: NameLinkVariant
+  accentClass?: string
+  allEntries?: StewardEntry[]
+  lookup?: (uri: string) => StewardEntry | undefined
+  endorsed?: boolean
+  onEndorse?: (uri: string) => void
+  onUnendorse?: (uri: string) => void
+  /** Show the "we don't have details yet" banner. */
+  discover?: boolean
+}) {
+  const websiteFallback = websiteFallbackForUri(entry.uri)
+  const websiteUrl = entry.landingPage ?? websiteFallback
+  const profileUrl = profileUrlFor(entry)
+  const nameHref = isTool ? websiteUrl : profileUrl
+
+  const state = heartState(entry.contributeUrl, entry.dependencies, lookup)
+
+  return (
+    <div className="flex gap-3">
+      <div className="flex shrink-0 flex-col items-center gap-1">
+        <FundingIcon
+          state={discover ? 'none' : state}
+          contributeUrl={entry.contributeUrl}
+          accentClass={accentClass}
+        />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <StewardNameHeading
+            name={entry.displayName}
+            href={nameHref}
+            linkVariant={linkVariant}
+          />
+          <HandleBadge handle={entry.handle} did={entry.did} />
+          <TagBadges tags={entry.tags} />
+          <EndorseButton endorsed={endorsed} onEndorse={onEndorse} onUnendorse={onUnendorse} uri={entry.uri} />
+        </div>
+        {entry.description && (
+          <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+            {entry.description}
+          </p>
+        )}
+        {discover && (
+          <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+            Your account has saved something from this service--we don&apos;t have
+            details about it yet.{' '}
+            <Link
+              href="/lexicon"
+              className="font-medium text-[var(--discover)] underline underline-offset-2 dark:text-amber-400"
+            >
+              How projects get listed
+            </Link>
+          </p>
+        )}
+        {entry.capabilities && entry.capabilities.length > 0 && (
+          <CapabilitiesSection capabilities={entry.capabilities} />
+        )}
+        {entry.dependencies && entry.dependencies.length > 0 && (
+          <DependenciesSection
+            dependencies={entry.dependencies}
+            allEntries={allEntries}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Card type: tool vs account vs discover (empty-state account)
+// ---------------------------------------------------------------------------
+
+type CardType = 'tool' | 'account' | 'discover'
+
+function cardType(entry: StewardEntry): CardType {
+  if (entry.tags.includes('tool')) return 'tool'
   if (entry.source === 'unknown' && !entry.capabilities?.length) return 'discover'
-  return 'network'
+  return 'account'
+}
+
+const ARTICLE_CLASS: Record<CardType, string> = {
+  tool: 'rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--support-border)] bg-gradient-to-br from-[var(--support-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--support-muted)] dark:to-slate-950',
+  account: 'rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--network-border)] bg-gradient-to-br from-[var(--network-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--network-muted)] dark:to-slate-950',
+  discover: "relative overflow-hidden rounded-xl border border-dashed border-[var(--discover-border)] bg-[var(--discover-muted)] p-4 pl-5 before:absolute before:inset-y-3 before:left-0 before:w-1 before:rounded-full before:bg-[var(--discover)] before:content-[''] dark:border-amber-500/35 dark:bg-amber-500/[0.07]",
+}
+
+const LINK_VARIANT: Record<CardType, NameLinkVariant> = {
+  tool: 'support',
+  account: 'network',
+  discover: 'discover',
 }
 
 // ---------------------------------------------------------------------------
@@ -559,53 +664,13 @@ export function PdsHostSupportCard({
 }
 
 /**
- * Unified steward card. Renders as one of three visual variants based on the
- * entry's tags and source:
- *   - 'support' (tool/labeler/feed): warm contribution-focused style
- *   - 'network' (follow-only):       network/teal style
- *   - 'discover' (unknown):          amber discovery style
+ * Unified steward card. Two card types:
+ *   - Tool (NSID-linked): warm accent, title links to website
+ *   - Account (everything else): blue accent, title links to Bluesky profile
  *
- * When an entry carries both a primary tag (tool/labeler/feed) and a follow
- * tag, the support variant is used and a Bluesky profile link is shown.
+ * "Discover" is an account card with an empty-state banner for entries
+ * whose source is unknown and have no confirmed capabilities.
  */
-function EndorseButton({
-  endorsed,
-  onEndorse,
-  onUnendorse,
-  uri,
-}: {
-  endorsed?: boolean
-  onEndorse?: (uri: string) => void
-  onUnendorse?: (uri: string) => void
-  uri: string
-}) {
-  if (!onEndorse && !onUnendorse) return null
-  const handler = endorsed ? onUnendorse : onEndorse
-  if (!handler) return null
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation()
-        handler(uri)
-      }}
-      title={endorsed ? 'Remove from My Stack' : 'Endorse and add to My Stack'}
-      className={`ml-auto shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
-        endorsed
-          ? 'text-[var(--support)] bg-[var(--support-muted)] hover:bg-[var(--support-muted)]/80'
-          : 'text-slate-400 hover:text-[var(--support)] hover:bg-[var(--support-muted)] dark:text-slate-500 dark:hover:text-[var(--support)]'
-      }`}
-    >
-      {endorsed ? (
-        <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
-      ) : (
-        <BadgePlus className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
-      )}
-      {endorsed ? 'Endorsed' : 'Endorse'}
-    </button>
-  )
-}
-
 export function StewardCard({
   entry,
   allEntries = [],
@@ -619,186 +684,27 @@ export function StewardCard({
   onEndorse?: (uri: string) => void
   onUnendorse?: (uri: string) => void
 }) {
-  const variant = cardVariant(entry)
-  const contributeUrl = entry.contributeUrl
+  const type = cardType(entry)
 
   const entryByUri = useMemo(
     () => new Map(allEntries.map((e) => [e.uri, e])),
     [allEntries],
   )
   const lookup = (uri: string) => entryByUri.get(uri)
-  const state = heartState(entry.contributeUrl, entry.dependencies, lookup)
 
-  const websiteFallback = websiteFallbackForUri(entry.uri)
-  const websiteUrl = entry.landingPage ?? websiteFallback
-  const profileUrl = profileUrlFor(entry)
-
-  if (variant === 'discover') {
-    return (
-      <article className="relative overflow-hidden rounded-xl border border-dashed border-[var(--discover-border)] bg-[var(--discover-muted)] p-4 pl-5 before:absolute before:inset-y-3 before:left-0 before:w-1 before:rounded-full before:bg-[var(--discover)] before:content-[''] dark:border-amber-500/35 dark:bg-amber-500/[0.07]">
-        <div className="flex gap-3">
-          <div className="flex shrink-0 flex-col items-center gap-1">
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-              title="No contribution link yet"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
-            </span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <StewardNameHeading
-                name={entry.displayName}
-                href={websiteUrl}
-                linkVariant="discover"
-              />
-              <HandleBadge handle={entry.handle} did={entry.did} />
-              <TagBadges tags={entry.tags} />
-              <EndorseButton endorsed={endorsed} onEndorse={onEndorse} onUnendorse={onUnendorse} uri={entry.uri} />
-            </div>
-            {entry.description && (
-              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                {entry.description}
-              </p>
-            )}
-            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-              Your account has saved something from this service--we don&apos;t have
-              details about it yet.{' '}
-              <Link
-                href="/lexicon"
-                className="font-medium text-[var(--discover)] underline underline-offset-2 dark:text-amber-400"
-              >
-                How projects get listed
-              </Link>
-            </p>
-          </div>
-        </div>
-      </article>
-    )
-  }
-
-  if (variant === 'network') {
-    return (
-      <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--network-border)] bg-gradient-to-br from-[var(--network-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--network-muted)] dark:to-slate-950">
-        <div className="flex gap-3">
-          <div className="flex shrink-0 flex-col items-center gap-1">
-            {state === 'direct' ? (
-              <a
-                href={contributeUrl!}
-                target="_blank"
-                rel="noreferrer"
-                title="Contribute"
-                className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--network)] text-white shadow-sm transition-opacity hover:opacity-90"
-              >
-                <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-                <span className="sr-only">Contribute</span>
-              </a>
-            ) : state === 'dependency' ? (
-              <span
-                className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
-                title="No contribution link -- has sub-dependencies"
-              >
-                <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-              </span>
-            ) : (
-              <span
-                className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-                title="No contribution link published"
-              >
-                <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
-              </span>
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <StewardNameHeading
-                name={entry.displayName}
-                href={profileUrl}
-                linkVariant="network"
-              />
-              <HandleBadge handle={entry.handle} did={entry.did} />
-              <TagBadges tags={entry.tags} />
-              <EndorseButton endorsed={endorsed} onEndorse={onEndorse} onUnendorse={onUnendorse} uri={entry.uri} />
-            </div>
-            {entry.description && (
-              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                {entry.description}
-              </p>
-            )}
-            {entry.capabilities && entry.capabilities.length > 0 && (
-              <CapabilitiesSection capabilities={entry.capabilities} />
-            )}
-            {entry.dependencies && entry.dependencies.length > 0 && (
-              <DependenciesSection
-                dependencies={entry.dependencies}
-                allEntries={allEntries}
-              />
-            )}
-          </div>
-        </div>
-      </article>
-    )
-  }
-
-  // variant === 'support'
   return (
-    <article className="rounded-xl border border-slate-200/90 border-l-4 border-l-[var(--support-border)] bg-gradient-to-br from-[var(--support-muted)] to-white p-4 shadow-sm dark:border-slate-800 dark:from-[var(--support-muted)] dark:to-slate-950">
-      <div className="flex gap-3">
-        <div className="flex shrink-0 flex-col items-center gap-1">
-          {state === 'direct' ? (
-            <a
-              href={contributeUrl!}
-              target="_blank"
-              rel="noreferrer"
-              title="Contribute"
-              className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-              <span className="sr-only">Contribute</span>
-            </a>
-          ) : state === 'dependency' ? (
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
-              title="No contribution link -- has sub-dependencies"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-            </span>
-          ) : (
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600"
-              title="No contribution link published"
-            >
-              <DropletIcon className="h-8 w-8" strokeWidth={1.5} aria-hidden />
-            </span>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <StewardNameHeading
-              name={entry.displayName}
-              href={websiteUrl}
-              linkVariant="support"
-            />
-            <HandleBadge handle={entry.handle} did={entry.did} />
-            <TagBadges tags={entry.tags} />
-            <EndorseButton endorsed={endorsed} onEndorse={onEndorse} onUnendorse={onUnendorse} uri={entry.uri} />
-          </div>
-          {entry.description && (
-            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-              {entry.description}
-            </p>
-          )}
-          {entry.capabilities && entry.capabilities.length > 0 && (
-            <CapabilitiesSection capabilities={entry.capabilities} />
-          )}
-          {entry.dependencies && entry.dependencies.length > 0 && (
-            <DependenciesSection
-              dependencies={entry.dependencies}
-              allEntries={allEntries}
-            />
-          )}
-        </div>
-      </div>
+    <article className={ARTICLE_CLASS[type]}>
+      <CardInner
+        entry={entry}
+        isTool={type === 'tool'}
+        linkVariant={LINK_VARIANT[type]}
+        allEntries={allEntries}
+        lookup={lookup}
+        endorsed={endorsed}
+        onEndorse={onEndorse}
+        onUnendorse={onUnendorse}
+        discover={type === 'discover'}
+      />
     </article>
   )
 }
