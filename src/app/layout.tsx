@@ -16,9 +16,22 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "at.fund — Keep your atmosphere clean",
+  title: "at.fund — We can just pay for things",
   description:
-    "Fund what you use. Pay the builders you already rely on, directly. ATProto sign-in.",
+    "No VCs, no ads — just builders getting paid directly for the work you already rely on.",
+  openGraph: {
+    type: "website",
+    title: "at.fund — We can just pay for things",
+    description:
+      "No VCs, no ads — just builders getting paid directly for the work you already rely on.",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "at.fund — We can just pay for things",
+    description:
+      "No VCs, no ads — just builders getting paid directly for the work you already rely on.",
+  },
 };
 
 export default async function RootLayout({

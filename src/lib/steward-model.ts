@@ -39,6 +39,8 @@ export type StewardEntry = {
   description?: string
   landingPage?: string
 
+  /** Bluesky avatar URL — present for ATProto accounts whose profile was fetched. */
+  avatar?: string
   contributeUrl?: string
   dependencies?: string[]
   /** Where the display data came from — orthogonal to tags. */
