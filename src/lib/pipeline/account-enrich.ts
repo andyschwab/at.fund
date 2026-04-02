@@ -59,8 +59,8 @@ export async function enrichAccounts(
   const publicClient = new Client(PUBLIC_API)
   const warnings: ScanWarning[] = []
 
-  // ── Batch-resolve profiles for handles + displayNames ──────────────────
-  const needsProfile = [...accounts.values()].filter((a) => !a.handle)
+  // ── Batch-resolve profiles for handles, displayNames, and avatars ─────
+  const needsProfile = [...accounts.values()].filter((a) => !a.avatar)
   const profileDids = needsProfile.map((a) => a.did)
 
   for (let i = 0; i < profileDids.length; i += PROFILE_BATCH) {

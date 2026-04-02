@@ -668,7 +668,11 @@ export function PdsHostSupportCard({
   const initials = pdsHostname.slice(0, 2).toUpperCase()
 
   return (
-    <li className={`px-4 py-3 transition-all duration-100 hover:bg-slate-50 dark:hover:bg-slate-800/30 ${!contributeUrl ? 'opacity-60 hover:opacity-100' : ''}`}>
+    <li className={`px-4 py-3.5 transition-all duration-100 ${
+      contributeUrl
+        ? 'bg-sky-50/70 hover:bg-sky-50 dark:bg-sky-950/20 dark:hover:bg-sky-950/35'
+        : 'opacity-60 hover:opacity-100 hover:bg-slate-50 dark:hover:bg-slate-800/30'
+    }`}>
       <div className="flex items-start gap-3">
         {/* Left: hostname initials → PDS/steward website */}
         <a
@@ -799,7 +803,11 @@ export function StewardCard({
     const linkHref = variant === 'network' ? profileUrl : websiteUrl
     const endorseHandler = endorsed ? onUnendorse : onEndorse
     return (
-      <li className={`px-4 py-3 transition-all duration-100 hover:bg-slate-50 dark:hover:bg-slate-800/30 ${state === 'none' ? 'opacity-60 hover:opacity-100' : ''}`}>
+      <li className={`px-4 py-3.5 transition-all duration-100 ${
+        state === 'none'
+          ? 'opacity-60 hover:opacity-100 hover:bg-slate-50 dark:hover:bg-slate-800/30'
+          : 'bg-emerald-50/70 hover:bg-emerald-50 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/35'
+      }`}>
         <div className="flex items-start gap-3">
           {/* Left: profile avatar → links to card title URI */}
           <ProfileAvatar entry={entry} href={linkHref} />
