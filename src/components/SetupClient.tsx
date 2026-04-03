@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useId } from 'react'
+import { useState, useMemo, useEffect, useId } from 'react'
 import Link from 'next/link'
 import {
   AlertCircle,
@@ -172,22 +172,78 @@ export function SetupClient({ did, handle, existing }: Props) {
     !!contributeUrlError ||
     (!form.contributeUrl.trim() && form.dependencies.filter((d) => d.uri.trim()).length === 0)
 
-  // Live preview model
+  // Fetch enriched profile for the user's own entry (avatar, description, etc.)
+  const [enriched, setEnriched] = useState<StewardEntry | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/entry?uri=${encodeURIComponent(did)}`)
+      .then((r) => r.json())
+      .then((data: { entry?: StewardEntry }) => {
+        if (!cancelled && data.entry) setEnriched(data.entry)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [did])
+
+  // Live preview model — form fields override, enriched fields fill in the rest
   const previewModel: StewardEntry = useMemo(
     () => ({
       uri: did,
       did: did,
       handle: handle ?? undefined,
-      tags: ['tool'] as const,
-      displayName: handle ?? did,
+      tags: enriched?.tags ?? (['tool'] as const),
+      displayName: enriched?.displayName ?? handle ?? did,
+      description: enriched?.description,
+      avatar: enriched?.avatar,
+      landingPage: enriched?.landingPage,
+      capabilities: enriched?.capabilities,
       contributeUrl: contributeUrlError ? undefined : form.contributeUrl.trim() || undefined,
       dependencies: form.dependencies
         .filter((d) => d.uri.trim())
         .map((d) => d.uri.trim()),
-      source: 'fund.at',
+      source: 'fund.at' as const,
     }),
-    [form, did, handle, contributeUrlError],
+    [form, did, handle, contributeUrlError, enriched],
   )
+
+  // Resolve dependency entries so the preview card can show enriched info
+  const [resolvedDeps, setResolvedDeps] = useState<StewardEntry[]>([])
+
+  const depUris = useMemo(
+    () => previewModel.dependencies ?? [],
+    [previewModel.dependencies],
+  )
+
+  useEffect(() => {
+    if (depUris.length === 0) {
+      setResolvedDeps([])
+      return
+    }
+
+    let cancelled = false
+
+    Promise.allSettled(
+      depUris.map((uri) =>
+        fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
+          .then((r) => r.json())
+          .then((data: { entry?: StewardEntry; referenced?: StewardEntry[] }) => {
+            const entries: StewardEntry[] = []
+            if (data.entry) entries.push(data.entry)
+            if (data.referenced) entries.push(...data.referenced)
+            return entries
+          })
+          .catch(() => [] as StewardEntry[])
+      )
+    ).then((results) => {
+      if (cancelled) return
+      setResolvedDeps(
+        results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
+      )
+    })
+
+    return () => { cancelled = true }
+  }, [depUris])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -236,9 +292,9 @@ export function SetupClient({ did, handle, existing }: Props) {
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Preview — how you appear in others&apos; give lists
           </p>
-          <div className="pointer-events-none select-none">
-            <StewardCard entry={previewModel} />
-          </div>
+          <ul className="pointer-events-none select-none divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+            <StewardCard entry={previewModel} allEntries={resolvedDeps} compact />
+          </ul>
         </section>
 
         {/* Form */}
