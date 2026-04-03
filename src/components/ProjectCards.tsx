@@ -335,7 +335,7 @@ export function StewardCard({
               </span>
             )}
 
-            {endorseHandler && (
+            {endorseHandler ? (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); endorseHandler(entry.uri) }}
@@ -360,6 +360,13 @@ export function StewardCard({
                   </>
                 )}
               </button>
+            ) : (
+              <span
+                className="flex w-11 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600"
+              >
+                <BadgePlus className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                <span>Endorse</span>
+              </span>
             )}
           </div>
         </div>

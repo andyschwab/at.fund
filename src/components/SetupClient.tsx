@@ -172,21 +172,39 @@ export function SetupClient({ did, handle, existing }: Props) {
     !!contributeUrlError ||
     (!form.contributeUrl.trim() && form.dependencies.filter((d) => d.uri.trim()).length === 0)
 
-  // Live preview model
+  // Fetch enriched profile for the user's own entry (avatar, description, etc.)
+  const [enriched, setEnriched] = useState<StewardEntry | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/entry?uri=${encodeURIComponent(did)}`)
+      .then((r) => r.json())
+      .then((data: { entry?: StewardEntry }) => {
+        if (!cancelled && data.entry) setEnriched(data.entry)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [did])
+
+  // Live preview model — form fields override, enriched fields fill in the rest
   const previewModel: StewardEntry = useMemo(
     () => ({
       uri: did,
       did: did,
       handle: handle ?? undefined,
-      tags: ['tool'] as const,
-      displayName: handle ?? did,
+      tags: enriched?.tags ?? (['tool'] as const),
+      displayName: enriched?.displayName ?? handle ?? did,
+      description: enriched?.description,
+      avatar: enriched?.avatar,
+      landingPage: enriched?.landingPage,
+      capabilities: enriched?.capabilities,
       contributeUrl: contributeUrlError ? undefined : form.contributeUrl.trim() || undefined,
       dependencies: form.dependencies
         .filter((d) => d.uri.trim())
         .map((d) => d.uri.trim()),
-      source: 'fund.at',
+      source: 'fund.at' as const,
     }),
-    [form, did, handle, contributeUrlError],
+    [form, did, handle, contributeUrlError, enriched],
   )
 
   // Resolve dependency entries so the preview card can show enriched info
