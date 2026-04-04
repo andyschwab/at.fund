@@ -210,7 +210,15 @@ export async function scanStreaming(
   // so we can provide counts for any card — not just ecosystem.
   const allCounts: Record<string, EndorsementCounts> = {}
   for (const entry of allEntries) {
-    const counts = getCountsFromMap(endorsementMap, entry.uri)
+    // Try uri, then did, then handle — endorsements may target any form
+    let counts = getCountsFromMap(endorsementMap, entry.uri)
+    if (counts.networkEndorsementCount === 0 && entry.did) {
+      counts = getCountsFromMap(endorsementMap, entry.did)
+    }
+    if (counts.networkEndorsementCount === 0 && entry.handle) {
+      counts = getCountsFromMap(endorsementMap, entry.handle)
+    }
+
     if (counts.networkEndorsementCount > 0) {
       allCounts[entry.uri] = {
         endorsementCount: counts.networkEndorsementCount,
