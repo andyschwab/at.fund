@@ -4,8 +4,9 @@ import type { PdsHostFunding } from '@/lib/atfund-steward'
 import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { fetchOwnEndorsements } from '@/lib/fund-at-records'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
+import { lookupManualStewardRecord } from '@/lib/catalog'
 import { gatherAccounts } from './account-gather'
-import type { AccountStub, ScanWarning } from './account-gather'
+import type { AccountStub, UnresolvedService, ScanWarning } from './account-gather'
 import { enrichAccounts } from './account-enrich'
 import { attachCapabilities } from './capability-scan'
 import { resolveDependencies } from './dep-resolve'
@@ -132,8 +133,8 @@ export async function scanStreaming(
         if (stub.tags.has('follow')) followDids.add(did)
       }
 
-      // If initial fetch had empty followDids, re-discover with real follows
-      // to get accurate network counts. The cached UFOs data makes this instant.
+      // Re-discover with real follows for accurate network counts.
+      // The cached UFOs data makes this instant.
       const finalDiscovery = followDids.size > 0
         ? await discoverEcosystem(followDids)
         : discovery
@@ -145,64 +146,62 @@ export async function scanStreaming(
         if (e.did) existingUris.add(e.did)
       }
 
-      // Build AccountStubs for ecosystem URIs that aren't already in results
+      // Resolve each ecosystem URI → DID in parallel, then split into
+      // resolved accounts (have a DID) vs unresolved (hostname only).
       const ecosystemAccounts = new Map<string, AccountStub>()
+      const ecosystemUnresolved: UnresolvedService[] = []
       const ecosystemUriCounts = new Map<string, EndorsementCounts>()
 
-      for (const [uri, counts] of finalDiscovery.uris) {
-        if (existingUris.has(uri)) continue
+      const uriEntries = [...finalDiscovery.uris.entries()]
+        .filter(([uri]) => !existingUris.has(uri))
 
+      await Promise.all(uriEntries.map(async ([uri, counts]) => {
         ecosystemUriCounts.set(uri, counts)
 
-        // Resolve hostname → DID so enrichment can fetch profiles + fund.at
         if (uri.startsWith('did:')) {
-          ecosystemAccounts.set(uri, {
-            did: uri,
-            tags: new Set(['ecosystem']),
-            hostnames: new Set(),
-          })
-        } else {
-          // Hostname — try DNS lookup for DID
-          try {
-            const did = await lookupAtprotoDid(uri)
-            if (did && !existingUris.has(did)) {
-              ecosystemAccounts.set(did, {
-                did,
-                tags: new Set(['ecosystem']),
-                hostnames: new Set([uri]),
-              })
-              // Map DID back to the original URI's counts
-              ecosystemUriCounts.set(did, counts)
-            } else {
-              // No DID or DID already in results — keep as unresolved hostname
-              ecosystemAccounts.set(uri, {
-                did: uri, // placeholder; enrichAccounts handles missing DIDs
-                tags: new Set(['ecosystem']),
-                hostnames: new Set([uri]),
-              })
-            }
-          } catch {
+          if (!existingUris.has(uri)) {
             ecosystemAccounts.set(uri, {
               did: uri,
               tags: new Set(['ecosystem']),
-              hostnames: new Set([uri]),
+              hostnames: new Set(),
             })
           }
+          return
         }
-      }
 
-      if (ecosystemAccounts.size > 0) {
+        // Hostname — check catalog for an atprotoHandle alias first
+        const catalogEntry = lookupManualStewardRecord(uri)
+        const lookupHostname = catalogEntry?.atprotoHandle ?? uri
+
+        try {
+          const did = await lookupAtprotoDid(lookupHostname)
+          if (did && !existingUris.has(did)) {
+            ecosystemAccounts.set(did, {
+              did,
+              tags: new Set(['ecosystem']),
+              hostnames: new Set([uri]),
+            })
+            ecosystemUriCounts.set(did, counts)
+            return
+          }
+        } catch { /* DNS lookup failed */ }
+
+        // No DID found — use unresolved services path (handles hostnames properly)
+        ecosystemUnresolved.push({ hostname: uri, tags: ['ecosystem'] })
+      }))
+
+      if (ecosystemAccounts.size > 0 || ecosystemUnresolved.length > 0) {
         // Run through the same enrichment pipeline
         const ecosystemEnriched = await enrichAccounts(
           session,
           ecosystemAccounts,
-          [], // no unresolved services
+          ecosystemUnresolved,
         )
 
         // Attach endorsement counts and emit
+        const allEcosystemEntries = [...ecosystemEnriched.entries, ...ecosystemEnriched.unresolvedEntries]
         const ecosystemEntries: EcosystemEntry[] = []
-        for (const entry of ecosystemEnriched.entries) {
-          // Look up counts by URI, DID, or any hostname
+        for (const entry of allEcosystemEntries) {
           const counts = ecosystemUriCounts.get(entry.uri)
             ?? (entry.did ? ecosystemUriCounts.get(entry.did) : undefined)
             ?? { endorsementCount: 0, networkEndorsementCount: 0 }

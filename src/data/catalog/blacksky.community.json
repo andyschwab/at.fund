@@ -1,4 +1,5 @@
 {
   "contributeUrl": "https://opencollective.com/blacksky",
-  "tags": ["ecosystem"]
+  "tags": ["ecosystem"],
+  "atprotoHandle": "move.blacksky.community"
 }

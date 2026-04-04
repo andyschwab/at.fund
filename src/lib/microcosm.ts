@@ -1,23 +1,24 @@
 import { logger } from '@/lib/logger'
 
 const UFOS_BASE = 'https://ufos-api.microcosm.blue'
-const PAGE_LIMIT = 100
 
 // ---------------------------------------------------------------------------
-// Types
+// Types — match the actual UFOs API response format
 // ---------------------------------------------------------------------------
 
 export type EndorseRecord = {
   did: string
   collection: string
   rkey: string
-  record: { $type: string; uri: string; createdAt?: string }
+  record: { $type?: string; uri?: string; createdAt?: string; [key: string]: unknown }
   time_us: number
 }
 
-type UfosResponse = {
-  records: EndorseRecord[]
-  cursor?: string | null
+type CollectionStats = {
+  creates: number
+  deletes: number
+  dids_estimate: number
+  updates?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -26,6 +27,7 @@ type UfosResponse = {
 
 type EndorsementCache = {
   records: EndorseRecord[]
+  stats: CollectionStats | null
   fetchedAt: number
 }
 
@@ -34,58 +36,87 @@ const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 let _cache: EndorsementCache | null = null
 
 // ---------------------------------------------------------------------------
-// Fetch with pagination
+// Fetch from UFOs API
 // ---------------------------------------------------------------------------
 
-async function fetchAllEndorsements(): Promise<EndorseRecord[]> {
-  const all: EndorseRecord[] = []
-  let cursor: string | undefined
-
+/**
+ * GET /records?collection=fund.at.endorse
+ *
+ * Returns a flat array of the most recent ~42 sample records.
+ * This is a sample, not the full dataset — UFOs is a firehose stats service.
+ */
+async function fetchRecordSamples(): Promise<EndorseRecord[]> {
   try {
-    do {
-      const url = new URL(`${UFOS_BASE}/records`)
-      url.searchParams.set('collection', 'fund.at.endorse')
-      url.searchParams.set('limit', String(PAGE_LIMIT))
-      if (cursor) url.searchParams.set('cursor', cursor)
-
-      const res = await fetch(url.toString())
-      if (!res.ok) {
-        logger.warn('microcosm: UFOs API error', { status: res.status })
-        break
-      }
-
-      const data = (await res.json()) as UfosResponse
-      const records = data.records ?? []
-      all.push(...records)
-
-      cursor = data.cursor ?? undefined
-    } while (cursor)
+    const res = await fetch(`${UFOS_BASE}/records?collection=fund.at.endorse`)
+    if (!res.ok) {
+      logger.warn('microcosm: UFOs /records error', { status: res.status })
+      return []
+    }
+    // Response is a flat array, not wrapped in an object
+    const data = (await res.json()) as EndorseRecord[]
+    if (!Array.isArray(data)) {
+      logger.warn('microcosm: unexpected /records response shape')
+      return []
+    }
+    return data
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    logger.warn('microcosm: UFOs fetch failed', { error: msg })
+    logger.warn('microcosm: /records fetch failed', { error: msg })
+    return []
   }
+}
 
-  logger.info('microcosm: fetched endorsements', { count: all.length })
-  return all
+/**
+ * GET /collections/stats?collection=fund.at.endorse
+ *
+ * Returns aggregate stats: total creates (endorsements written),
+ * deletes, and estimated unique DIDs.
+ */
+async function fetchCollectionStats(): Promise<CollectionStats | null> {
+  try {
+    const res = await fetch(
+      `${UFOS_BASE}/collections/stats?collection=fund.at.endorse`,
+    )
+    if (!res.ok) {
+      logger.warn('microcosm: UFOs /collections/stats error', { status: res.status })
+      return null
+    }
+    const data = (await res.json()) as Record<string, CollectionStats>
+    return data['fund.at.endorse'] ?? null
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    logger.warn('microcosm: /collections/stats fetch failed', { error: msg })
+    return null
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Public API — cached
 // ---------------------------------------------------------------------------
 
-/** Returns all fund.at.endorse records from the network, cached for 5 minutes. */
-export async function getAllEndorsements(): Promise<EndorseRecord[]> {
+export type EndorsementData = {
+  /** Recent sample of endorsement records (up to ~42). */
+  records: EndorseRecord[]
+  /** Aggregate stats for the fund.at.endorse collection. */
+  stats: CollectionStats | null
+}
+
+/** Returns cached endorsement data, refreshing if stale. */
+export async function getEndorsementData(): Promise<EndorsementData> {
   if (_cache && Date.now() - _cache.fetchedAt < CACHE_TTL_MS) {
-    return _cache.records
+    return { records: _cache.records, stats: _cache.stats }
   }
 
-  const records = await fetchAllEndorsements()
+  // Fetch records and stats in parallel
+  const [records, stats] = await Promise.all([
+    fetchRecordSamples(),
+    fetchCollectionStats(),
+  ])
 
-  // Only update cache if we got results, or if cache is empty (don't overwrite
-  // good data with an empty response from a transient failure)
-  if (records.length > 0 || !_cache) {
-    _cache = { records, fetchedAt: Date.now() }
+  // Only update cache if we got data, or if cache is empty
+  if (records.length > 0 || stats || !_cache) {
+    _cache = { records, stats, fetchedAt: Date.now() }
   }
 
-  return _cache.records
+  return { records: _cache.records, stats: _cache.stats }
 }

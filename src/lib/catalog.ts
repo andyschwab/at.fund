@@ -7,6 +7,8 @@ type ManualRecord = {
   contributeUrl?: string
   dependencies?: string[]
   tags?: string[]
+  /** AT Proto handle to use for identity resolution when the catalog key hostname differs. */
+  atprotoHandle?: string
 }
 
 type ResolverOverride = {
@@ -92,6 +94,7 @@ export type ManualStewardRecord = {
   contributeUrl?: string
   dependencies?: string[]
   tags?: string[]
+  atprotoHandle?: string
 }
 
 /** Manual fallback keyed by steward URI. Returns contribute/dependency data from our curated catalog. */
@@ -113,6 +116,7 @@ export function lookupManualStewardRecord(
     contributeUrl: record.contributeUrl,
     dependencies: record.dependencies,
     tags: record.tags,
+    atprotoHandle: record.atprotoHandle,
   }
 }
 
@@ -126,6 +130,7 @@ export function getEcosystemCatalogEntries(): ManualStewardRecord[] {
         contributeUrl: record.contributeUrl,
         dependencies: record.dependencies,
         tags: record.tags,
+        atprotoHandle: record.atprotoHandle,
       })
     }
   }

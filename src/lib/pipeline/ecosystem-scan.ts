@@ -1,4 +1,4 @@
-import { getAllEndorsements } from '@/lib/microcosm'
+import { getEndorsementData } from '@/lib/microcosm'
 import { getEcosystemCatalogEntries } from '@/lib/catalog'
 import { normalizeStewardUri } from '@/lib/steward-uri'
 import { logger } from '@/lib/logger'
@@ -27,19 +27,20 @@ export type EcosystemDiscovery = {
  * 1. Curated catalog entries tagged "ecosystem" (always shown)
  * 2. Network-discovered URIs endorsed by 1+ of the user's follows
  *
- * This is a pure data fetch — no entry resolution. The caller injects
- * discovered URIs into the normal enrichment pipeline.
+ * Note: The UFOs /records endpoint returns a sample of ~42 recent records,
+ * not the full dataset. Network endorsement counts from follows are derived
+ * from this sample. Catalog entries are always included regardless.
  */
 export async function discoverEcosystem(
   followDids: Set<string>,
 ): Promise<EcosystemDiscovery> {
-  // ── Fetch all endorsement records from the network ──────────────────
-  const allRecords = await getAllEndorsements()
+  // ── Fetch endorsement data from the network ─────────────────────────
+  const { records, stats } = await getEndorsementData()
 
-  // ── Build aggregation map: normalizedUri → counts ───────────────────
-  const aggregation = new Map<string, { globalCount: number; networkDids: Set<string> }>()
+  // ── Build per-URI aggregation from sample records ───────────────────
+  const aggregation = new Map<string, { sampleCount: number; networkDids: Set<string> }>()
 
-  for (const record of allRecords) {
+  for (const record of records) {
     const rawUri = record.record?.uri
     if (typeof rawUri !== 'string' || !rawUri.trim()) continue
 
@@ -47,10 +48,10 @@ export async function discoverEcosystem(
 
     let agg = aggregation.get(normalized)
     if (!agg) {
-      agg = { globalCount: 0, networkDids: new Set() }
+      agg = { sampleCount: 0, networkDids: new Set() }
       aggregation.set(normalized, agg)
     }
-    agg.globalCount++
+    agg.sampleCount++
     if (followDids.has(record.did)) {
       agg.networkDids.add(record.did)
     }
@@ -63,25 +64,26 @@ export async function discoverEcosystem(
   for (const cat of getEcosystemCatalogEntries()) {
     const agg = aggregation.get(cat.stewardUri)
     uris.set(cat.stewardUri, {
-      endorsementCount: agg?.globalCount ?? 0,
+      endorsementCount: agg?.sampleCount ?? 0,
       networkEndorsementCount: agg?.networkDids.size ?? 0,
     })
   }
 
-  // Add network-discovered entries (endorsed by 1+ follow)
+  // Add network-discovered entries (endorsed by 1+ follow in the sample)
   for (const [uri, agg] of aggregation) {
     if (agg.networkDids.size === 0) continue
     if (uris.has(uri)) continue // already in catalog set
     uris.set(uri, {
-      endorsementCount: agg.globalCount,
+      endorsementCount: agg.sampleCount,
       networkEndorsementCount: agg.networkDids.size,
     })
   }
 
   logger.info('ecosystem: discovery completed', {
-    recordCount: allRecords.length,
+    sampleRecords: records.length,
+    globalStats: stats ? { creates: stats.creates, didsEstimate: stats.dids_estimate } : null,
     catalogCount: getEcosystemCatalogEntries().length,
-    networkDiscovered: uris.size - getEcosystemCatalogEntries().length,
+    networkDiscovered: [...uris.values()].filter((c) => c.networkEndorsementCount > 0).length,
     totalUris: uris.size,
   })
 
