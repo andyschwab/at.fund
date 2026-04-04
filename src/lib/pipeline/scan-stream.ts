@@ -1,12 +1,12 @@
 import type { OAuthSession } from '@atproto/oauth-client'
-import type { StewardEntry } from '@/lib/steward-model'
+import type { StewardEntry, StewardTag } from '@/lib/steward-model'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
 import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { fetchOwnEndorsements } from '@/lib/fund-at-records'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { lookupManualStewardRecord } from '@/lib/catalog'
 import { gatherAccounts } from './account-gather'
-import type { AccountStub, UnresolvedService, ScanWarning } from './account-gather'
+import type { ScanWarning } from './account-gather'
 import { enrichAccounts } from './account-enrich'
 import { attachCapabilities } from './capability-scan'
 import { resolveDependencies } from './dep-resolve'
@@ -80,6 +80,78 @@ export async function scanStreaming(
     emit({ type: 'warning', warning: w })
   }
 
+  // ── Inject ecosystem entries inline before enrichment ──────────────────
+  // Ecosystem URIs get added to the same accounts/unresolvedServices maps
+  // so they flow through Phases 2–4 in a single pass.
+  const ecosystemUriCounts = new Map<string, EndorsementCounts>()
+
+  try {
+    const discovery = await ecosystemPromise
+    if (discovery && discovery.uris.size > 0) {
+      // Now that we have follows, recompute network counts
+      const followDids = new Set<string>()
+      for (const [did, stub] of gathered.accounts) {
+        if (stub.tags.has('follow')) followDids.add(did)
+      }
+
+      const finalDiscovery = followDids.size > 0
+        ? await discoverEcosystem(followDids)
+        : discovery
+
+      // Build set of URIs already gathered (by DID or hostname)
+      const existingUris = new Set<string>()
+      for (const [did, stub] of gathered.accounts) {
+        existingUris.add(did)
+        for (const h of stub.hostnames) existingUris.add(h)
+      }
+      for (const svc of gathered.unresolvedServices) {
+        existingUris.add(svc.hostname)
+      }
+
+      const uriEntries = [...finalDiscovery.uris.entries()]
+        .filter(([uri]) => !existingUris.has(uri))
+
+      await Promise.all(uriEntries.map(async ([uri, counts]) => {
+        ecosystemUriCounts.set(uri, counts)
+
+        if (uri.startsWith('did:')) {
+          if (!gathered.accounts.has(uri)) {
+            gathered.accounts.set(uri, {
+              did: uri,
+              tags: new Set<StewardTag>(['ecosystem']),
+              hostnames: new Set(),
+            })
+            ecosystemUriCounts.set(uri, counts)
+          }
+          return
+        }
+
+        // Hostname — check catalog for an atprotoHandle alias first
+        const catalogEntry = lookupManualStewardRecord(uri)
+        const lookupHostname = catalogEntry?.atprotoHandle ?? uri
+
+        try {
+          const did = await lookupAtprotoDid(lookupHostname)
+          if (did && !existingUris.has(did) && !gathered.accounts.has(did)) {
+            gathered.accounts.set(did, {
+              did,
+              tags: new Set<StewardTag>(['ecosystem']),
+              hostnames: new Set([uri]),
+            })
+            ecosystemUriCounts.set(did, counts)
+            return
+          }
+        } catch { /* DNS lookup failed */ }
+
+        // No DID found — use unresolved services path
+        gathered.unresolvedServices.push({ hostname: uri, tags: ['ecosystem'] })
+      }))
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Ecosystem injection failed'
+    logger.warn('scan: ecosystem injection failed', { error: msg })
+  }
+
   // ── Phase 2: Enrich ────────────────────────────────────────────────────
   emit({ type: 'status', message: `Resolving ${gathered.accounts.size} account${gathered.accounts.size === 1 ? '' : 's'}…` })
 
@@ -88,11 +160,10 @@ export async function scanStreaming(
     gathered.accounts,
     gathered.unresolvedServices,
     (entry) => {
-      // Only emit entries that have an identity (tools, follows).
-      // Feed/labeler-only accounts are held until Phase 3 confirms their
-      // capabilities — a feed is always a capability of an account, never
-      // a standalone entry.
-      if (entry.tags.length > 0) {
+      // Ecosystem-only entries are held for the ecosystem event after Phase 4.
+      // Everything else streams to the client immediately.
+      const isEcosystemOnly = entry.tags.length === 1 && entry.tags[0] === 'ecosystem'
+      if (entry.tags.length > 0 && !isEcosystemOnly) {
         emit({ type: 'entry', entry })
       }
     },
@@ -121,116 +192,26 @@ export async function scanStreaming(
     emit({ type: 'referenced', entry })
   })
 
-  // ── Phase 5: Ecosystem — enrich discovered URIs through the pipeline ───
-  try {
-    const discovery = await ecosystemPromise
-    if (discovery && discovery.uris.size > 0) {
-      emit({ type: 'status', message: 'Loading ecosystem…' })
+  // ── Extract ecosystem entries and emit with endorsement counts ─────────
+  if (ecosystemUriCounts.size > 0) {
+    const ecosystemEntries: EcosystemEntry[] = []
+    for (const entry of allEntries) {
+      if (!entry.tags.includes('ecosystem')) continue
 
-      // Now that we have follows, recompute network counts
-      const followDids = new Set<string>()
-      for (const [did, stub] of gathered.accounts) {
-        if (stub.tags.has('follow')) followDids.add(did)
-      }
+      const counts = ecosystemUriCounts.get(entry.uri)
+        ?? (entry.did ? ecosystemUriCounts.get(entry.did) : undefined)
+        ?? { endorsementCount: 0, networkEndorsementCount: 0 }
 
-      // Re-discover with real follows for accurate network counts.
-      // The cached UFOs data makes this instant.
-      const finalDiscovery = followDids.size > 0
-        ? await discoverEcosystem(followDids)
-        : discovery
-
-      // Filter out URIs already in scan results
-      const existingUris = new Set<string>()
-      for (const e of allEntries) {
-        existingUris.add(e.uri)
-        if (e.did) existingUris.add(e.did)
-      }
-
-      // Resolve each ecosystem URI → DID in parallel, then split into
-      // resolved accounts (have a DID) vs unresolved (hostname only).
-      const ecosystemAccounts = new Map<string, AccountStub>()
-      const ecosystemUnresolved: UnresolvedService[] = []
-      const ecosystemUriCounts = new Map<string, EndorsementCounts>()
-
-      const uriEntries = [...finalDiscovery.uris.entries()]
-        .filter(([uri]) => !existingUris.has(uri))
-
-      await Promise.all(uriEntries.map(async ([uri, counts]) => {
-        ecosystemUriCounts.set(uri, counts)
-
-        if (uri.startsWith('did:')) {
-          if (!existingUris.has(uri)) {
-            ecosystemAccounts.set(uri, {
-              did: uri,
-              tags: new Set(['ecosystem']),
-              hostnames: new Set(),
-            })
-          }
-          return
-        }
-
-        // Hostname — check catalog for an atprotoHandle alias first
-        const catalogEntry = lookupManualStewardRecord(uri)
-        const lookupHostname = catalogEntry?.atprotoHandle ?? uri
-
-        try {
-          const did = await lookupAtprotoDid(lookupHostname)
-          if (did && !existingUris.has(did)) {
-            ecosystemAccounts.set(did, {
-              did,
-              tags: new Set(['ecosystem']),
-              hostnames: new Set([uri]),
-            })
-            ecosystemUriCounts.set(did, counts)
-            return
-          }
-        } catch { /* DNS lookup failed */ }
-
-        // No DID found — use unresolved services path (handles hostnames properly)
-        ecosystemUnresolved.push({ hostname: uri, tags: ['ecosystem'] })
-      }))
-
-      if (ecosystemAccounts.size > 0 || ecosystemUnresolved.length > 0) {
-        // Run through the same enrichment pipeline
-        const ecosystemEnriched = await enrichAccounts(
-          session,
-          ecosystemAccounts,
-          ecosystemUnresolved,
-        )
-
-        // Attach endorsement counts and emit
-        const allEcosystemEntries = [...ecosystemEnriched.entries, ...ecosystemEnriched.unresolvedEntries]
-
-        // Resolve dependencies for ecosystem entries (Phase 4 already ran
-        // for the main entries, so ecosystem deps need their own pass).
-        // Include the main allEntries so we don't re-resolve known deps.
-        const combinedForDepResolve = [...allEntries, ...allEcosystemEntries]
-        await resolveDependencies(combinedForDepResolve, (entry) => {
-          emit({ type: 'referenced', entry })
-        })
-
-        const ecosystemEntries: EcosystemEntry[] = []
-        for (const entry of allEcosystemEntries) {
-          const counts = ecosystemUriCounts.get(entry.uri)
-            ?? (entry.did ? ecosystemUriCounts.get(entry.did) : undefined)
-            ?? { endorsementCount: 0, networkEndorsementCount: 0 }
-
-          ecosystemEntries.push({ ...entry, ...counts })
-        }
-
-        // Sort by endorsement count descending
-        ecosystemEntries.sort(
-          (a, b) => b.endorsementCount - a.endorsementCount || a.uri.localeCompare(b.uri),
-        )
-
-        if (ecosystemEntries.length > 0) {
-          emit({ type: 'ecosystem', entries: ecosystemEntries })
-        }
-      }
+      ecosystemEntries.push({ ...entry, ...counts })
     }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Ecosystem scan failed'
-    logger.warn('scan: ecosystem scan failed', { error: msg })
+
+    ecosystemEntries.sort(
+      (a, b) => b.endorsementCount - a.endorsementCount || a.uri.localeCompare(b.uri),
+    )
+
+    if (ecosystemEntries.length > 0) {
+      emit({ type: 'ecosystem', entries: ecosystemEntries })
+    }
   }
 
   // ── PDS host funding (parallel with nothing — runs last) ───────────────
