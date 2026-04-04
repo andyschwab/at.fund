@@ -10,7 +10,7 @@ import type { ScanWarning } from './account-gather'
 import { enrichAccounts } from './account-enrich'
 import { attachCapabilities } from './capability-scan'
 import { resolveDependencies } from './dep-resolve'
-import { discoverEcosystem } from './ecosystem-scan'
+import { discoverEcosystem, fetchEndorsementCounts } from './ecosystem-scan'
 import type { EndorsementCounts } from './ecosystem-scan'
 import { logger } from '@/lib/logger'
 
@@ -56,9 +56,9 @@ export async function scanStreaming(
     logger.warn('scan: endorsement fetch failed', { error: msg })
   }
 
-  // ── Phase 1: Gather + start ecosystem fetch in parallel ────────────────
-  // UFOs fetch runs concurrently with account gathering — no wasted time.
-  // We don't know follows yet, so pass an empty set; we'll filter later.
+  // ── Phase 1: Gather + start ecosystem discovery in parallel ───────────
+  // Constellation queries run concurrently with account gathering.
+  // We pass an empty follow set now; network counts are recomputed later.
   const ecosystemPromise = discoverEcosystem(new Set()).catch((e) => {
     logger.warn('scan: ecosystem prefetch failed', {
       error: e instanceof Error ? e.message : String(e),
@@ -82,25 +82,22 @@ export async function scanStreaming(
   }
 
   // ── Inject ecosystem entries inline before enrichment ──────────────────
-  // Ecosystem URIs get added to the same accounts/unresolvedServices maps
-  // so they flow through Phases 2–4 in a single pass.
   const ecosystemUriCounts = new Map<string, EndorsementCounts>()
-  let globalEndorsementCounts = new Map<string, EndorsementCounts>()
+
+  // Extract follow DIDs (needed for network endorsement counts)
+  const followDids = new Set<string>()
+  for (const [did, stub] of gathered.accounts) {
+    if (stub.tags.has('follow')) followDids.add(did)
+  }
 
   try {
     const discovery = await ecosystemPromise
     if (discovery && discovery.uris.size > 0) {
-      // Now that we have follows, recompute network counts
-      const followDids = new Set<string>()
-      for (const [did, stub] of gathered.accounts) {
-        if (stub.tags.has('follow')) followDids.add(did)
-      }
-
+      // Recompute with real follows for accurate network counts.
+      // Constellation results are cached, so this is fast.
       const finalDiscovery = followDids.size > 0
         ? await discoverEcosystem(followDids)
         : discovery
-
-      globalEndorsementCounts = finalDiscovery.allCounts
 
       // Build set of URIs already gathered (by DID or hostname)
       const existingUris = new Set<string>()
@@ -125,7 +122,6 @@ export async function scanStreaming(
               tags: new Set<StewardTag>(['ecosystem']),
               hostnames: new Set(),
             })
-            ecosystemUriCounts.set(uri, counts)
           }
           return
         }
@@ -165,7 +161,6 @@ export async function scanStreaming(
     gathered.unresolvedServices,
     (entry) => {
       // Ecosystem-only entries are held for the ecosystem event after Phase 4.
-      // Everything else streams to the client immediately.
       const isEcosystemOnly = entry.tags.length === 1 && entry.tags[0] === 'ecosystem'
       if (entry.tags.length > 0 && !isEcosystemOnly) {
         emit({ type: 'entry', entry })
@@ -183,10 +178,10 @@ export async function scanStreaming(
   if (gathered.feedUris.length > 0 || gathered.labelerDids.length > 0) {
     emit({ type: 'status', message: 'Loading feed and labeler details…' })
     await attachCapabilities(
-      enriched.entries, // only DID-keyed entries can have capabilities
+      enriched.entries,
       gathered.feedUris,
       gathered.labelerDids,
-      (entry) => emit({ type: 'entry', entry }), // re-emit with capabilities
+      (entry) => emit({ type: 'entry', entry }),
     )
   }
 
@@ -218,16 +213,36 @@ export async function scanStreaming(
     }
   }
 
-  // ── Emit endorsement counts for all URIs (so any card can show them) ──
-  if (globalEndorsementCounts.size > 0) {
-    const counts: Record<string, EndorsementCounts> = {}
-    for (const [uri, c] of globalEndorsementCounts) {
-      counts[uri] = c
+  // ── Fetch endorsement counts for all non-ecosystem entries ─────────────
+  // Query Constellation for every entry URI so all cards can show counts.
+  try {
+    const nonEcosystemUris = allEntries
+      .filter((e) => !e.tags.includes('ecosystem'))
+      .map((e) => e.uri)
+
+    if (nonEcosystemUris.length > 0) {
+      emit({ type: 'status', message: 'Loading endorsement data…' })
+      const globalCounts = await fetchEndorsementCounts(nonEcosystemUris, followDids)
+
+      // Merge with ecosystem counts for a complete map
+      const allCounts: Record<string, EndorsementCounts> = {}
+      for (const [uri, c] of ecosystemUriCounts) {
+        allCounts[uri] = c
+      }
+      for (const [uri, c] of globalCounts) {
+        if (!allCounts[uri]) allCounts[uri] = c
+      }
+
+      if (Object.keys(allCounts).length > 0) {
+        emit({ type: 'endorsement-counts', counts: allCounts })
+      }
     }
-    emit({ type: 'endorsement-counts', counts })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Endorsement count fetch failed'
+    logger.warn('scan: endorsement counts failed', { error: msg })
   }
 
-  // ── PDS host funding (parallel with nothing — runs last) ───────────────
+  // ── PDS host funding ──────────────────────────────────────────────────
   if (gathered.pdsUrl) {
     try {
       const funding = await fetchFundingForUriLike(gathered.pdsUrl)

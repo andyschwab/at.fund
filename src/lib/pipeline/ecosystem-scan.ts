@@ -1,6 +1,5 @@
-import { getEndorsementData } from '@/lib/microcosm'
+import { getEndorsersForUris } from '@/lib/microcosm'
 import { getEcosystemCatalogEntries } from '@/lib/catalog'
-import { normalizeStewardUri } from '@/lib/steward-uri'
 import { logger } from '@/lib/logger'
 
 // ---------------------------------------------------------------------------
@@ -16,12 +15,10 @@ export type EndorsementCounts = {
 export type EcosystemDiscovery = {
   /** URI → endorsement counts for every URI we want to show in ecosystem. */
   uris: Map<string, EndorsementCounts>
-  /** URI → endorsement counts for ALL URIs seen in the sample (for display on any card). */
-  allCounts: Map<string, EndorsementCounts>
 }
 
 // ---------------------------------------------------------------------------
-// Discovery: fetch UFOs data and figure out which URIs matter
+// Discovery: query Constellation for complete endorsement data
 // ---------------------------------------------------------------------------
 
 /**
@@ -29,75 +26,68 @@ export type EcosystemDiscovery = {
  * 1. Curated catalog entries tagged "ecosystem" (always shown)
  * 2. Network-discovered URIs endorsed by 1+ of the user's follows
  *
- * Note: The UFOs /records endpoint returns a sample of ~42 recent records,
- * not the full dataset. Network endorsement counts from follows are derived
- * from this sample. Catalog entries are always included regardless.
+ * Uses Constellation (microcosm backlink index) for complete endorsement
+ * data — no sampling limitations.
  */
 export async function discoverEcosystem(
   followDids: Set<string>,
 ): Promise<EcosystemDiscovery> {
-  // ── Fetch endorsement data from the network ─────────────────────────
-  const { records, stats } = await getEndorsementData()
+  const catalogEntries = getEcosystemCatalogEntries()
+  const catalogUris = catalogEntries.map((c) => c.stewardUri)
 
-  // ── Build per-URI aggregation from sample records ───────────────────
-  const aggregation = new Map<string, { sampleCount: number; networkDids: Set<string> }>()
+  // Query Constellation for endorsement data on all catalog ecosystem URIs
+  const backlinkResults = await getEndorsersForUris(catalogUris)
 
-  for (const record of records) {
-    const rawUri = record.record?.uri
-    if (typeof rawUri !== 'string' || !rawUri.trim()) continue
-
-    const normalized = normalizeStewardUri(rawUri) ?? rawUri.trim()
-
-    let agg = aggregation.get(normalized)
-    if (!agg) {
-      agg = { sampleCount: 0, networkDids: new Set() }
-      aggregation.set(normalized, agg)
-    }
-    agg.sampleCount++
-    if (followDids.has(record.did)) {
-      agg.networkDids.add(record.did)
-    }
-  }
-
-  // ── Collect URIs to show ────────────────────────────────────────────
+  // Build result map
   const uris = new Map<string, EndorsementCounts>()
 
-  // Always include catalog ecosystem entries
-  for (const cat of getEcosystemCatalogEntries()) {
-    const agg = aggregation.get(cat.stewardUri)
+  for (const cat of catalogEntries) {
+    const backlinks = backlinkResults.get(cat.stewardUri)
+    const endorserDids = backlinks?.endorserDids ?? []
+
+    const networkCount = followDids.size > 0
+      ? endorserDids.filter((did) => followDids.has(did)).length
+      : 0
+
     uris.set(cat.stewardUri, {
-      endorsementCount: agg?.sampleCount ?? 0,
-      networkEndorsementCount: agg?.networkDids.size ?? 0,
-    })
-  }
-
-  // Add network-discovered entries (endorsed by 1+ follow in the sample)
-  for (const [uri, agg] of aggregation) {
-    if (agg.networkDids.size === 0) continue
-    if (uris.has(uri)) continue // already in catalog set
-    uris.set(uri, {
-      endorsementCount: agg.sampleCount,
-      networkEndorsementCount: agg.networkDids.size,
-    })
-  }
-
-  // ── Build full counts map for all URIs in the sample ─────────────────
-  const allCounts = new Map<string, EndorsementCounts>()
-  for (const [uri, agg] of aggregation) {
-    allCounts.set(uri, {
-      endorsementCount: agg.sampleCount,
-      networkEndorsementCount: agg.networkDids.size,
+      endorsementCount: endorserDids.length,
+      networkEndorsementCount: networkCount,
     })
   }
 
   logger.info('ecosystem: discovery completed', {
-    sampleRecords: records.length,
-    globalStats: stats ? { creates: stats.creates, didsEstimate: stats.dids_estimate } : null,
-    catalogCount: getEcosystemCatalogEntries().length,
-    networkDiscovered: [...uris.values()].filter((c) => c.networkEndorsementCount > 0).length,
+    catalogCount: catalogEntries.length,
     totalUris: uris.size,
-    allCountsUris: allCounts.size,
+    withEndorsements: [...uris.values()].filter((c) => c.endorsementCount > 0).length,
+    networkDiscovered: [...uris.values()].filter((c) => c.networkEndorsementCount > 0).length,
   })
 
-  return { uris, allCounts }
+  return { uris }
+}
+
+/**
+ * Fetch endorsement counts for a set of arbitrary URIs (for display on any card).
+ * Queries Constellation in parallel with caching.
+ */
+export async function fetchEndorsementCounts(
+  uris: string[],
+  followDids: Set<string>,
+): Promise<Map<string, EndorsementCounts>> {
+  if (uris.length === 0) return new Map()
+
+  const backlinkResults = await getEndorsersForUris(uris)
+  const counts = new Map<string, EndorsementCounts>()
+
+  for (const [uri, backlinks] of backlinkResults) {
+    const networkCount = followDids.size > 0
+      ? backlinks.endorserDids.filter((did) => followDids.has(did)).length
+      : 0
+
+    counts.set(uri, {
+      endorsementCount: backlinks.totalCount,
+      networkEndorsementCount: networkCount,
+    })
+  }
+
+  return counts
 }

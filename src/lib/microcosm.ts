@@ -1,122 +1,223 @@
+import { getRedisClient } from '@/lib/auth/kv-store'
+import { normalizeStewardUri } from '@/lib/steward-uri'
 import { logger } from '@/lib/logger'
 
-const UFOS_BASE = 'https://ufos-api.microcosm.blue'
-
 // ---------------------------------------------------------------------------
-// Types — match the actual UFOs API response format
+// Constellation API — complete backlink index for AT Protocol
 // ---------------------------------------------------------------------------
 
-export type EndorseRecord = {
-  did: string
-  collection: string
-  rkey: string
-  record: { $type?: string; uri?: string; createdAt?: string; [key: string]: unknown }
-  time_us: number
+const CONSTELLATION_BASE = 'https://constellation.microcosm.blue'
+const CACHE_TTL_SECONDS = 15 * 60 // 15 minutes
+const CACHE_PREFIX = 'endorse:backlinks:'
+const MAX_PAGES = 20 // safety limit to avoid runaway pagination
+
+// In-memory fallback when Redis is unavailable (local dev)
+const memoryCache = new Map<string, { data: BacklinkResult; fetchedAt: number }>()
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type BacklinkResult = {
+  /** DIDs of accounts that endorsed this URI. */
+  endorserDids: string[]
+  /** Total endorsement count. */
+  totalCount: number
 }
 
-type CollectionStats = {
-  creates: number
-  deletes: number
-  dids_estimate: number
-  updates?: number
+type ConstellationLink = {
+  uri?: string
+  author?: string
+  cid?: string
+  timestamp?: string
+}
+
+type ConstellationResponse = {
+  links?: ConstellationLink[]
+  cursor?: string | null
 }
 
 // ---------------------------------------------------------------------------
-// Server-side cache
-// ---------------------------------------------------------------------------
-
-type EndorsementCache = {
-  records: EndorseRecord[]
-  stats: CollectionStats | null
-  fetchedAt: number
-}
-
-const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
-
-let _cache: EndorsementCache | null = null
-
-// ---------------------------------------------------------------------------
-// Fetch from UFOs API
+// Constellation queries
 // ---------------------------------------------------------------------------
 
 /**
- * GET /records?collection=fund.at.endorse
- *
- * Returns a flat array of the most recent ~42 sample records.
- * This is a sample, not the full dataset — UFOs is a firehose stats service.
+ * Fetch all endorser DIDs for a target URI from Constellation.
+ * Paginates to get the complete set.
  */
-async function fetchRecordSamples(): Promise<EndorseRecord[]> {
-  try {
-    const res = await fetch(`${UFOS_BASE}/records?collection=fund.at.endorse`)
-    if (!res.ok) {
-      logger.warn('microcosm: UFOs /records error', { status: res.status })
-      return []
+async function fetchBacklinksFromConstellation(
+  targetUri: string,
+): Promise<BacklinkResult> {
+  const dids = new Set<string>()
+  let cursor: string | undefined
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const params = new URLSearchParams({ target: targetUri })
+    if (cursor) params.set('cursor', cursor)
+
+    try {
+      const res = await fetch(
+        `${CONSTELLATION_BASE}/xrpc/blue.microcosm.links.getBacklinks?${params}`,
+        { headers: { 'User-Agent': 'at.fund/1.0 (endorsement-index)' } },
+      )
+      if (!res.ok) {
+        logger.warn('constellation: backlinks request failed', {
+          target: targetUri,
+          status: res.status,
+        })
+        break
+      }
+
+      const data = (await res.json()) as ConstellationResponse
+      for (const link of data.links ?? []) {
+        if (link.author) dids.add(link.author)
+      }
+
+      if (!data.cursor) break
+      cursor = data.cursor
+    } catch (e) {
+      logger.warn('constellation: fetch error', {
+        target: targetUri,
+        error: e instanceof Error ? e.message : String(e),
+      })
+      break
     }
-    // Response is a flat array, not wrapped in an object
-    const data = (await res.json()) as EndorseRecord[]
-    if (!Array.isArray(data)) {
-      logger.warn('microcosm: unexpected /records response shape')
-      return []
-    }
-    return data
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    logger.warn('microcosm: /records fetch failed', { error: msg })
-    return []
   }
+
+  return { endorserDids: [...dids], totalCount: dids.size }
 }
 
 /**
- * GET /collections/stats?collection=fund.at.endorse
- *
- * Returns aggregate stats: total creates (endorsements written),
- * deletes, and estimated unique DIDs.
+ * Fast count-only query. Falls back to full fetch if endpoint unavailable.
  */
-async function fetchCollectionStats(): Promise<CollectionStats | null> {
+async function fetchCountFromConstellation(
+  targetUri: string,
+): Promise<number> {
   try {
+    const params = new URLSearchParams({
+      target: targetUri,
+      collection: 'fund.at.endorse',
+      path: '.uri',
+    })
     const res = await fetch(
-      `${UFOS_BASE}/collections/stats?collection=fund.at.endorse`,
+      `${CONSTELLATION_BASE}/links/count?${params}`,
+      { headers: { 'User-Agent': 'at.fund/1.0 (endorsement-index)' } },
     )
-    if (!res.ok) {
-      logger.warn('microcosm: UFOs /collections/stats error', { status: res.status })
-      return null
+    if (res.ok) {
+      const data = (await res.json()) as { count?: number }
+      if (typeof data.count === 'number') return data.count
     }
-    const data = (await res.json()) as Record<string, CollectionStats>
-    return data['fund.at.endorse'] ?? null
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    logger.warn('microcosm: /collections/stats fetch failed', { error: msg })
-    return null
-  }
+  } catch { /* fall through */ }
+  return -1 // signals caller to use full fetch
 }
 
 // ---------------------------------------------------------------------------
-// Public API — cached
+// Caching layer — Redis with in-memory fallback
 // ---------------------------------------------------------------------------
 
-export type EndorsementData = {
-  /** Recent sample of endorsement records (up to ~42). */
-  records: EndorseRecord[]
-  /** Aggregate stats for the fund.at.endorse collection. */
-  stats: CollectionStats | null
+async function getCached(uri: string): Promise<BacklinkResult | null> {
+  const key = `${CACHE_PREFIX}${uri}`
+
+  // Try Redis first
+  const redis = getRedisClient()
+  if (redis) {
+    try {
+      const cached = await redis.get<BacklinkResult>(key)
+      if (cached) return cached
+    } catch (e) {
+      logger.warn('constellation: redis get failed', {
+        error: e instanceof Error ? e.message : String(e),
+      })
+    }
+  }
+
+  // In-memory fallback
+  const mem = memoryCache.get(uri)
+  if (mem && Date.now() - mem.fetchedAt < CACHE_TTL_SECONDS * 1000) {
+    return mem.data
+  }
+
+  return null
 }
 
-/** Returns cached endorsement data, refreshing if stale. */
-export async function getEndorsementData(): Promise<EndorsementData> {
-  if (_cache && Date.now() - _cache.fetchedAt < CACHE_TTL_MS) {
-    return { records: _cache.records, stats: _cache.stats }
+async function setCache(uri: string, result: BacklinkResult): Promise<void> {
+  const key = `${CACHE_PREFIX}${uri}`
+
+  // Redis
+  const redis = getRedisClient()
+  if (redis) {
+    try {
+      await redis.set(key, result, { ex: CACHE_TTL_SECONDS })
+    } catch (e) {
+      logger.warn('constellation: redis set failed', {
+        error: e instanceof Error ? e.message : String(e),
+      })
+    }
   }
 
-  // Fetch records and stats in parallel
-  const [records, stats] = await Promise.all([
-    fetchRecordSamples(),
-    fetchCollectionStats(),
-  ])
+  // Always update in-memory too
+  memoryCache.set(uri, { data: result, fetchedAt: Date.now() })
+}
 
-  // Only update cache if we got data, or if cache is empty
-  if (records.length > 0 || stats || !_cache) {
-    _cache = { records, stats, fetchedAt: Date.now() }
-  }
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
-  return { records: _cache.records, stats: _cache.stats }
+/**
+ * Get endorsement data for a single URI. Returns cached result if available,
+ * otherwise queries Constellation and caches the response.
+ */
+export async function getEndorsersForUri(
+  uri: string,
+): Promise<BacklinkResult> {
+  const normalized = normalizeStewardUri(uri) ?? uri
+  const cached = await getCached(normalized)
+  if (cached) return cached
+
+  const result = await fetchBacklinksFromConstellation(normalized)
+  await setCache(normalized, result)
+  return result
+}
+
+/**
+ * Get endorsement data for multiple URIs in parallel.
+ * Uses cache where available; fetches from Constellation for misses.
+ */
+export async function getEndorsersForUris(
+  uris: string[],
+): Promise<Map<string, BacklinkResult>> {
+  const results = new Map<string, BacklinkResult>()
+  const normalized = uris.map((u) => normalizeStewardUri(u) ?? u)
+  const unique = [...new Set(normalized)]
+
+  await Promise.all(
+    unique.map(async (uri) => {
+      const result = await getEndorsersForUri(uri)
+      results.set(uri, result)
+    }),
+  )
+
+  return results
+}
+
+/**
+ * Fast count-only query for a URI. Uses cache if available (extracts count
+ * from cached backlink data), otherwise queries Constellation's count endpoint.
+ */
+export async function getEndorsementCountForUri(
+  uri: string,
+): Promise<number> {
+  const normalized = normalizeStewardUri(uri) ?? uri
+
+  // Check cache first
+  const cached = await getCached(normalized)
+  if (cached) return cached.totalCount
+
+  // Try fast count endpoint
+  const count = await fetchCountFromConstellation(normalized)
+  if (count >= 0) return count
+
+  // Fall back to full fetch (also caches it)
+  const result = await getEndorsersForUri(normalized)
+  return result.totalCount
 }
