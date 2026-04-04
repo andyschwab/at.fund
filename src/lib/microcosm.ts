@@ -60,25 +60,38 @@ async function runWithConcurrency<T, R>(
 // ---------------------------------------------------------------------------
 
 /**
- * Diagnostic: query /links/all for a target to discover what link types
- * Constellation has indexed. Logs the result for debugging.
+ * Diagnostic: try multiple Constellation query forms to discover how
+ * fund.at.endorse records are indexed (if at all).
  */
 async function diagnoseTarget(targetUri: string): Promise<void> {
-  try {
-    const params = new URLSearchParams({ target: targetUri })
-    const url = `${CONSTELLATION_BASE}/links/all?${params}`
-    const res = await fetch(url, { headers: HEADERS })
-    const body = await res.text()
-    logger.info('constellation: /links/all diagnostic', {
-      target: targetUri,
-      status: res.status,
-      body: body.slice(0, 500),
-    })
-  } catch (e) {
-    logger.warn('constellation: diagnostic failed', {
-      target: targetUri,
-      error: e instanceof Error ? e.message : String(e),
-    })
+  const queries = [
+    // 1. /links/all — shows ALL link types for this target
+    { label: '/links/all (bare)', url: `${CONSTELLATION_BASE}/links/all?${new URLSearchParams({ target: targetUri })}` },
+    // 2. /links/all with https:// prefix
+    { label: '/links/all (https)', url: `${CONSTELLATION_BASE}/links/all?${new URLSearchParams({ target: `https://${targetUri}` })}` },
+    // 3. Deprecated /links with explicit collection+path
+    { label: '/links (deprecated)', url: `${CONSTELLATION_BASE}/links?${new URLSearchParams({ target: targetUri, collection: 'fund.at.endorse', path: '.uri' })}` },
+    // 4. Deprecated /links with https:// target
+    { label: '/links (deprecated+https)', url: `${CONSTELLATION_BASE}/links?${new URLSearchParams({ target: `https://${targetUri}`, collection: 'fund.at.endorse', path: '.uri' })}` },
+  ]
+
+  for (const q of queries) {
+    try {
+      const res = await fetch(q.url, { headers: HEADERS })
+      const body = await res.text()
+      logger.info('constellation: diagnostic', {
+        query: q.label,
+        target: targetUri,
+        status: res.status,
+        body: body.slice(0, 500),
+      })
+    } catch (e) {
+      logger.warn('constellation: diagnostic failed', {
+        query: q.label,
+        target: targetUri,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    }
   }
 }
 
