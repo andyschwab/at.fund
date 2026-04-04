@@ -161,9 +161,7 @@ export function SetupClient({ did, handle, existing }: Props) {
     [form.contributeUrl],
   )
 
-  const hasErrors =
-    !!contributeUrlError ||
-    (!form.contributeUrl.trim() && form.dependencies.filter((d) => d.uri.trim()).length === 0)
+  const hasErrors = !!contributeUrlError
 
   // Fetch enriched profile for the user's own entry (avatar, description, etc.)
   const [enriched, setEnriched] = useState<StewardEntry | null>(null)
