@@ -11,6 +11,12 @@ const CACHE_TTL_SECONDS = 15 * 60 // 15 minutes
 const CACHE_PREFIX = 'endorse:backlinks:'
 const MAX_PAGES = 20 // safety limit to avoid runaway pagination
 
+// The "source" param combines collection NSID and json-path to the link field.
+// For fund.at.endorse records, the endorsed URI lives at the `.uri` field.
+const ENDORSE_SOURCE = 'fund.at.endorse:uri'
+
+const HEADERS = { 'User-Agent': 'at.fund/1.0 (endorsement-index)' }
+
 // In-memory fallback when Redis is unavailable (local dev)
 const memoryCache = new Map<string, { data: BacklinkResult; fetchedAt: number }>()
 
@@ -25,83 +31,73 @@ export type BacklinkResult = {
   totalCount: number
 }
 
-type ConstellationLink = {
-  uri?: string
-  author?: string
-  cid?: string
-  timestamp?: string
-}
-
-type ConstellationResponse = {
-  links?: ConstellationLink[]
-  cursor?: string | null
-}
-
 // ---------------------------------------------------------------------------
 // Constellation queries
 // ---------------------------------------------------------------------------
 
 /**
- * Fetch all endorser DIDs for a target URI from Constellation.
- * Paginates to get the complete set.
+ * Fetch distinct endorser DIDs for a target URI from Constellation.
+ * Uses the getDistinct endpoint which returns just DIDs — perfect for
+ * intersecting with the user's follow set.
  */
-async function fetchBacklinksFromConstellation(
+async function fetchEndorserDids(
   targetUri: string,
 ): Promise<BacklinkResult> {
-  const dids = new Set<string>()
+  const dids: string[] = []
   let cursor: string | undefined
 
   for (let page = 0; page < MAX_PAGES; page++) {
-    const params = new URLSearchParams({ target: targetUri })
+    const params = new URLSearchParams({
+      subject: targetUri,
+      source: ENDORSE_SOURCE,
+      limit: '100',
+    })
     if (cursor) params.set('cursor', cursor)
 
     try {
       const res = await fetch(
-        `${CONSTELLATION_BASE}/xrpc/blue.microcosm.links.getBacklinks?${params}`,
-        { headers: { 'User-Agent': 'at.fund/1.0 (endorsement-index)' } },
+        `${CONSTELLATION_BASE}/xrpc/blue.microcosm.links.getDistinct?${params}`,
+        { headers: HEADERS },
       )
       if (!res.ok) {
-        logger.warn('constellation: backlinks request failed', {
-          target: targetUri,
+        logger.warn('constellation: getDistinct failed', {
+          subject: targetUri,
           status: res.status,
         })
         break
       }
 
-      const data = (await res.json()) as ConstellationResponse
-      for (const link of data.links ?? []) {
-        if (link.author) dids.add(link.author)
-      }
+      const data = (await res.json()) as { dids?: string[]; cursor?: string | null }
+      if (data.dids) dids.push(...data.dids)
 
       if (!data.cursor) break
       cursor = data.cursor
     } catch (e) {
       logger.warn('constellation: fetch error', {
-        target: targetUri,
+        subject: targetUri,
         error: e instanceof Error ? e.message : String(e),
       })
       break
     }
   }
 
-  return { endorserDids: [...dids], totalCount: dids.size }
+  return { endorserDids: dids, totalCount: dids.length }
 }
 
 /**
- * Fast count-only query. Falls back to full fetch if endpoint unavailable.
+ * Fast count-only query via getBacklinksCount.
  */
-async function fetchCountFromConstellation(
+async function fetchCount(
   targetUri: string,
 ): Promise<number> {
   try {
     const params = new URLSearchParams({
-      target: targetUri,
-      collection: 'fund.at.endorse',
-      path: '.uri',
+      subject: targetUri,
+      source: ENDORSE_SOURCE,
     })
     const res = await fetch(
-      `${CONSTELLATION_BASE}/links/count?${params}`,
-      { headers: { 'User-Agent': 'at.fund/1.0 (endorsement-index)' } },
+      `${CONSTELLATION_BASE}/xrpc/blue.microcosm.links.getBacklinksCount?${params}`,
+      { headers: HEADERS },
     )
     if (res.ok) {
       const data = (await res.json()) as { count?: number }
@@ -174,7 +170,7 @@ export async function getEndorsersForUri(
   const cached = await getCached(normalized)
   if (cached) return cached
 
-  const result = await fetchBacklinksFromConstellation(normalized)
+  const result = await fetchEndorserDids(normalized)
   await setCache(normalized, result)
   return result
 }
@@ -214,7 +210,7 @@ export async function getEndorsementCountForUri(
   if (cached) return cached.totalCount
 
   // Try fast count endpoint
-  const count = await fetchCountFromConstellation(normalized)
+  const count = await fetchCount(normalized)
   if (count >= 0) return count
 
   // Fall back to full fetch (also caches it)
