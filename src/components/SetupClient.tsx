@@ -258,6 +258,10 @@ export function SetupClient({ did, handle, existing }: Props) {
               uri: d.uri.trim(),
               ...(d.label.trim() && { label: d.label.trim() }),
             })),
+          existing: existing ? {
+            contributeUrl: existing.contributeUrl || undefined,
+            dependencies: existing.dependencies?.map((d) => ({ uri: d.uri })),
+          } : undefined,
         }),
       })
       const data = await res.json()

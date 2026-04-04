@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { Client, l } from '@atproto/lex'
 import * as fund from '@/lexicons/fund'
+import { FUND_CONTRIBUTE, FUND_DEPENDENCY } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
 import { logger } from '@/lib/logger'
 import { str } from '@/lib/str'
@@ -9,6 +10,11 @@ import { str } from '@/lib/str'
 export type SetupPayload = {
   contributeUrl?: string
   dependencies?: Array<{ uri: string; label?: string }>
+  /** Previous state from the PDS — used to diff and delete removed records. */
+  existing?: {
+    contributeUrl?: string
+    dependencies?: Array<{ uri: string }>
+  }
 }
 
 function parsePayload(body: unknown): SetupPayload | null {
@@ -27,9 +33,25 @@ function parsePayload(body: unknown): SetupPayload | null {
     }
   }
 
-  if (!contributeUrl && dependencies.length === 0) return null
+  // Parse existing state for diffing
+  let existing: SetupPayload['existing']
+  if (b.existing && typeof b.existing === 'object' && !Array.isArray(b.existing)) {
+    const ex = b.existing as Record<string, unknown>
+    existing = {
+      contributeUrl: str(ex.contributeUrl) || undefined,
+      dependencies: Array.isArray(ex.dependencies)
+        ? (ex.dependencies as Array<Record<string, unknown>>)
+            .map((d) => ({ uri: str(d?.uri) || '' }))
+            .filter((d) => d.uri)
+        : undefined,
+    }
+  }
 
-  return { contributeUrl, dependencies: dependencies.length > 0 ? dependencies : undefined }
+  return {
+    contributeUrl,
+    dependencies: dependencies.length > 0 ? dependencies : undefined,
+    existing,
+  }
 }
 
 function validatePayload(p: SetupPayload): Record<string, string> | null {
@@ -59,7 +81,7 @@ export async function POST(request: NextRequest) {
   const payload = parsePayload(body)
   if (!payload) {
     return NextResponse.json(
-      { error: 'At least a contributeUrl or dependencies are required' },
+      { error: 'Invalid request body' },
       { status: 400 },
     )
   }
@@ -81,15 +103,22 @@ export async function POST(request: NextRequest) {
   const uri = (v: string) => l.asStringFormat(v, 'uri')
 
   try {
-    // Write fund.at.contribute (singleton with rkey "self")
+    // ── Contribute URL: create/update or delete ─────────────────────────
     if (payload.contributeUrl) {
       await client.put(fund.at.contribute, {
         url: uri(payload.contributeUrl),
         createdAt,
       })
+    } else if (payload.existing?.contributeUrl) {
+      // User cleared the contribute URL — delete the record
+      try {
+        await client.deleteRecord(FUND_CONTRIBUTE, 'self')
+      } catch {
+        // Record may already be gone
+      }
     }
 
-    // Write fund.at.dependency records (one per dependency)
+    // ── Dependencies: create/update new, delete removed ─────────────────
     if (payload.dependencies) {
       for (const dep of payload.dependencies) {
         await client.put(fund.at.dependency, {
@@ -97,6 +126,18 @@ export async function POST(request: NextRequest) {
           ...(dep.label && { label: dep.label }),
           createdAt,
         }, { rkey: dep.uri })
+      }
+    }
+
+    // Delete dependencies that were in existing but not in the new list
+    const newDepUris = new Set(payload.dependencies?.map((d) => d.uri) ?? [])
+    for (const prev of payload.existing?.dependencies ?? []) {
+      if (!newDepUris.has(prev.uri)) {
+        try {
+          await client.deleteRecord(FUND_DEPENDENCY, prev.uri)
+        } catch {
+          // Record may already be gone
+        }
       }
     }
 
