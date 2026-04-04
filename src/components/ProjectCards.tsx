@@ -140,14 +140,9 @@ function CardInner({
             </Link>
           </p>
         )}
-        {endorsementCount != null && endorsementCount > 0 && (
+        {networkEndorsementCount != null && networkEndorsementCount > 0 && (
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            {endorsementCount} endorsement{endorsementCount === 1 ? '' : 's'}
-            {networkEndorsementCount != null && networkEndorsementCount > 0 && (
-              <span className="text-slate-400 dark:text-slate-500">
-                {' '}&middot; {networkEndorsementCount} from your network
-              </span>
-            )}
+            {networkEndorsementCount} endorsement{networkEndorsementCount === 1 ? '' : 's'} from your network
           </p>
         )}
         {entry.capabilities && entry.capabilities.length > 0 && (
@@ -331,12 +326,9 @@ export function StewardCard({
                 {entry.description}
               </p>
             )}
-            {endorsementCount != null && endorsementCount > 0 && (
+            {networkEndorsementCount != null && networkEndorsementCount > 0 && (
               <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
-                {endorsementCount} endorsement{endorsementCount === 1 ? '' : 's'}
-                {networkEndorsementCount != null && networkEndorsementCount > 0 && (
-                  <span> &middot; {networkEndorsementCount} from your network</span>
-                )}
+                {networkEndorsementCount} endorsement{networkEndorsementCount === 1 ? '' : 's'} from your network
               </p>
             )}
           </div>
