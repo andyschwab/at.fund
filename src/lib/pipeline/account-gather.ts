@@ -15,6 +15,7 @@ import {
 } from '@/lib/repo-collection-resolve'
 import { logger } from '@/lib/logger'
 import type { StewardTag } from '@/lib/steward-model'
+import { PUBLIC_API } from '@/lib/constants'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,8 +59,6 @@ export type GatherResult = {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-const PUBLIC_API = 'https://public.api.bsky.app'
 
 function addToAccount(
   accounts: Map<string, AccountStub>,

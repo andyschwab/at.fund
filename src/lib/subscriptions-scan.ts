@@ -5,30 +5,10 @@ import { lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { xrpcQuery } from '@/lib/xrpc'
 import { logger } from '@/lib/logger'
+import { PUBLIC_API } from '@/lib/constants'
+import { runWithConcurrency } from '@/lib/concurrency'
 
 const CONCURRENCY = 8
-const PUBLIC_API = 'https://public.api.bsky.app'
-
-async function runWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = []
-  let idx = 0
-  async function worker() {
-    while (idx < items.length) {
-      const i = idx++
-      results[i] = await fn(items[i]!)
-    }
-  }
-  const workers = Array.from(
-    { length: Math.min(concurrency, items.length) },
-    () => worker(),
-  )
-  await Promise.all(workers)
-  return results
-}
 
 // ---------------------------------------------------------------------------
 // Display-info helpers

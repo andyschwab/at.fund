@@ -16,6 +16,7 @@ import type { StewardEntry } from '@/lib/steward-model'
 import type { FundAtResult } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
 import { useSession } from '@/components/SessionContext'
+import { nextId } from '@/lib/next-id'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,14 +33,6 @@ type Props = {
   did: string
   handle?: string
   existing: FundAtResult | null
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function nextId() {
-  return Math.random().toString(36).slice(2)
 }
 
 function initialFormState(existing: FundAtResult | null): FormState {

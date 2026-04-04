@@ -1,6 +1,7 @@
 import { getRedisClient } from '@/lib/auth/kv-store'
 import { normalizeStewardUri } from '@/lib/steward-uri'
 import { logger } from '@/lib/logger'
+import { runWithConcurrency } from '@/lib/concurrency'
 
 // ---------------------------------------------------------------------------
 // Endorsement collection via PDS listRecords
@@ -34,29 +35,6 @@ export type EndorsementResult = {
   networkEndorsementCount: number
   /** DIDs that endorsed this URI. */
   endorserDids: string[]
-}
-
-// ---------------------------------------------------------------------------
-// Concurrency helper
-// ---------------------------------------------------------------------------
-
-async function runWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = []
-  let idx = 0
-  async function worker() {
-    while (idx < items.length) {
-      const i = idx++
-      results[i] = await fn(items[i]!)
-    }
-  }
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
-  )
-  return results
 }
 
 // ---------------------------------------------------------------------------

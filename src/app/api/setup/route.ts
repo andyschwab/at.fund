@@ -4,16 +4,11 @@ import { Client, l } from '@atproto/lex'
 import * as fund from '@/lexicons/fund'
 import { validateUrl } from '@/lib/validate'
 import { logger } from '@/lib/logger'
+import { str } from '@/lib/str'
 
 export type SetupPayload = {
   contributeUrl?: string
   dependencies?: Array<{ uri: string; label?: string }>
-}
-
-function str(v: unknown): string | undefined {
-  if (typeof v !== 'string') return undefined
-  const t = v.trim()
-  return t || undefined
 }
 
 function parsePayload(body: unknown): SetupPayload | null {

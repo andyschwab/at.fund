@@ -6,9 +6,8 @@ import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { xrpcQuery } from '@/lib/xrpc'
 import { resolveDependencies } from '@/lib/pipeline/dep-resolve'
 import { logger } from '@/lib/logger'
-
-const PUBLIC_API = 'https://public.api.bsky.app'
-const FEED_BATCH = 25
+import { PUBLIC_API, FEED_BATCH } from '@/lib/constants'
+import { mergeDeps } from '@/lib/merge-deps'
 
 // ---------------------------------------------------------------------------
 // Full vertical resolution for a single entry
@@ -286,15 +285,3 @@ async function fetchFeedDetails(
   return all
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function mergeDeps(
-  a: string[] | undefined,
-  b: string[] | undefined,
-): string[] | undefined {
-  if (!a && !b) return undefined
-  const set = new Set([...(a ?? []), ...(b ?? [])])
-  return set.size > 0 ? [...set].sort() : undefined
-}

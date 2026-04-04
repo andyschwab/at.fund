@@ -5,9 +5,8 @@ import { fetchFundAtRecords, resolveDidFromIdentifier, resolveHandleFromDid } fr
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { xrpcQuery } from '@/lib/xrpc'
 import { logger } from '@/lib/logger'
-
-const PUBLIC_API = 'https://public.api.bsky.app'
-const PROFILE_BATCH = 25
+import { PUBLIC_API, PROFILE_BATCH } from '@/lib/constants'
+import { mergeDeps } from '@/lib/merge-deps'
 
 // ---------------------------------------------------------------------------
 // Phase 4: Resolve referenced dependency entries (multi-level)
@@ -186,11 +185,3 @@ async function backfillProfiles(entries: StewardEntry[]): Promise<void> {
   }
 }
 
-function mergeDeps(
-  a: string[] | undefined,
-  b: string[] | undefined,
-): string[] | undefined {
-  if (!a && !b) return undefined
-  const set = new Set([...(a ?? []), ...(b ?? [])])
-  return set.size > 0 ? [...set].sort() : undefined
-}

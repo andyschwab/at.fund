@@ -1,17 +1,12 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useDebounce } from '@/hooks/useDebounce'
+import { AvatarBadge, type Actor } from '@/components/AvatarBadge'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-type Actor = {
-  did: string
-  handle: string
-  displayName?: string
-  avatar?: string
-}
 
 type Props = {
   value: string
@@ -21,39 +16,6 @@ type Props = {
   id?: string
   /** Override input element className (replaces default bordered style). */
   inputClassName?: string
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(t)
-  }, [value, delay])
-  return debounced
-}
-
-function AvatarBadge({ actor }: { actor: Actor }) {
-  const [failed, setFailed] = useState(false)
-  const initials = (actor.displayName ?? actor.handle).slice(0, 2).toUpperCase()
-  if (actor.avatar && !failed) {
-    return (
-      <img
-        src={actor.avatar}
-        alt=""
-        onError={() => setFailed(true)}
-        className="h-6 w-6 shrink-0 rounded-full object-cover"
-      />
-    )
-  }
-  return (
-    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--support-muted)] text-[10px] font-semibold text-[var(--support)]">
-      {initials}
-    </span>
-  )
 }
 
 // ---------------------------------------------------------------------------

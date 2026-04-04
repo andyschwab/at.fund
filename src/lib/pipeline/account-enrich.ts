@@ -6,38 +6,12 @@ import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { fetchOwnFundAtRecords } from '@/lib/fund-at-records'
 import { xrpcQuery } from '@/lib/xrpc'
 import { logger } from '@/lib/logger'
+import { PUBLIC_API, PROFILE_BATCH } from '@/lib/constants'
+import { runWithConcurrency } from '@/lib/concurrency'
+import { mergeDeps } from '@/lib/merge-deps'
 import type { AccountStub, UnresolvedService, ScanWarning } from './account-gather'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-const PUBLIC_API = 'https://public.api.bsky.app'
-const PROFILE_BATCH = 25
 const CONCURRENCY = 10
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-async function runWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = []
-  let idx = 0
-  async function worker() {
-    while (idx < items.length) {
-      const i = idx++
-      results[i] = await fn(items[i]!)
-    }
-  }
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
-  )
-  return results
-}
 
 // ---------------------------------------------------------------------------
 // Phase 2: Enrich accounts into StewardEntries
@@ -214,12 +188,4 @@ function lookupByAllKeys(stub: AccountStub) {
   return null
 }
 
-function mergeDeps(
-  a: string[] | undefined,
-  b: string[] | undefined,
-): string[] | undefined {
-  if (!a && !b) return undefined
-  const set = new Set([...(a ?? []), ...(b ?? [])])
-  return set.size > 0 ? [...set].sort() : undefined
-}
 

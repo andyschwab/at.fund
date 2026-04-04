@@ -4,12 +4,7 @@ import { Client, l } from '@atproto/lex'
 import * as fund from '@/lexicons/fund'
 import { FUND_ENDORSE } from '@/lib/fund-at-records'
 import { logger } from '@/lib/logger'
-
-function str(v: unknown): string | undefined {
-  if (typeof v !== 'string') return undefined
-  const t = v.trim()
-  return t || undefined
-}
+import { str } from '@/lib/str'
 
 // POST — create or overwrite an endorsement record.
 // The rkey IS the endorsed URI, so endorsing the same entity twice is idempotent.

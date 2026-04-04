@@ -7,8 +7,8 @@ import { normalizeStewardUri } from '@/lib/steward-uri'
 import { xrpcQuery } from '@/lib/xrpc'
 import type { StewardEntry } from '@/lib/steward-model'
 import { logger } from '@/lib/logger'
-
-const PUBLIC_API = 'https://public.api.bsky.app'
+import { PUBLIC_API } from '@/lib/constants'
+import { mergeDeps } from '@/lib/merge-deps'
 
 /**
  * Thin steward lookup — resolves a URI to a basic StewardEntry.
@@ -128,11 +128,3 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function mergeDeps(
-  a: string[] | undefined,
-  b: string[] | undefined,
-): string[] | undefined {
-  if (!a && !b) return undefined
-  const set = new Set([...(a ?? []), ...(b ?? [])])
-  return set.size > 0 ? [...set].sort() : undefined
-}
