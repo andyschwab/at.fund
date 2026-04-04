@@ -3,7 +3,6 @@ import type { OAuthSession } from '@atproto/oauth-client'
 import { xrpcQuery } from '@/lib/xrpc'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { resolveStewardUri } from '@/lib/catalog'
-import { describeServerStewardUri } from '@/lib/atfund-uri'
 import {
   getBlueskyHandleFallback,
   handleFromDescribeRepo,
@@ -30,8 +29,6 @@ export type AccountStub = {
   tags: Set<StewardTag>
   /** Tool hostnames associated with this DID (for catalog lookup). */
   hostnames: Set<string>
-  /** PDS entryway hostname if this stub was discovered via PDS host resolution (e.g. 'bsky.social'). */
-  pdsEntryway?: string
 }
 
 export type UnresolvedService = {
@@ -49,8 +46,6 @@ export type GatherResult = {
   did: string
   handle?: string
   pdsUrl?: string
-  /** True if the PDS host was resolved to an operator account via the resolver chain. */
-  pdsOperatorResolved: boolean
   accounts: Map<string, AccountStub>
   unresolvedServices: UnresolvedService[]
   warnings: ScanWarning[]
@@ -123,42 +118,6 @@ export async function gatherAccounts(
       const url = await resolvePdsUrl(session.did)
       if (url) pdsUrl = url.origin
     } catch { /* ignore */ }
-  }
-
-  // ── Resolve PDS operator via ATProto + resolver chain ─────────────────
-  // Chain: physical host (lionsmane.us-east.host.bsky.network)
-  //   → com.atproto.server.describeServer → entryway (bsky.social, from policy links)
-  //   → matchPrefix resolver               → operator (bsky.app)
-  //   → DNS lookup                         → operator DID
-  if (pdsUrl) {
-    try {
-      const physicalHostname = new URL(pdsUrl).hostname
-      // Ask ATProto for the steward domain — it's in the policy link hostnames.
-      const entryway = await describeServerStewardUri(physicalHostname)
-      if (entryway) {
-        const operator = resolveStewardUri(entryway) ?? entryway
-        try {
-          const operatorDid = await lookupAtprotoDid(operator)
-          if (operatorDid) {
-            const stub = accounts.get(operatorDid) ?? {
-              did: operatorDid, tags: new Set<StewardTag>(), hostnames: new Set<string>(),
-            }
-            stub.tags.add('pds-host')
-            stub.hostnames.add(operator)
-            stub.pdsEntryway = entryway
-            accounts.set(operatorDid, stub)
-          }
-        } catch (e) {
-          logger.warn('gather: PDS operator DNS lookup failed', {
-            operator, error: e instanceof Error ? e.message : String(e),
-          })
-        }
-      }
-    } catch (e) {
-      logger.warn('gather: PDS operator resolution failed', {
-        pdsUrl, error: e instanceof Error ? e.message : String(e),
-      })
-    }
   }
 
   // ── Describe repo ──────────────────────────────────────────────────────
@@ -299,6 +258,5 @@ export async function gatherAccounts(
     },
   })
 
-  const pdsOperatorResolved = [...accounts.values()].some((s) => s.tags.has('pds-host'))
-  return { did: session.did, handle: handle ?? undefined, pdsUrl, pdsOperatorResolved, accounts, unresolvedServices, warnings, feedUris, labelerDids }
+  return { did: session.did, handle: handle ?? undefined, pdsUrl, accounts, unresolvedServices, warnings, feedUris, labelerDids }
 }

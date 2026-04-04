@@ -1,6 +1,6 @@
 import { Client } from '@atproto/lex'
 import type { OAuthSession } from '@atproto/oauth-client'
-import type { StewardEntry, StewardTag, Capability } from '@/lib/steward-model'
+import type { StewardEntry, StewardTag } from '@/lib/steward-model'
 import { lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { fetchOwnFundAtRecords } from '@/lib/fund-at-records'
@@ -125,7 +125,7 @@ export async function enrichAccounts(
         fundAt = await fetchFundAtForStewardDid(stub.did)
       }
       if (fundAt) {
-        // Also check manual catalog for extra deps + pdsHostnames
+        // Also check manual catalog for extra deps
         const manual = lookupByAllKeys(stub)
         const entry: StewardEntry = {
           ...base,
@@ -136,7 +136,6 @@ export async function enrichAccounts(
           ),
           source: 'fund.at',
         }
-        attachPdsCapabilities(entry, stub.pdsEntryway, manual?.pdsHostnames)
         onEntry?.(entry)
         return entry
       }
@@ -155,14 +154,12 @@ export async function enrichAccounts(
         dependencies: manual.dependencies,
         source: 'manual',
       }
-      attachPdsCapabilities(entry, stub.pdsEntryway, manual.pdsHostnames)
       onEntry?.(entry)
       return entry
     }
 
     // 3. Fallback — unknown source
     const entry: StewardEntry = { ...base, source: 'unknown' }
-    attachPdsCapabilities(entry, stub.pdsEntryway, undefined)
     onEntry?.(entry)
     return entry
   })
@@ -226,35 +223,3 @@ function mergeDeps(
   return set.size > 0 ? [...set].sort() : undefined
 }
 
-/**
- * Attach pds capabilities to an entry from two sources:
- *   - stub.pdsEntryway: runtime-discovered entryway hostname
- *   - catalogHostnames: pdsHostnames declared in the manual catalog
- * Deduplicates by hostname.
- */
-function attachPdsCapabilities(
-  entry: StewardEntry,
-  pdsEntryway: string | undefined,
-  catalogHostnames: string[] | undefined,
-): void {
-  const seen = new Set<string>()
-  const caps: Capability[] = []
-
-  const add = (hostname: string) => {
-    if (seen.has(hostname)) return
-    seen.add(hostname)
-    caps.push({
-      type: 'pds',
-      name: hostname,
-      hostname,
-      landingPage: `https://${hostname}`,
-    })
-  }
-
-  if (pdsEntryway) add(pdsEntryway)
-  for (const h of catalogHostnames ?? []) add(h)
-
-  if (caps.length > 0) {
-    entry.capabilities = [...(entry.capabilities ?? []), ...caps]
-  }
-}
