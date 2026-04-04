@@ -6,62 +6,9 @@ import { xrpcQuery } from '@/lib/xrpc'
 import { logger } from '@/lib/logger'
 import { PUBLIC_API, PROFILE_BATCH } from '@/lib/constants'
 
-export type { ProfileData }
-
-// ---------------------------------------------------------------------------
-// Display name heuristic — canonical "is this human-readable?" check
-// ---------------------------------------------------------------------------
-
-/** Returns true when `name` is a non-empty string that doesn't look like a DID. */
-export function isHumanReadableName(name: string | undefined | null): name is string {
-  if (!name) return false
-  return !name.startsWith('did:')
-}
-
-// ---------------------------------------------------------------------------
-// Build Identity — pure function applying canonical display rules
-// ---------------------------------------------------------------------------
-
-export type BuildIdentityInput = {
-  /** Original identifier — hostname, handle, or DID. */
-  ref: string
-  did?: string
-  handle?: string
-  displayName?: string
-  description?: string
-  avatar?: string
-  /**
-   * Whether this entity was discovered as a tool (via repo collections).
-   * Tools use hostname as URI; non-tools get a bsky profile landing page.
-   */
-  isTool?: boolean
-}
-
-/**
- * Assembles an Identity from resolved data, applying canonical rules for
- * URI preference, display name, and landing page.
- *
- * Pure — no network calls.
- */
-export function buildIdentity(input: BuildIdentityInput): Identity {
-  const { ref, did, handle, description, avatar, isTool } = input
-  const hostname = isTool && !ref.startsWith('did:') ? ref : undefined
-
-  // URI preference: hostname > handle > DID > raw ref
-  const uri = hostname ?? handle ?? did ?? ref
-
-  // Display name: profile name (if human-readable) > hostname > handle > raw ref
-  const displayName = isHumanReadableName(input.displayName)
-    ? input.displayName
-    : hostname ?? handle ?? ref
-
-  // Landing page: non-tools with a handle get a bsky profile link
-  const landingPage = !isTool && handle
-    ? `https://bsky.app/profile/${handle}`
-    : undefined
-
-  return { uri, did, handle, displayName, description, avatar, landingPage }
-}
+// Re-export pure helpers from steward-model so existing imports still work.
+export { isHumanReadableName, buildIdentity } from '@/lib/steward-model'
+export type { BuildIdentityInput, ProfileData } from '@/lib/steward-model'
 
 // ---------------------------------------------------------------------------
 // Batch profile fetch
@@ -136,6 +83,7 @@ export async function resolveIdentity(
   ref: string,
   options?: { isTool?: boolean },
 ): Promise<Identity> {
+  const { buildIdentity } = await import('@/lib/steward-model')
   const did = await resolveRefToDid(ref)
 
   let profile: ProfileData | undefined

@@ -1,5 +1,5 @@
 import type { StewardEntry, StewardSource, StewardTag, Capability } from '@/lib/steward-model'
-import { isHumanReadableName } from '@/lib/identity'
+import { isHumanReadableName } from '@/lib/steward-model'
 
 // ---------------------------------------------------------------------------
 // Source priority — higher index wins when merging display data
