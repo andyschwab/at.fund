@@ -19,7 +19,10 @@ const CACHEABLE_NSIDS = new Set([
   'com.atproto.server.describeServer',
 ])
 
-const DEFAULT_TTL_MS = 5 * 60 * 1000 // 5 minutes
+const DEFAULT_TTL_MS =
+  process.env.NODE_ENV === 'production'
+    ? 5 * 60 * 1000  // 5 minutes in prod
+    : 30 * 60 * 1000 // 30 minutes in dev (survives hot reloads)
 
 // ---------------------------------------------------------------------------
 // Internal state
@@ -27,8 +30,14 @@ const DEFAULT_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
 type CacheEntry = { value: unknown; expiresAt: number }
 
-const cache = new Map<string, CacheEntry>()
-const inflight = new Map<string, Promise<unknown>>()
+// In dev the global object persists across hot reloads; using it here prevents
+// the cache from being wiped every time a module is re-executed by HMR.
+const g = global as typeof globalThis & {
+  __xrpcCache?: Map<string, CacheEntry>
+  __xrpcInflight?: Map<string, Promise<unknown>>
+}
+const cache = (g.__xrpcCache ??= new Map())
+const inflight = (g.__xrpcInflight ??= new Map())
 
 function makeKey(nsid: string, params: Params): string {
   const sorted = Object.entries(params)

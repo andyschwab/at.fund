@@ -3,6 +3,12 @@ import dns from 'node:dns/promises'
 /** DNS TXT name prefix for domain → DID discovery (ATProto `_atproto`). */
 export const ATPROTO_TXT_PREFIX = '_atproto'
 
+// Global-backed cache for hostname → DID lookups so results survive hot reloads in dev.
+const gDns = global as typeof globalThis & {
+  __atprotoDnsCache?: Map<string, string | null>
+}
+const dnsCache = (gDns.__atprotoDnsCache ??= new Map())
+
 function parseDidFromTxtChunks(chunks: string[]): string | null {
   const flat = chunks.join('').trim()
   if (!flat) return null
@@ -50,28 +56,32 @@ export async function lookupAtprotoDid(hostname: string): Promise<string | null>
   const h = hostname.trim().toLowerCase().replace(/\.$/, '')
   if (!h || h.includes('/') || h.includes(':')) return null
 
-  for (const candidate of candidateHostnames(h)) {
+  const cacheKey = `climb:${h}`
+  if (dnsCache.has(cacheKey)) return dnsCache.get(cacheKey)!
+
+  let result: string | null = null
+  outer: for (const candidate of candidateHostnames(h)) {
     const name = `${ATPROTO_TXT_PREFIX}.${candidate}`
     try {
       const records = await dns.resolveTxt(name)
       for (const chunks of records) {
         const did = parseDidFromTxtChunks(chunks)
-        if (did) return did
+        if (did) { result = did; break outer }
       }
     } catch {
       // Try HTTPS well-known fallback for this candidate.
     }
     const wellKnownDid = await lookupDidViaWellKnown(candidate)
-    if (wellKnownDid) return wellKnownDid
+    if (wellKnownDid) { result = wellKnownDid; break }
     // Otherwise keep climbing parent hostnames.
   }
 
-  const exactWellKnown = await lookupDidViaWellKnown(h)
-  if (exactWellKnown) {
-    return exactWellKnown
+  if (!result) {
+    result = await lookupDidViaWellKnown(h)
   }
 
-  return null
+  dnsCache.set(cacheKey, result)
+  return result
 }
 
 /**
@@ -84,15 +94,22 @@ export async function lookupAtprotoDidExact(
   const h = hostname.trim().toLowerCase().replace(/\.$/, '')
   if (!h || h.includes('/') || h.includes(':')) return null
 
+  const cacheKey = `exact:${h}`
+  if (dnsCache.has(cacheKey)) return dnsCache.get(cacheKey)!
+
+  let result: string | null = null
   const name = `${ATPROTO_TXT_PREFIX}.${h}`
   try {
     const records = await dns.resolveTxt(name)
     for (const chunks of records) {
       const did = parseDidFromTxtChunks(chunks)
-      if (did) return did
+      if (did) { result = did; break }
     }
   } catch {
     // fall through
   }
-  return lookupDidViaWellKnown(h)
+  if (!result) result = await lookupDidViaWellKnown(h)
+
+  dnsCache.set(cacheKey, result)
+  return result
 }
