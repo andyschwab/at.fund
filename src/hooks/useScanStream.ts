@@ -20,7 +20,7 @@ type ScanCache = {
 
 let _scanCache: ScanCache | null = null
 
-export type ScanMeta = { did: string; handle?: string; pdsUrl?: string }
+export type ScanMeta = { did: string; handle?: string; pdsUrl?: string; endorsementsCapped?: boolean; followCount?: number }
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -91,7 +91,14 @@ export function useScanStream() {
           }
 
           if (event.type === 'meta') {
-            setMeta({ did: event.did, handle: event.handle, pdsUrl: event.pdsUrl })
+            setMeta((prev) => ({
+              ...prev,
+              did: event.did,
+              handle: event.handle,
+              pdsUrl: event.pdsUrl,
+              endorsementsCapped: event.endorsementsCapped ?? prev?.endorsementsCapped,
+              followCount: event.followCount ?? prev?.followCount,
+            }))
           } else if (event.type === 'status') {
             setScanStatus(event.message)
           } else if (event.type === 'endorsed') {

@@ -23,7 +23,7 @@ export type { ScanWarning }
 export type { EndorsementCounts }
 
 export type ScanStreamEvent =
-  | { type: 'meta'; did: string; handle?: string; pdsUrl?: string }
+  | { type: 'meta'; did: string; handle?: string; pdsUrl?: string; endorsementsCapped?: boolean; followCount?: number }
   | { type: 'status'; message: string }
   | { type: 'endorsed'; uris: string[] }
   | { type: 'entry'; entry: StewardEntry }
@@ -73,13 +73,42 @@ export async function scanStreaming(
   // O(follows): one PDS resolve + one listRecords per follow DID.
   // Builds a map of endorsed URI → Set<endorser DIDs> that we reuse for
   // ecosystem discovery AND per-card endorsement counts.
-  const followDids: string[] = []
+  const ENDORSEMENT_FOLLOW_CAP = 2500
+
+  const allFollowDids: string[] = []
   for (const [did, stub] of gathered.accounts) {
-    if (stub.tags.has('follow')) followDids.push(did)
+    if (stub.tags.has('follow')) allFollowDids.push(did)
   }
 
-  emit({ type: 'status', message: `Scanning ${followDids.length} follows for endorsements…` })
-  const endorsementMap = await collectNetworkEndorsementsCached(followDids)
+  const endorsementsCapped = allFollowDids.length > ENDORSEMENT_FOLLOW_CAP
+  const followDids = endorsementsCapped
+    ? allFollowDids.slice(0, ENDORSEMENT_FOLLOW_CAP)
+    : allFollowDids
+
+  // Re-emit meta with follow count and cap status
+  emit({
+    type: 'meta',
+    did: gathered.did,
+    handle: gathered.handle,
+    pdsUrl: gathered.pdsUrl,
+    endorsementsCapped,
+    followCount: allFollowDids.length,
+  })
+
+  if (endorsementsCapped) {
+    emit({ type: 'status', message: `Scanning first ${ENDORSEMENT_FOLLOW_CAP.toLocaleString()} of ${allFollowDids.length.toLocaleString()} follows for endorsements…` })
+  } else {
+    emit({ type: 'status', message: `Scanning ${followDids.length} follows for endorsements…` })
+  }
+
+  let lastProgressEmit = 0
+  const endorsementMap = await collectNetworkEndorsementsCached(followDids, (scanned, total) => {
+    // Emit progress every 250 scanned to keep the stream alive
+    if (scanned - lastProgressEmit >= 250 || scanned === total) {
+      lastProgressEmit = scanned
+      emit({ type: 'status', message: `Scanning endorsements… ${scanned.toLocaleString()}/${total.toLocaleString()}` })
+    }
+  })
 
   // ── Ecosystem discovery (fast lookup against pre-collected map) ────────
   const ecosystemUriCounts = new Map<string, EndorsementCounts>()

@@ -500,6 +500,11 @@ export function GiveClient() {
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Projects and services endorsed by people you follow that aren&apos;t already in your fundable services.
               </p>
+              {meta?.endorsementsCapped && (
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  Endorsement scanning is available for the first 2,500 of your {meta.followCount?.toLocaleString()} follows.
+                </p>
+              )}
               {visibleEcosystemEntries.length > 0 ? (
                 <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
                   {visibleEcosystemEntries.map((entry) => {
