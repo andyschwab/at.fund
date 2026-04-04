@@ -1,6 +1,4 @@
 import { Client } from '@atproto/lex'
-import { extractPdsUrl } from '@atproto/did'
-import type { AtprotoDidDocument } from '@atproto/did'
 import type { OAuthSession } from '@atproto/oauth-client'
 import { xrpcQuery } from '@/lib/xrpc'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
@@ -8,7 +6,7 @@ import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { resolveStewardUri, lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
-import { fetchOwnFundAtRecords } from '@/lib/fund-at-records'
+import { fetchOwnFundAtRecords, resolvePdsUrl } from '@/lib/fund-at-records'
 import type { StewardEntry } from '@/lib/steward-model'
 import { scanFollows } from '@/lib/follow-scan'
 import type { FollowedAccountCard } from '@/lib/follow-scan'
@@ -40,12 +38,7 @@ async function resolveSessionPdsUrl(
     // ignore
   }
   try {
-    const resolved = await xrpcQuery<{ didDoc: unknown }>(
-      client,
-      'com.atproto.identity.resolveIdentity',
-      { identifier: session.did },
-    )
-    return extractPdsUrl(resolved.didDoc as AtprotoDidDocument)
+    return await resolvePdsUrl(session.did)
   } catch {
     return null
   }
@@ -157,7 +150,7 @@ export async function scanRepo(
           const ownRecords = await fetchOwnFundAtRecords(session)
           fundAt = ownRecords ? { stewardDid, ...ownRecords } : null
         } else {
-          fundAt = await fetchFundAtForStewardDid(stewardDid, client)
+          fundAt = await fetchFundAtForStewardDid(stewardDid)
         }
         if (fundAt) {
           stewards.push({
@@ -205,26 +198,8 @@ export async function scanRepo(
   }
 
   // Resolve dep URIs that weren't in the main scan
-  const referencedStewards: StewardEntry[] = []
-  const resolvedDepUris = new Set<string>()
-  for (const s of stewards) {
-    for (const depUri of s.dependencies ?? []) {
-      if (!stewardUris.has(depUri) && !resolvedDepUris.has(depUri)) {
-        resolvedDepUris.add(depUri)
-        const manual = lookupManualStewardRecord(depUri)
-        if (manual) {
-          referencedStewards.push({
-            uri: depUri,
-            tags: ['tool'],
-            displayName: depUri,
-            contributeUrl: manual.contributeUrl,
-            dependencies: manual.dependencies,
-            source: 'manual',
-          })
-        }
-      }
-    }
-  }
+  const { resolveDependencies } = await import('@/lib/pipeline/dep-resolve')
+  const referencedStewards = await resolveDependencies(stewards)
 
   function stewardTier(s: StewardEntry): number {
     if (s.source === 'unknown') return 3
@@ -246,7 +221,7 @@ export async function scanRepo(
   const pdsHostPromise = (async () => {
     if (!pdsUrl) return
     try {
-      pdsHostFunding = (await fetchFundingForUriLike(pdsUrl.origin, client)) ?? undefined
+      pdsHostFunding = (await fetchFundingForUriLike(pdsUrl.origin)) ?? undefined
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'
       logger.warn('scan: PDS host funding lookup failed', {
@@ -259,7 +234,7 @@ export async function scanRepo(
 
   const followsPromise = (async () => {
     try {
-      followedAccounts = await scanFollows(session.did, client)
+      followedAccounts = await scanFollows(session.did)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Follow scan failed'
       logger.warn('scan: follow scan failed', { did: session.did, error: msg })
@@ -396,7 +371,7 @@ export async function scanRepoStreaming(
             const ownRecords = await fetchOwnFundAtRecords(session)
             fundAt = ownRecords ? { stewardDid, ...ownRecords } : null
           } else {
-            fundAt = await fetchFundAtForStewardDid(stewardDid, client)
+            fundAt = await fetchFundAtForStewardDid(stewardDid)
           }
           if (fundAt) {
             const deps = fundAt.dependencies?.map((d) => d.uri) ?? manual?.dependencies
@@ -445,23 +420,21 @@ export async function scanRepoStreaming(
     }),
   )
 
-  for (const depUri of pendingDepUris) {
-    if (!emittedUris.has(depUri)) {
-      const manual = lookupManualStewardRecord(depUri)
-      if (manual) {
-        emit({
-          type: 'referenced',
-          entry: {
-            uri: depUri,
-            tags: ['tool'],
-            displayName: depUri,
-            contributeUrl: manual.contributeUrl,
-            dependencies: manual.dependencies,
-            source: 'manual',
-          },
-        })
-      }
+  // Resolve pending dependency URIs that weren't emitted as primary entries
+  {
+    const { resolveDependencies } = await import('@/lib/pipeline/dep-resolve')
+    // Build a synthetic entry whose dependencies are the pending URIs, so
+    // resolveDependencies can walk them.
+    const depHolder: StewardEntry = {
+      uri: '_dep-holder',
+      tags: ['tool'],
+      displayName: '',
+      source: 'unknown',
+      dependencies: [...pendingDepUris].filter((u) => !emittedUris.has(u)),
     }
+    await resolveDependencies([depHolder], (entry) => {
+      emit({ type: 'referenced', entry })
+    })
   }
 
   emit({ type: 'status', message: 'Loading follows and subscriptions\u2026' })
@@ -469,7 +442,7 @@ export async function scanRepoStreaming(
     (async () => {
       if (!pdsUrl) return
       try {
-        const funding = await fetchFundingForUriLike(pdsUrl.origin, client)
+        const funding = await fetchFundingForUriLike(pdsUrl.origin)
         if (funding) emit({ type: 'pds-host', funding })
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'
@@ -479,7 +452,7 @@ export async function scanRepoStreaming(
     })(),
     (async () => {
       try {
-        const followedAccounts = await scanFollows(session.did, client)
+        const followedAccounts = await scanFollows(session.did)
         for (const account of followedAccounts) {
           emit({ type: 'entry', entry: followedAccountToEntry(account) })
         }

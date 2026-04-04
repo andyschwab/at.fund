@@ -55,7 +55,6 @@ export async function enrichAccounts(
   unresolvedServices: UnresolvedService[],
   onEntry?: (entry: StewardEntry) => void,
 ): Promise<EnrichResult> {
-  const client = new Client(session)
   const publicClient = new Client(PUBLIC_API)
   const warnings: ScanWarning[] = []
 
@@ -92,11 +91,18 @@ export async function enrichAccounts(
     // Prefer hostname as URI (readable), fall back to handle, then DID
     const hostname = [...stub.hostnames][0]
     const uri = hostname ?? stub.handle ?? stub.did
+    const isTool = stub.hostnames.size > 0
 
     // Best displayName: profile name > hostname > handle > DID
     const displayName = stub.displayName && !stub.displayName.startsWith('did:')
       ? stub.displayName
       : hostname ?? stub.handle ?? stub.did
+
+    // Non-tool accounts (feeds, labelers, follows) get a Bluesky profile link.
+    // Tool accounts leave landingPage unset — the card derives it from hostname.
+    const landingPage = !isTool && stub.handle
+      ? `https://bsky.app/profile/${stub.handle}`
+      : undefined
 
     const base: Omit<StewardEntry, 'source'> = {
       uri,
@@ -106,6 +112,7 @@ export async function enrichAccounts(
       tags,
       displayName,
       description: stub.description,
+      landingPage,
     }
 
     // 1. Try fund.at records by DID
@@ -115,7 +122,7 @@ export async function enrichAccounts(
         const own = await fetchOwnFundAtRecords(session)
         fundAt = own ? { stewardDid: stub.did, ...own } : null
       } else {
-        fundAt = await fetchFundAtForStewardDid(stub.did, client)
+        fundAt = await fetchFundAtForStewardDid(stub.did)
       }
       if (fundAt) {
         // Also check manual catalog for extra deps

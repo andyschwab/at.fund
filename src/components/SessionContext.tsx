@@ -12,6 +12,8 @@ type SessionState = {
 type SessionContextValue = SessionState & {
   login: (handle: string) => Promise<void>
   logout: () => Promise<void>
+  invalidateSession: () => Promise<void>
+  authFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
   loginError: string | null
   loginLoading: boolean
 }
@@ -27,9 +29,13 @@ export function useSession(): SessionContextValue {
 async function checkSession(): Promise<{ valid: boolean; did: string | null }> {
   try {
     const res = await fetch('/api/auth/check')
-    if (!res.ok) return { valid: false, did: null }
+    if (!res.ok) {
+      console.warn('[auth] session check returned', res.status)
+      return { valid: false, did: null }
+    }
     return await res.json()
-  } catch {
+  } catch (err) {
+    console.warn('[auth] session check network error:', err)
     // Network error — don't invalidate, could be transient
     return { valid: true, did: null }
   }
@@ -48,15 +54,36 @@ export function SessionProvider({
   const pathname = usePathname()
   const lastValidatedPath = useRef<string>(pathname)
 
+  const invalidateSession = useCallback(async () => {
+    // Fire-and-forget logout to clear server cookie
+    try { await fetch('/oauth/logout', { method: 'POST' }) } catch {}
+    setState({ hasSession: false, did: null })
+    // Full reload so SSR re-evaluates session state cleanly
+    window.location.href = '/'
+  }, [])
+
+  const authFetch = useCallback(
+    async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const res = await fetch(input, init)
+      if (res.status === 401) {
+        await invalidateSession()
+        throw new Error('Session expired')
+      }
+      return res
+    },
+    [invalidateSession],
+  )
+
   const validateSession = useCallback(async () => {
     // Only validate if the client thinks it has a session
     if (!state.hasSession) return
 
     const result = await checkSession()
     if (!result.valid) {
-      setState({ hasSession: false, did: null })
+      console.warn('[auth] session invalidated — server could not restore session')
+      await invalidateSession()
     }
-  }, [state.hasSession])
+  }, [state.hasSession, invalidateSession])
 
   // Validate on route change (client-side navigation)
   useEffect(() => {
@@ -76,6 +103,10 @@ export function SessionProvider({
   const login = useCallback(async (handle: string) => {
     setLoginLoading(true)
     setLoginError(null)
+    const timeout = setTimeout(() => {
+      setLoginError('Login is taking longer than expected. Please try again.')
+      setLoginLoading(false)
+    }, 15_000)
     try {
       const res = await fetch('/oauth/login', {
         method: 'POST',
@@ -88,8 +119,10 @@ export function SessionProvider({
         error?: string
       }
       if (!res.ok) throw new Error(data.detail ?? data.error ?? 'Login failed')
+      clearTimeout(timeout)
       window.location.href = data.redirectUrl!
     } catch (x) {
+      clearTimeout(timeout)
       setLoginError(
         x instanceof Error
           ? x.message === 'Login failed'
@@ -113,6 +146,8 @@ export function SessionProvider({
         ...state,
         login,
         logout,
+        invalidateSession,
+        authFetch,
         loginError,
         loginLoading,
       }}

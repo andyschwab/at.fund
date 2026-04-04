@@ -1,5 +1,5 @@
 import { Client } from '@atproto/lex'
-import { FUND_CONTRIBUTE } from '@/lib/fund-at-records'
+import { fetchFundAtRecords } from '@/lib/fund-at-records'
 import { xrpcQuery } from '@/lib/xrpc'
 import { lookupManualStewardRecord } from '@/lib/catalog'
 import { logger } from '@/lib/logger'
@@ -25,28 +25,23 @@ type FollowRef = {
 
 async function checkFollowForFundAt(
   follow: FollowRef,
-  readClient: Client,
 ): Promise<FollowedAccountCard | null> {
   const { did, handle, displayName, description } = follow
 
-  // Try fund.at.contribute record (singleton with rkey "self")
+  // Try fund.at records from the follow's own PDS
   try {
-    const res = await readClient.getRecord(FUND_CONTRIBUTE, 'self', {
-      repo: did as import('@atproto/lex-client').AtIdentifierString,
-    })
-    const value = res.body.value as Record<string, unknown> | undefined
-    const url = value?.url
-    if (typeof url === 'string' && url.length > 0) {
+    const fundAt = await fetchFundAtRecords(did)
+    if (fundAt?.contributeUrl) {
       return {
         did,
         handle,
         displayName,
         description,
-        contributeUrl: url,
+        contributeUrl: fundAt.contributeUrl,
       }
     }
   } catch {
-    // no contribute record or fetch failed
+    // fund.at fetch failed — fall through to manual catalog
   }
 
   // Fall back to manual catalog by handle
@@ -93,9 +88,7 @@ async function runWithConcurrency<T, R>(
  */
 export async function scanFollows(
   did: string,
-  client?: Client,
 ): Promise<FollowedAccountCard[]> {
-  const readClient = client ?? new Client(PUBLIC_API)
   const publicClient = new Client(PUBLIC_API)
 
   // Paginate through follows
@@ -130,7 +123,7 @@ export async function scanFollows(
 
   const results = await runWithConcurrency(follows, CONCURRENCY, async (follow) => {
     try {
-      return await checkFollowForFundAt(follow, readClient)
+      return await checkFollowForFundAt(follow)
     } catch (e) {
       logger.warn('follow-scan: error checking follow', {
         did: follow.did,

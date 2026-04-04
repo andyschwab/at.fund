@@ -2,6 +2,8 @@ import { extractPdsUrl } from '@atproto/did'
 import type { AtprotoDidDocument } from '@atproto/did'
 import type { OAuthSession } from '@atproto/oauth-client'
 import { Client } from '@atproto/lex'
+import type { AtIdentifierString } from '@atproto/lex-client'
+import * as fund from '@/lexicons/fund'
 import { xrpcQuery } from '@/lib/xrpc'
 
 export const FUND_CONTRIBUTE = 'fund.at.contribute'
@@ -20,6 +22,23 @@ export type FundAtResult = {
 // Identity resolution
 // ---------------------------------------------------------------------------
 
+const PLC_DIRECTORY = 'https://plc.directory'
+
+/**
+ * Fetches a DID document from plc.directory.
+ * This is the reliable path — com.atproto.identity.resolveIdentity is not
+ * implemented on the public Bluesky API.
+ */
+async function fetchDidDocument(did: string): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await fetch(`${PLC_DIRECTORY}/${encodeURIComponent(did)}`)
+    if (!res.ok) return null
+    return (await res.json()) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
 function handleFromAlsoKnownAs(didDoc: unknown): string | undefined {
   if (!didDoc || typeof didDoc !== 'object') return undefined
   const raw = (didDoc as { alsoKnownAs?: unknown }).alsoKnownAs
@@ -37,35 +56,25 @@ export async function resolveHandleFromDid(
   stewardDid: string,
 ): Promise<string | undefined> {
   try {
-    const res = await xrpcQuery<{
-      handle?: string
-      didDoc?: unknown
-    }>(publicClient, 'com.atproto.identity.resolveIdentity', {
-      identifier: stewardDid,
-    })
-    const fromIdentity = res.handle ?? handleFromAlsoKnownAs(res.didDoc)
-    if (fromIdentity) return fromIdentity
+    const didDoc = await fetchDidDocument(stewardDid)
+    if (didDoc) return handleFromAlsoKnownAs(didDoc)
   } catch {
     // fall through
   }
-  try {
-    const plcRes = await fetch(`https://plc.directory/${encodeURIComponent(stewardDid)}`)
-    if (!plcRes.ok) return undefined
-    const plcDoc = (await plcRes.json()) as unknown
-    return handleFromAlsoKnownAs(plcDoc)
-  } catch {
-    return undefined
-  }
+  return undefined
 }
 
 export async function resolveDidFromIdentifier(
   identifier: string,
 ): Promise<string | undefined> {
+  // If already a DID, return as-is
+  if (identifier.startsWith('did:')) return identifier
+  // Treat as a handle and resolve via the public API
   try {
     const res = await xrpcQuery<{ did: string }>(
       publicClient,
-      'com.atproto.identity.resolveIdentity',
-      { identifier },
+      'com.atproto.identity.resolveHandle',
+      { handle: identifier },
     )
     return res.did
   } catch {
@@ -79,48 +88,12 @@ export async function resolveDidFromIdentifier(
 
 export async function resolvePdsUrl(stewardDid: string): Promise<URL | null> {
   try {
-    const res = await xrpcQuery<{ didDoc: unknown }>(
-      publicClient,
-      'com.atproto.identity.resolveIdentity',
-      { identifier: stewardDid },
-    )
-    return extractPdsUrl(res.didDoc as AtprotoDidDocument)
+    const didDoc = await fetchDidDocument(stewardDid)
+    if (!didDoc) return null
+    return extractPdsUrl(didDoc as AtprotoDidDocument)
   } catch {
     return null
   }
-}
-
-// ---------------------------------------------------------------------------
-// Record value helpers
-// ---------------------------------------------------------------------------
-
-type RawValue = Record<string, unknown>
-
-function isObject(v: unknown): v is RawValue {
-  return !!v && typeof v === 'object' && !Array.isArray(v)
-}
-
-function collectRecordValues(records: { value: unknown }[]): RawValue[] {
-  const out: RawValue[] = []
-  for (const r of records) {
-    if (isObject(r.value)) out.push(r.value)
-  }
-  return out
-}
-
-function readContributeUrl(value: RawValue): string | undefined {
-  const url = value.url
-  if (typeof url === 'string' && url.length > 0) return url
-  return undefined
-}
-
-function readDependency(value: RawValue): { uri: string; label?: string } | null {
-  const uri = value.uri
-  if (typeof uri !== 'string' || !uri.trim()) return null
-  const label = typeof value.label === 'string' && value.label.trim()
-    ? value.label.trim()
-    : undefined
-  return { uri: uri.trim(), label }
 }
 
 // ---------------------------------------------------------------------------
@@ -129,9 +102,7 @@ function readDependency(value: RawValue): { uri: string; label?: string } | null
 
 async function getClientForDid(
   stewardDid: string,
-  client?: Client,
 ): Promise<Client | null> {
-  if (client) return client
   const pdsUrl = await resolvePdsUrl(stewardDid)
   if (!pdsUrl) return null
   return new Client(pdsUrl.origin)
@@ -143,33 +114,29 @@ async function getClientForDid(
  */
 export async function fetchFundAtRecords(
   stewardDid: string,
-  client?: Client,
 ): Promise<FundAtResult | null> {
-  const readClient = await getClientForDid(stewardDid, client)
+  const readClient = await getClientForDid(stewardDid)
   if (!readClient) return null
+
+  const repo = stewardDid as AtIdentifierString
 
   let contributeUrl: string | undefined
   try {
-    const res = await readClient.getRecord(FUND_CONTRIBUTE, 'self', {
-      repo: stewardDid as import('@atproto/lex-client').AtIdentifierString,
-    })
-    const value = res.body.value as RawValue | undefined
-    if (value) contributeUrl = readContributeUrl(value)
+    const res = await readClient.get(fund.at.contribute, { repo })
+    if (res.value.url) contributeUrl = res.value.url
   } catch {
     // optional — record may not exist
   }
 
   let dependencies: Array<{ uri: string; label?: string }> | undefined
   try {
-    const res = await readClient.listRecords(FUND_DEPENDENCY, {
-      repo: stewardDid as import('@atproto/lex-client').AtIdentifierString,
-      limit: 100,
-    })
-    const values = collectRecordValues(res.body.records as { value: unknown }[])
+    const res = await readClient.list(fund.at.dependency, { repo, limit: 100 })
     const deps: Array<{ uri: string; label?: string }> = []
-    for (const v of values) {
-      const dep = readDependency(v)
-      if (dep) deps.push(dep)
+    for (const r of res.records) {
+      const uri = r.value.uri?.trim()
+      if (!uri) continue
+      const label = r.value.label?.trim() || undefined
+      deps.push({ uri, label })
     }
     if (deps.length > 0) dependencies = deps
   } catch {
@@ -193,10 +160,9 @@ export async function fetchOwnEndorsements(
 ): Promise<string[]> {
   const client = new Client(session)
   try {
-    const res = await client.listRecords(FUND_ENDORSE, { limit: 100 })
-    const values = collectRecordValues(res.body.records as { value: unknown }[])
-    return values
-      .map((v) => (typeof v.uri === 'string' ? v.uri.trim() : ''))
+    const res = await client.list(fund.at.endorse, { limit: 100 })
+    return res.records
+      .map((r) => typeof r.value.uri === 'string' ? r.value.uri.trim() : '')
       .filter(Boolean)
   } catch {
     return []
@@ -210,21 +176,21 @@ export async function fetchOwnFundAtRecords(
 
   let contributeUrl: string | undefined
   try {
-    const res = await client.getRecord(FUND_CONTRIBUTE, 'self')
-    const value = res.body.value as RawValue | undefined
-    if (value) contributeUrl = readContributeUrl(value)
+    const res = await client.get(fund.at.contribute)
+    if (res.value.url) contributeUrl = res.value.url
   } catch {
     // optional
   }
 
   let dependencies: Array<{ uri: string; label?: string }> | undefined
   try {
-    const res = await client.listRecords(FUND_DEPENDENCY, { limit: 100 })
-    const values = collectRecordValues(res.body.records as { value: unknown }[])
+    const res = await client.list(fund.at.dependency, { limit: 100 })
     const deps: Array<{ uri: string; label?: string }> = []
-    for (const v of values) {
-      const dep = readDependency(v)
-      if (dep) deps.push(dep)
+    for (const r of res.records) {
+      const uri = r.value.uri?.trim()
+      if (!uri) continue
+      const label = r.value.label?.trim() || undefined
+      deps.push({ uri, label })
     }
     if (deps.length > 0) dependencies = deps
   } catch {

@@ -254,9 +254,9 @@ export default function LexiconPage() {
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">Lexicon</h1>
           <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-slate-400">
-            Three AT Protocol record types for publishing funding metadata — where to support you,
-            what you build on, and what you endorse. Any AT Protocol client can read them directly
-            from your repo. No central registry.
+            Three AT Protocol record types that publish funding metadata to your PDS — where to
+            support you, what you depend on, and who you endorse. Any client can read them directly
+            from your repo. No central registry, no middleman.
           </p>
         </div>
 
@@ -267,17 +267,17 @@ export default function LexiconPage() {
           <RecordSection
             schema={contributeSchema as unknown as LexSchema}
             keyType="literal:self"
-            summary="Your funding page — GitHub Sponsors, Open Collective, Patreon, or anywhere people can support you. One record per repo."
+            summary="Your funding page — GitHub Sponsors, Open Collective, Patreon, or any URL where people can support you. One record per account."
           />
           <RecordSection
             schema={dependencySchema as unknown as LexSchema}
             keyType="any (uri)"
-            summary="One record per upstream project your tool depends on. Lets AT.fund surface the full dependency tree so the infrastructure underneath you gets credit too."
+            summary="One record per upstream project you depend on. Surfaces the full dependency tree so the infrastructure underneath you gets credit too."
           />
           <RecordSection
             schema={endorseSchema as unknown as LexSchema}
             keyType="any (rkey = endorsed URI)"
-            summary="Publicly endorse any entity you use or value, even if you don't depend on it directly. The record key is the endorsed URI itself (a DID or hostname), so each entity can only be endorsed once per account. Unlike contribute (published by builders) and dependency (published by projects), endorse is published by users — a protocol-native signal of trust. Endorsements live on the endorser's PDS, so counts are verifiable, not self-reported."
+            summary="A public endorsement of any entity you use or value. The record key is the endorsed URI (a DID or hostname), so each entity can only be endorsed once per account. Unlike contribute and dependency (published by builders), endorse is published by users — a protocol-native signal of trust. Counts are verifiable because endorsements live on each endorser's PDS, not the endorsed project's."
           />
         </section>
 
@@ -331,11 +331,10 @@ export default function LexiconPage() {
           </div>
 
           <p className="mt-4 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-            If you&apos;re building a feed, labeler, or any service on AT Protocol, you already
-            have a DID — publish <code className="font-mono text-xs">fund.at.*</code> records to
-            your PDS and anyone can find them. If you&apos;re building something that surfaces AT
-            Protocol content, you can attach funding context to any creator or service whose DID
-            you already know.
+            If you run a feed, labeler, or any AT Protocol service, you already have a
+            DID — publish <code className="font-mono text-xs">fund.at.*</code> records and anyone
+            can find them. If you build something that surfaces AT Protocol content, you can attach
+            funding context to any creator or service whose DID you know.
           </p>
         </section>
 
@@ -448,7 +447,7 @@ export default function LexiconPage() {
           <div className="rounded-2xl border border-support-border bg-support-muted px-6 py-8 text-center">
             <h2 className="text-lg font-semibold">Ready?</h2>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              The setup page creates your records step by step — no AT Protocol expertise required.
+              The setup page walks you through publishing your records — no AT Protocol expertise required.
             </p>
             <Link
               href="/setup"
@@ -462,10 +461,10 @@ export default function LexiconPage() {
         {/* Footer notes */}
         <div className="mt-10 border-t border-slate-200 dark:border-slate-800 pt-8 pb-16 space-y-3 text-xs text-slate-400 dark:text-slate-500 leading-relaxed">
           <p>
-            Projects that can&apos;t or don&apos;t map to an AT Protocol account still appear through
-            AT.fund&apos;s curated catalog. Published{' '}
-            <code className="font-mono">fund.at.*</code> records always take precedence over
-            catalog entries.
+            <code className="font-mono">fund.at.*</code> records are the primary way to publish
+            funding metadata. For projects that don&apos;t yet have an AT Protocol account,
+            AT.fund maintains a curated catalog as a fallback. Published records always take
+            precedence.
           </p>
           <p>
             These schemas are a work in progress. This page always reflects the current definitions
