@@ -17,6 +17,7 @@ const TAG_LABEL: Partial<Record<StewardTag, string>> = {
   labeler: 'labeler',
   feed: 'feed',
   follow: 'follow',
+  ecosystem: 'ecosystem',
 }
 
 function TagBadges({ tags }: { tags: StewardTag[] }) {
@@ -613,12 +614,16 @@ export function StewardCard({
   endorsed,
   onEndorse,
   onUnendorse,
+  endorsementCount,
+  networkEndorsementCount,
 }: {
   entry: StewardEntry
   allEntries?: StewardEntry[]
   endorsed?: boolean
   onEndorse?: (uri: string) => void
   onUnendorse?: (uri: string) => void
+  endorsementCount?: number
+  networkEndorsementCount?: number
 }) {
   const variant = cardVariant(entry)
   const contributeUrl = entry.contributeUrl
@@ -771,6 +776,16 @@ export function StewardCard({
           {entry.description && (
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               {entry.description}
+            </p>
+          )}
+          {endorsementCount != null && endorsementCount > 0 && (
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {endorsementCount} endorsement{endorsementCount === 1 ? '' : 's'}
+              {networkEndorsementCount != null && networkEndorsementCount > 0 && (
+                <span className="text-slate-400 dark:text-slate-500">
+                  {' '}&middot; {networkEndorsementCount} from your network
+                </span>
+              )}
             </p>
           )}
           {entry.capabilities && entry.capabilities.length > 0 && (

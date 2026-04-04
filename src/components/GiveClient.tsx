@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import type { ScanStreamEvent, ScanWarning, PdsHostFunding } from '@/lib/pipeline/scan-stream'
+import type { ScanStreamEvent, ScanWarning, PdsHostFunding, EcosystemEntry } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
 import { EntryIndex } from '@/lib/steward-merge'
 import { pdslsRepoUrl } from '@/lib/pdsls'
@@ -14,6 +14,7 @@ import {
   BadgeCheck,
   BadgePlus,
   ExternalLink,
+  Globe,
   PlusCircle,
   RefreshCw,
 } from 'lucide-react'
@@ -29,6 +30,7 @@ type ScanCache = {
   warnings: ScanWarning[]
   pdsHostFunding: PdsHostFunding | undefined
   endorsedUris: Set<string>
+  ecosystemEntries: EcosystemEntry[]
 }
 
 let _scanCache: ScanCache | null = null
@@ -78,6 +80,7 @@ export function GiveClient() {
   const [warnings, setWarnings] = useState<ScanWarning[]>([])
   const [pdsHostFunding, setPdsHostFunding] = useState<PdsHostFunding | undefined>()
   const [endorsedUris, setEndorsedUris] = useState<Set<string>>(new Set())
+  const [ecosystemEntries, setEcosystemEntries] = useState<EcosystemEntry[]>([])
   const [scanDone, setScanDone] = useState(false)
   const [scanStatus, setScanStatus] = useState<string>('')
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
@@ -128,6 +131,12 @@ export function GiveClient() {
     }
     return counts
   }, [discoveredEntries])
+
+  // Ecosystem entries: filter out entries already endorsed (in My Stack)
+  const visibleEcosystemEntries = useMemo(
+    () => ecosystemEntries.filter((e) => !isEndorsed(e, endorsedUris)),
+    [ecosystemEntries, endorsedUris],
+  )
 
   // Endorse / unendorse handlers
   const handleEndorse = useCallback(async (uri: string) => {
@@ -185,6 +194,7 @@ export function GiveClient() {
     setWarnings([])
     setPdsHostFunding(undefined)
     setEndorsedUris(new Set())
+    setEcosystemEntries([])
     setErr(null)
     setActiveTag('all')
     entryIndexRef.current = new EntryIndex()
@@ -235,6 +245,8 @@ export function GiveClient() {
             setReferencedEntries((prev) => [...prev, event.entry])
           } else if (event.type === 'pds-host') {
             setPdsHostFunding(event.funding)
+          } else if (event.type === 'ecosystem') {
+            setEcosystemEntries(event.entries)
           } else if (event.type === 'warning') {
             setWarnings((prev) => [...prev, event.warning])
           } else if (event.type === 'done') {
@@ -260,7 +272,7 @@ export function GiveClient() {
   // Save completed scan to cache
   useEffect(() => {
     if (!scanDone) return
-    _scanCache = { meta, entries, referencedEntries, warnings, pdsHostFunding, endorsedUris }
+    _scanCache = { meta, entries, referencedEntries, warnings, pdsHostFunding, endorsedUris, ecosystemEntries }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanDone])
 
@@ -273,6 +285,7 @@ export function GiveClient() {
       setWarnings(_scanCache.warnings)
       setPdsHostFunding(_scanCache.pdsHostFunding)
       setEndorsedUris(_scanCache.endorsedUris)
+      setEcosystemEntries(_scanCache.ecosystemEntries)
       setScanDone(true)
       return
     }
@@ -497,6 +510,35 @@ export function GiveClient() {
             </>
           )}
         </section>
+
+        {/* ── Ecosystem ─────────────────────────────────────────── */}
+        {visibleEcosystemEntries.length > 0 && (
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Globe className="h-5 w-5 text-slate-400" aria-hidden />
+              <div>
+                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                  Ecosystem
+                </h2>
+                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                  Community infrastructure and projects endorsed by people you follow.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-4">
+              {visibleEcosystemEntries.map((entry) => (
+                <StewardCard
+                  key={entry.uri}
+                  entry={entry}
+                  allEntries={allEntriesForLookup}
+                  onEndorse={handleEndorse}
+                  endorsementCount={entry.endorsementCount}
+                  networkEndorsementCount={entry.networkEndorsementCount}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
       </div>
     </div>

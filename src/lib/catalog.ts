@@ -6,6 +6,7 @@ import { normalizeStewardUri } from '@/lib/steward-uri'
 type ManualRecord = {
   contributeUrl?: string
   dependencies?: string[]
+  tags?: string[]
 }
 
 type ResolverOverride = {
@@ -90,6 +91,7 @@ export type ManualStewardRecord = {
   stewardUri: string
   contributeUrl?: string
   dependencies?: string[]
+  tags?: string[]
 }
 
 /** Manual fallback keyed by steward URI. Returns contribute/dependency data from our curated catalog. */
@@ -102,7 +104,7 @@ export function lookupManualStewardRecord(
   const record = manualCatalogRecords[key]
   if (!record) return null
 
-  if (!record.contributeUrl && (!record.dependencies || record.dependencies.length === 0)) {
+  if (!record.contributeUrl && (!record.dependencies || record.dependencies.length === 0) && (!record.tags || record.tags.length === 0)) {
     return null
   }
 
@@ -110,5 +112,22 @@ export function lookupManualStewardRecord(
     stewardUri: key,
     contributeUrl: record.contributeUrl,
     dependencies: record.dependencies,
+    tags: record.tags,
   }
+}
+
+/** Returns catalog entries tagged with "ecosystem". */
+export function getEcosystemCatalogEntries(): ManualStewardRecord[] {
+  const results: ManualStewardRecord[] = []
+  for (const [uri, record] of Object.entries(manualCatalogRecords)) {
+    if (record.tags?.includes('ecosystem')) {
+      results.push({
+        stewardUri: uri,
+        contributeUrl: record.contributeUrl,
+        dependencies: record.dependencies,
+        tags: record.tags,
+      })
+    }
+  }
+  return results
 }

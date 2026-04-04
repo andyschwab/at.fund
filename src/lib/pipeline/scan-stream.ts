@@ -9,6 +9,8 @@ import type { ScanWarning } from './account-gather'
 import { enrichAccounts } from './account-enrich'
 import { attachCapabilities } from './capability-scan'
 import { resolveDependencies } from './dep-resolve'
+import { scanEcosystem } from './ecosystem-scan'
+import type { EcosystemEntry } from './ecosystem-scan'
 import { logger } from '@/lib/logger'
 
 // ---------------------------------------------------------------------------
@@ -18,6 +20,8 @@ import { logger } from '@/lib/logger'
 export type { ScanWarning }
 export type { PdsHostFunding }
 
+export type { EcosystemEntry }
+
 export type ScanStreamEvent =
   | { type: 'meta'; did: string; handle?: string; pdsUrl?: string }
   | { type: 'status'; message: string }
@@ -25,6 +29,7 @@ export type ScanStreamEvent =
   | { type: 'entry'; entry: StewardEntry }
   | { type: 'referenced'; entry: StewardEntry }
   | { type: 'pds-host'; funding: PdsHostFunding }
+  | { type: 'ecosystem'; entries: EcosystemEntry[] }
   | { type: 'warning'; warning: ScanWarning }
   | { type: 'done' }
 
@@ -95,6 +100,32 @@ export async function scanStreaming(
   resolveDependencies(allEntries, (entry) => {
     emit({ type: 'referenced', entry })
   })
+
+  // ── Phase 5: Ecosystem ─────────────────────────────────────────────────
+  try {
+    const followDids = new Set<string>()
+    for (const [did, stub] of gathered.accounts) {
+      if (stub.tags.has('follow')) followDids.add(did)
+    }
+
+    // Collect URIs already in scan results to avoid duplicates
+    const existingUris = new Set<string>()
+    for (const e of allEntries) {
+      existingUris.add(e.uri)
+      if (e.did) existingUris.add(e.did)
+    }
+
+    emit({ type: 'status', message: 'Scanning ecosystem…' })
+    const ecosystemEntries = await scanEcosystem(followDids, existingUris, (msg) => {
+      emit({ type: 'status', message: msg })
+    })
+    if (ecosystemEntries.length > 0) {
+      emit({ type: 'ecosystem', entries: ecosystemEntries })
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Ecosystem scan failed'
+    logger.warn('scan: ecosystem scan failed', { error: msg })
+  }
 
   // ── PDS host funding (parallel with nothing — runs last) ───────────────
   if (gathered.pdsUrl) {
