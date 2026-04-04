@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import type { ScanStreamEvent } from '@/lib/pipeline/scan-stream'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 180
 
 function parseExtraList(raw: string | null): string[] {
   if (!raw?.trim()) return []

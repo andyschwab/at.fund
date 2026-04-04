@@ -116,19 +116,23 @@ async function fetchEndorsementsForDid(
  */
 export async function collectNetworkEndorsements(
   candidateDids: string[],
+  onProgress?: (scanned: number, total: number) => void,
 ): Promise<EndorsementMap> {
   const endorsementMap: EndorsementMap = new Map()
   let resolvedCount = 0
   let withRecords = 0
+  let scannedCount = 0
 
   await runWithConcurrency(candidateDids, CONCURRENCY, async (did) => {
     // Step 1: Resolve PDS URL via Slingshot
     const pdsUrl = await resolvePds(did)
-    if (!pdsUrl) return
+    if (!pdsUrl) { scannedCount++; onProgress?.(scannedCount, candidateDids.length); return }
     resolvedCount++
 
     // Step 2: List all fund.at.endorse records
     const endorsedUris = await fetchEndorsementsForDid(did, pdsUrl)
+    scannedCount++
+    onProgress?.(scannedCount, candidateDids.length)
     if (endorsedUris.length === 0) return
     withRecords++
 
@@ -185,6 +189,7 @@ function hashDids(dids: string[]): string {
 
 export async function collectNetworkEndorsementsCached(
   candidateDids: string[],
+  onProgress?: (scanned: number, total: number) => void,
 ): Promise<EndorsementMap> {
   const hash = hashDids(candidateDids)
   const key = `${CACHE_KEY}:${hash}`
@@ -213,7 +218,7 @@ export async function collectNetworkEndorsementsCached(
   }
 
   // Fetch fresh
-  const map = await collectNetworkEndorsements(candidateDids)
+  const map = await collectNetworkEndorsements(candidateDids, onProgress)
   const serialized = serializeMap(map)
 
   // Cache in Redis
