@@ -4,7 +4,7 @@ export type StewardSource = 'fund.at' | 'manual' | 'unknown'
  * How this steward was discovered. A single entry may carry multiple tags
  * when the same entity is found via more than one scan pass.
  */
-export type StewardTag = 'tool' | 'labeler' | 'feed' | 'follow' | 'pds-host' | 'ecosystem'
+export type StewardTag = 'tool' | 'labeler' | 'feed' | 'follow' | 'pds-host' | 'ecosystem' | 'dependency'
 
 /**
  * A capability provided by an account — a feed, labeler, or personal data server it operates.
