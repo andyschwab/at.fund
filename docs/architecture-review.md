@@ -153,7 +153,82 @@ Extracted `useScanStream()` hook from `GiveClient.tsx`:
 GiveClient reduced from 678 to ~490 lines. Endorsement handlers remain in the
 component (tightly coupled to scan state).
 
-## 5. Remaining Low-Priority Items
+## 5. Network Optimization — ScanContext & Speculative Prefetch
+
+### Problem
+
+Fund.at record fetching was the scan bottleneck. Each account required 3
+sequential network calls: DID doc (PLC directory) → PDS contribute record →
+PDS dependency records. For 500 follows this was ~1500 sequential calls.
+
+### ScanContext
+
+Introduced `ScanContext` (`lib/scan-context.ts`) as the app-wide network
+orchestrator. Created once per scan session, threaded through every pipeline
+phase and standalone resolver. All network-level concerns live here.
+
+```typescript
+type ScanContext = {
+  readonly fundAtPrefetch: FundAtPrefetchMap
+  readonly prefetch: (did: string) => void          // bounded concurrency
+  readonly prefetchUnbounded: (did: string) => void  // late discovery
+}
+```
+
+| Consumer | How it gets ctx |
+|----------|----------------|
+| `scanStreaming()` | Creates it |
+| `scanRepo()` | Creates it |
+| `gatherAccounts()` | Receives from orchestrator (creates fallback if none) |
+| `enrichAccounts()` | Receives from orchestrator |
+| `resolveDependencies()` | Receives from orchestrator |
+| `scanFollows()` | Optional — creates own if standalone |
+| `scanSubscriptions()` | Optional — creates own if standalone |
+| `resolveEntry()` | Optional — creates own if standalone |
+| `resolveFunding()` | Checks `ctx.fundAtPrefetch` before fetching |
+| `resolveFundingForDep()` | Same |
+
+### Speculative prefetch
+
+`fund-at-prefetch.ts` provides a bounded-concurrency (20 parallel) prefetch
+controller. As Phase 1 discovers DIDs (follows arrive in pages of 100, tool
+stewards resolve individually), it fires `ctx.prefetch(did)` for each. The
+promise is stored in `FundAtPrefetchMap`. Later phases await these
+already-in-flight promises instead of issuing their own fetches.
+
+| Change | Status |
+|--------|--------|
+| `fetchFundAtRecords` parallelizes contribute + dependency PDS calls | **done** |
+| `fetchFundAtRecords` accepts optional `pdsUrl` to skip DID doc fetch | **done** |
+| Prefetch controller with bounded concurrency (20) | **done** |
+| Phase 1 fires prefetches as DIDs are discovered | **done** |
+| `resolveFunding` / `resolveFundingForDep` check prefetch map first | **done** |
+| ScanContext threaded through all pipeline phases | **done** |
+| Standalone scans (follow, subscriptions, entry-resolve) accept ScanContext | **done** |
+| Ecosystem discovery fires `prefetchUnbounded` for late-discovered DIDs | **done** |
+
+### Net effect
+
+Fund.at network calls now overlap almost entirely with Phase 1's follow
+pagination. By the time Phase 2 starts enriching entries, most prefetch
+promises have already resolved — turning what was sequential blocking work
+into cache hits.
+
+## 6. Setup Record Deletion Fix
+
+The `/api/setup` route only wrote records via `put()` — it never deleted
+records that were removed from the form.
+
+| Bug | Fix | Status |
+|-----|-----|--------|
+| Clearing contribute URL left orphan record on PDS | `deleteRecord(FUND_CONTRIBUTE, 'self')` when URL cleared | **done** |
+| Removing dependencies left orphan records on PDS | Diff new vs existing, `deleteRecord(FUND_DEPENDENCY, uri)` for removed | **done** |
+| Clearing everything returned 400 | Accept empty payload as valid (delete all) | **done** |
+
+The client now sends `existing` (the previous PDS state) alongside the form
+data so the API can diff and delete removed records.
+
+## 7. Remaining Low-Priority Items
 
 | Issue | Location | Severity |
 |-------|----------|----------|

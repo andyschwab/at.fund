@@ -53,15 +53,20 @@ type GatherResult = {
   did: string
   handle?: string
   pdsUrl?: string
-  accounts: Map<string, GatheredAccount>      // DID → stub with tags + hostnames
+  accounts: Map<string, GatheredAccount>   // DID → stub with tags + hostnames
   unresolvedServices: UnresolvedService[]  // hostnames that didn't resolve to a DID
   warnings: ScanWarning[]
   feedUris: string[]                       // AT URIs for Phase 5
   labelerDids: string[]                    // DIDs for Phase 5
+  ctx: ScanContext                         // shared network context (prefetch map)
 }
 ```
 
-An `GatheredAccount` accumulates tags from multiple sources. If the same DID appears as a tool AND a follow AND a feed creator, it gets all three tags on one stub.
+A `GatheredAccount` accumulates tags from multiple sources. If the same DID appears as a tool AND a follow AND a feed creator, it gets all three tags on one stub.
+
+### Speculative prefetch
+
+As Phase 1 discovers DIDs, it fires fund.at record prefetches via `ctx.prefetch(did)`. These run with bounded concurrency (20 parallel) in the background while gather continues. By the time Phase 4 (enrich) needs funding data, most prefetch promises have already resolved. See `lib/fund-at-prefetch.ts` and `lib/scan-context.ts`.
 
 ### Unresolved services
 
@@ -184,7 +189,9 @@ For entries with `dependencies[]`, resolves each dependency URI via fund.at reco
 
 **File:** `src/lib/pipeline/scan-stream.ts`
 
-`scanStreaming()` runs all phases and emits `ScanStreamEvent` objects for the client to consume progressively:
+`scanStreaming()` creates a `ScanContext` and threads it through all phases. The context owns the speculative fund.at prefetch map (see Phase 1) and is the single place to manage network-level concerns like caching, concurrency, and rate limiting.
+
+It runs all phases and emits `ScanStreamEvent` objects for the client to consume progressively:
 
 1. Endorsements → `endorsed` event with the user's own endorsed URIs
 2. Phase 1 → `status` events during discovery, `meta` event with user info, `warning` events
@@ -333,47 +340,66 @@ src/
 ├── app/
 │   ├── page.tsx                          Landing page
 │   ├── give/page.tsx                     Give page (requires auth)
+│   ├── setup/page.tsx                    Publish fund.at records
 │   └── api/
 │       ├── entry/route.ts                Full single-entry resolution
 │       ├── endorse/route.ts              Endorsement create/delete
+│       ├── setup/route.ts                Publish/delete fund.at records
 │       ├── lexicons/
 │       │   ├── route.ts                  Non-streaming JSON scan (legacy)
 │       │   └── stream/route.ts           Streaming API → scanStreaming()
 │       └── steward/route.ts              Thin steward lookup (legacy)
 ├── components/
 │   ├── GiveClient.tsx                    Client: streaming scan, unified EntryIndex, tabs, endorsement
+│   ├── SetupClient.tsx                   Setup form: contribute URL, dependencies, live preview
 │   ├── ProjectCards.tsx                  StewardCard (compact <li> row)
 │   ├── card-primitives.tsx               ProfileAvatar, TagBadges, CapabilitiesSection, etc.
 │   ├── card-dependencies.tsx             DependencyRow, ModalCardContent, DependenciesSection
 │   ├── HandleAutocomplete.tsx            Bluesky handle typeahead search
+│   ├── HandleChipInput.tsx               Chip-based multi-value input for dependencies
+│   ├── SuggestionList.tsx                Shared typeahead dropdown
+│   ├── AvatarBadge.tsx                   Shared avatar with initials fallback
 │   ├── NavBar.tsx                        Global nav + login/logout modal
 │   ├── SessionContext.tsx                Auth state context
 │   └── LandingPage.tsx                   Home page with CTA
+├── hooks/
+│   ├── useTypeahead.ts                   Debounced Bluesky handle typeahead
+│   ├── useScanStream.ts                  NDJSON streaming fetch + EntryIndex
+│   └── useDebounce.ts                    Generic debounce hook
 ├── data/
 │   ├── catalog/*.json                    One file per steward — manual funding data
 │   └── resolver-catalog.json             NSID prefix → steward URI overrides
 └── lib/
     ├── pipeline/
-    │   ├── account-gather.ts             Phase 1: discover accounts + unresolved services
+    │   ├── account-gather.ts             Phase 1: discover accounts + fire prefetches
     │   ├── account-enrich.ts             Phase 4: fund.at + catalog + profile resolution
     │   ├── capability-scan.ts            Phase 5: feed/labeler capabilities
     │   ├── dep-resolve.ts                Phase 6: dependency entry resolution
     │   ├── ecosystem-scan.ts             Phase 3: ecosystem URI discovery from endorsement map
     │   ├── entry-resolve.ts              Full vertical: single-entry pipeline
-    │   └── scan-stream.ts                Orchestrator: runs phases, emits stream events
+    │   └── scan-stream.ts                Orchestrator: creates ScanContext, runs phases, emits events
+    ├── scan-context.ts                   ScanContext type + createScanContext() — app-wide network orchestrator
+    ├── fund-at-prefetch.ts               Speculative fund.at prefetch with bounded concurrency
     ├── microcosm.ts                      Phase 2: network endorsement collection (Slingshot + PDS)
     ├── catalog.ts                        resolveStewardUri + lookupManualStewardRecord
-    ├── steward-model.ts                  StewardEntry, Capability, StewardTag types
+    ├── steward-model.ts                  Identity, Funding, StewardEntry, Capability types
+    ├── identity.ts                       buildIdentity, batchFetchProfiles, resolveRefToDid
+    ├── funding.ts                        resolveFunding, resolveFundingForDep, lookupManualByIdentity
+    ├── entry-priority.ts                 Unified entryPriority() ranking (tiers 0–5)
     ├── steward-merge.ts                  EntryIndex (client-side dedup) + merge logic
     ├── steward-funding.ts                fetchFundAtForStewardDid (PDS fund.at.* fetch)
-    ├── fund-at-records.ts                Low-level fund.at record fetching
+    ├── fund-at-records.ts                Low-level fund.at record fetching (parallel PDS calls)
+    ├── follow-scan.ts                    Standalone follow scan (accepts ScanContext)
+    ├── subscriptions-scan.ts             Standalone subscriptions scan (accepts ScanContext)
     ├── atfund-dns.ts                     _atproto DNS TXT → DID
     ├── atfund-uri.ts                     URI-like → hostname → PDS host funding
+    ├── concurrency.ts                    runWithConcurrency() bounded parallel helper
+    ├── merge-deps.ts                     Dependency list union helper
     ├── repo-inspect.ts                   Filter noise collections (Bluesky core)
     ├── repo-collection-resolve.ts        Calendar createdWith + Standard.site $type
     ├── steward-uri.ts                    normalizeStewardUri (input validation)
     ├── auth/kv-store.ts                  Upstash Redis (OAuth session store + endorsement cache)
-    └── xrpc.ts                           Raw XRPC query helper + cache
+    └── xrpc.ts                           Raw XRPC query helper + singleflight cache
 ```
 
 ## Lexicon schemas
