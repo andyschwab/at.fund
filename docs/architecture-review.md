@@ -124,20 +124,36 @@ Three overlapping types collapsed into two:
 The vestigial `endorsementCount` field (always equal to `networkEndorsementCount`)
 and unused `endorserDids` return value were removed.
 
-## 4. Remaining Opportunities
+## 4. Pipeline Unification & Component Decomposition
 
-### Migrate lexicon-scan.ts to resolution layer
+### lexicon-scan.ts → pipeline wrapper
 
-`lexicon-scan.ts` still has its own inline resolution chain (fund.at → manual →
-unknown) in both `scanRepo()` and `scanRepoStreaming()`. These should be
-migrated to use `buildIdentity` + `resolveFunding`.
+`scanRepo()` was a 540-line parallel implementation of the streaming pipeline.
+Replaced with a thin wrapper that calls the pipeline phases directly:
+`gatherAccounts` → `enrichAccounts` → `attachCapabilities` → `resolveDependencies`.
 
-### Decompose GiveClient.tsx
+| Change | Status |
+|--------|--------|
+| Delete dead `scanRepoStreaming()` (superseded by `scan-stream.ts`) | **done** |
+| Replace `scanRepo()` inline resolution with pipeline phases | **done** |
+| Existing 12 test cases pass unchanged (same mocks, same contracts) | **done** |
 
-695 lines, 8+ responsibilities. Extract `useScanStream()` hook and focused
-sub-components (StewardSection, EcosystemSection, etc.).
+Result: `lexicon-scan.ts` reduced from 537 lines to 103 lines. One code path
+for both batch and streaming scans.
 
-### Other
+### GiveClient.tsx decomposition
+
+Extracted `useScanStream()` hook from `GiveClient.tsx`:
+
+| Module | Responsibility | Lines |
+|--------|---------------|-------|
+| `hooks/useScanStream.ts` | NDJSON fetch, EntryIndex, cache, event parsing | ~150 |
+| `GiveClient.tsx` | Derived state, endorsement handlers, layout | ~490 |
+
+GiveClient reduced from 678 to ~490 lines. Endorsement handlers remain in the
+component (tightly coupled to scan state).
+
+## 5. Remaining Low-Priority Items
 
 | Issue | Location | Severity |
 |-------|----------|----------|
