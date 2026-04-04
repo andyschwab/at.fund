@@ -19,7 +19,7 @@ import {
   BadgePlus,
   CheckCircle2,
   ExternalLink,
-  Globe,
+
   PlusCircle,
   RefreshCw,
 } from 'lucide-react'
@@ -93,6 +93,7 @@ export function GiveClient() {
   const [scanDone, setScanDone] = useState(false)
   const [scanStatus, setScanStatus] = useState<string>('')
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
+  const [activeTab, setActiveTab] = useState<'discover' | 'ecosystem'>('discover')
   const entryIndexRef = useRef(new EntryIndex())
 
   // Check whether the logged-in user has published fund.at records
@@ -550,124 +551,158 @@ export function GiveClient() {
           </details>
         )}
 
-        {/* ── Discovered from your data ──────────────────────────── */}
+        {/* ── Tabbed: My Fundable Services / Endorsed by My Network ── */}
         <section className="space-y-3">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Discovered from your data
-            </h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              These projects were found in your Bluesky account data. Click the funding link to contribute, then endorse to add to My Stack.
-            </p>
+          <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => setActiveTab('discover')}
+              className={`relative px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'discover'
+                  ? 'text-slate-900 dark:text-slate-100'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+              }`}
+            >
+              My Fundable Services{discoveredEntries.length > 0 ? ` (${discoveredEntries.length})` : ''}
+              {activeTab === 'discover' && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--support)]" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('ecosystem')}
+              className={`relative px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'ecosystem'
+                  ? 'text-slate-900 dark:text-slate-100'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+              }`}
+            >
+              Endorsed by My Network{visibleEcosystemEntries.length > 0 ? ` (${visibleEcosystemEntries.length})` : ''}
+              {activeTab === 'ecosystem' && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--support)]" />
+              )}
+            </button>
           </div>
-          {discoveredEntries.length === 0 && scanDone ? (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              No additional tools found in your saved data yet. Add more
-              above if you know them.
-            </p>
-          ) : (
+
+          {/* ── My Fundable Services tab ─────────────────────────── */}
+          {activeTab === 'discover' && (
             <>
-              {/* Filter pills */}
-              {filterableTagCount > 1 && (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTag('all')}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                      activeTag === 'all'
-                        ? 'bg-[var(--support)] text-[var(--support-foreground)]'
-                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    All ({discoveredEntries.length})
-                  </button>
-                  {TAG_FILTER_LABELS.map(({ tag, label }) => {
-                    const count = tagCounts[tag] ?? 0
-                    if (count === 0) return null
-                    return (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                These projects were found in your Bluesky account data. Click the funding link to contribute, then endorse to add to My Stack.
+              </p>
+              {discoveredEntries.length === 0 && scanDone ? (
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  No additional tools found in your saved data yet. Add more
+                  above if you know them.
+                </p>
+              ) : (
+                <>
+                  {/* Filter pills */}
+                  {filterableTagCount > 1 && (
+                    <div className="flex flex-wrap gap-2">
                       <button
-                        key={tag}
                         type="button"
-                        onClick={() => setActiveTag(tag)}
+                        onClick={() => setActiveTag('all')}
                         className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                          activeTag === tag
+                          activeTag === 'all'
                             ? 'bg-[var(--support)] text-[var(--support-foreground)]'
                             : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
                         }`}
                       >
-                        {label} ({count})
+                        All ({discoveredEntries.length})
                       </button>
-                    )
-                  })}
-                </div>
-              )}
+                      {TAG_FILTER_LABELS.map(({ tag, label }) => {
+                        const count = tagCounts[tag] ?? 0
+                        if (count === 0) return null
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => setActiveTag(tag)}
+                            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                              activeTag === tag
+                                ? 'bg-[var(--support)] text-[var(--support-foreground)]'
+                                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            {label} ({count})
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
 
-              {/* Flat entry list — compact rows in a shared container */}
-              {filteredEntries.length > 0 && (
-                <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-                  {filteredEntries.map((entry) => {
-                    const counts = lookupCounts(entry)
-                    return (
-                      <StewardCard
-                        key={entry.uri}
-                        entry={entry}
-                        allEntries={allEntriesForLookup}
-                        endorsedSet={endorsedUris}
-                        onEndorse={handleEndorse}
-                        onUnendorse={handleUnendorse}
-                        compact
-                        endorsementCount={counts?.endorsementCount}
-                        networkEndorsementCount={counts?.networkEndorsementCount}
-                      />
-                    )
-                  })}
-                </ul>
+                  {/* Flat entry list — compact rows in a shared container */}
+                  {filteredEntries.length > 0 && (
+                    <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+                      {filteredEntries.map((entry) => {
+                        const counts = lookupCounts(entry)
+                        return (
+                          <StewardCard
+                            key={entry.uri}
+                            entry={entry}
+                            allEntries={allEntriesForLookup}
+                            endorsedSet={endorsedUris}
+                            onEndorse={handleEndorse}
+                            onUnendorse={handleUnendorse}
+                            compact
+                            endorsementCount={counts?.endorsementCount}
+                            networkEndorsementCount={counts?.networkEndorsementCount}
+                          />
+                        )
+                      })}
+                    </ul>
+                  )}
+                  {filteredEntries.length === 0 && discoveredEntries.length === 0 && loading && (
+                    <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
+                      <span>{scanStatus || 'Scanning\u2026'}</span>
+                    </div>
+                  )}
+                  {filteredEntries.length === 0 && discoveredEntries.length > 0 && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      No entries match this filter.
+                    </p>
+                  )}
+                </>
               )}
-              {filteredEntries.length === 0 && discoveredEntries.length === 0 && loading && (
+            </>
+          )}
+
+          {/* ── Endorsed by My Network tab ────────────────────────── */}
+          {activeTab === 'ecosystem' && (
+            <>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Projects and services endorsed by people you follow that aren&apos;t already in your fundable services.
+              </p>
+              {visibleEcosystemEntries.length > 0 ? (
+                <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+                  {visibleEcosystemEntries.map((entry) => (
+                    <StewardCard
+                      key={entry.uri}
+                      entry={entry}
+                      allEntries={allEntriesForLookup}
+                      endorsedSet={endorsedUris}
+                      onEndorse={handleEndorse}
+                      compact
+                      endorsementCount={entry.endorsementCount}
+                      networkEndorsementCount={entry.networkEndorsementCount}
+                    />
+                  ))}
+                </ul>
+              ) : scanDone ? (
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  No network endorsements found yet. As more people in your network use at.fund, endorsed projects will appear here.
+                </p>
+              ) : loading ? (
                 <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
                   <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
                   <span>{scanStatus || 'Scanning\u2026'}</span>
                 </div>
-              )}
-              {filteredEntries.length === 0 && discoveredEntries.length > 0 && (
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  No entries match this filter.
-                </p>
-              )}
+              ) : null}
             </>
           )}
         </section>
-
-        {/* ── Ecosystem ─────────────────────────────────────────── */}
-        {visibleEcosystemEntries.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Globe className="h-5 w-5 text-slate-400" aria-hidden />
-              <div>
-                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                  Ecosystem
-                </h2>
-                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-                  Community infrastructure and projects endorsed by people you follow.
-                </p>
-              </div>
-            </div>
-            <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-              {visibleEcosystemEntries.map((entry) => (
-                <StewardCard
-                  key={entry.uri}
-                  entry={entry}
-                  allEntries={allEntriesForLookup}
-                  endorsedSet={endorsedUris}
-                  onEndorse={handleEndorse}
-                  compact
-                  endorsementCount={entry.endorsementCount}
-                  networkEndorsementCount={entry.networkEndorsementCount}
-                />
-              ))}
-            </ul>
-          </section>
-        )}
 
       </div>
     </div>
