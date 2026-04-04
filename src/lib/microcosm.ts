@@ -45,6 +45,9 @@ async function fetchEndorserDids(
 ): Promise<BacklinkResult> {
   const dids: string[] = []
   let cursor: string | undefined
+  let pagesQueried = 0
+  let lastStatus: number | undefined
+  let lastResponseSample: unknown
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const params = new URLSearchParams({
@@ -54,35 +57,51 @@ async function fetchEndorserDids(
     })
     if (cursor) params.set('cursor', cursor)
 
+    const url = `${CONSTELLATION_BASE}/xrpc/blue.microcosm.links.getDistinct?${params}`
+
     try {
-      const res = await fetch(
-        `${CONSTELLATION_BASE}/xrpc/blue.microcosm.links.getDistinct?${params}`,
-        { headers: HEADERS },
-      )
+      const res = await fetch(url, { headers: HEADERS })
+      lastStatus = res.status
+      pagesQueried++
+
       if (!res.ok) {
-        // 404 = no records for this target (expected for most entries)
         if (res.status !== 404) {
           logger.warn('constellation: getDistinct failed', {
             subject: targetUri,
             status: res.status,
+            url,
           })
         }
         break
       }
 
-      const data = (await res.json()) as { dids?: string[]; cursor?: string | null }
-      if (data.dids) dids.push(...data.dids)
+      const data = (await res.json()) as Record<string, unknown>
+      if (page === 0) lastResponseSample = data
+
+      const responseDids = data.dids as string[] | undefined
+      if (responseDids) dids.push(...responseDids)
 
       if (!data.cursor) break
-      cursor = data.cursor
+      cursor = data.cursor as string
     } catch (e) {
       logger.warn('constellation: fetch error', {
         subject: targetUri,
+        url,
         error: e instanceof Error ? e.message : String(e),
       })
       break
     }
   }
+
+  logger.info('constellation: query complete', {
+    subject: targetUri,
+    pagesQueried,
+    lastStatus,
+    didsFound: dids.length,
+    ...(dids.length === 0 && lastResponseSample
+      ? { responseSample: JSON.stringify(lastResponseSample).slice(0, 300) }
+      : {}),
+  })
 
   return { endorserDids: dids, totalCount: dids.length }
 }
