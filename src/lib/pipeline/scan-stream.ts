@@ -2,7 +2,7 @@ import type { OAuthSession } from '@atproto/oauth-client'
 import type { StewardEntry, StewardTag } from '@/lib/steward-model'
 import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { fetchOwnEndorsements } from '@/lib/fund-at-records'
-import { prefetchInto } from '@/lib/fund-at-prefetch'
+import { createScanContext } from '@/lib/scan-context'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { resolveStewardUri, lookupManualStewardRecord } from '@/lib/catalog'
 import { collectNetworkEndorsementsCached, getCountsFromMap } from '@/lib/microcosm'
@@ -40,6 +40,8 @@ export async function scanStreaming(
   selfReportedStewards: string[] = [],
   emit: (event: ScanStreamEvent) => void,
 ): Promise<void> {
+  const ctx = createScanContext()
+
   // ── Endorsements: fetch early so the client can mark entries ────────────
   try {
     const endorsedUris = await fetchOwnEndorsements(session)
@@ -54,7 +56,7 @@ export async function scanStreaming(
   // ── Phase 1: Gather accounts ──────────────────────────────────────────
   const gathered = await gatherAccounts(session, selfReportedStewards, (msg) => {
     emit({ type: 'status', message: msg })
-  })
+  }, ctx)
 
   emit({
     type: 'meta',
@@ -109,7 +111,7 @@ export async function scanStreaming(
               tags: new Set<StewardTag>(['ecosystem']),
               hostnames: new Set(),
             })
-            prefetchInto(gathered.fundAtPrefetch, uri)
+            ctx.prefetchUnbounded(uri)
           }
           return
         }
@@ -126,7 +128,7 @@ export async function scanStreaming(
               tags: new Set<StewardTag>(['ecosystem']),
               hostnames: new Set([uri]),
             })
-            prefetchInto(gathered.fundAtPrefetch, did)
+            ctx.prefetchUnbounded(did)
             ecosystemUriCounts.set(did, counts)
             return
           }
@@ -153,7 +155,7 @@ export async function scanStreaming(
         emit({ type: 'entry', entry })
       }
     },
-    gathered.fundAtPrefetch,
+    ctx,
   )
 
   for (const w of enriched.warnings) {
@@ -177,7 +179,7 @@ export async function scanStreaming(
   emit({ type: 'status', message: 'Resolving dependencies…' })
   await resolveDependencies(allEntries, (entry) => {
     emit({ type: 'entry', entry })
-  }, gathered.fundAtPrefetch)
+  }, ctx)
 
   // ── Emit endorsement counts for ALL entries (from the single-pass map) ─
   const allCounts: Record<string, EndorsementCounts> = {}

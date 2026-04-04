@@ -7,6 +7,7 @@ import type { ScanWarning } from '@/lib/pipeline/account-gather'
 import { enrichAccounts } from '@/lib/pipeline/account-enrich'
 import { attachCapabilities } from '@/lib/pipeline/capability-scan'
 import { resolveDependencies } from '@/lib/pipeline/dep-resolve'
+import { createScanContext } from '@/lib/scan-context'
 import { logger } from '@/lib/logger'
 
 export type { ScanWarning }
@@ -30,8 +31,10 @@ export async function scanRepo(
   session: OAuthSession,
   selfReportedStewards: string[] = [],
 ): Promise<ScanResult> {
+  const ctx = createScanContext()
+
   // ── Phase 1: Gather accounts ────────────────────────────────────────
-  const gathered = await gatherAccounts(session, selfReportedStewards)
+  const gathered = await gatherAccounts(session, selfReportedStewards, undefined, ctx)
 
   // ── Phase 2: Enrich ─────────────────────────────────────────────────
   const enriched = await enrichAccounts(
@@ -39,7 +42,7 @@ export async function scanRepo(
     gathered.accounts,
     gathered.unresolvedServices,
     undefined,
-    gathered.fundAtPrefetch,
+    ctx,
   )
 
   const allEntries = [...enriched.entries, ...enriched.unresolvedEntries]
@@ -55,7 +58,7 @@ export async function scanRepo(
   }
 
   // ── Phase 4: Dependencies ───────────────────────────────────────────
-  const referencedEntries = await resolveDependencies(allEntries, undefined, gathered.fundAtPrefetch)
+  const referencedEntries = await resolveDependencies(allEntries, undefined, ctx)
 
   // ── PDS host entry ──────────────────────────────────────────────────
   let pdsEntry: StewardEntry | undefined

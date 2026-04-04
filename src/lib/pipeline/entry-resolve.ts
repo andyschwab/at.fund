@@ -4,6 +4,8 @@ import { resolveIdentity, resolveRefToDid } from '@/lib/identity'
 import { resolveFunding, lookupManualByIdentity } from '@/lib/funding'
 import { xrpcQuery } from '@/lib/xrpc'
 import { resolveDependencies } from '@/lib/pipeline/dep-resolve'
+import { createScanContext } from '@/lib/scan-context'
+import type { ScanContext } from '@/lib/scan-context'
 import { logger } from '@/lib/logger'
 import { PUBLIC_API, FEED_BATCH } from '@/lib/constants'
 
@@ -28,7 +30,8 @@ type ResolveResult = {
  *
  * No authentication required — all data sources are public.
  */
-export async function resolveEntry(uri: string): Promise<ResolveResult> {
+export async function resolveEntry(uri: string, ctx?: ScanContext): Promise<ResolveResult> {
+  const scanCtx = ctx ?? createScanContext()
   // Determine if this is a tool (has a manual catalog entry for hostname)
   const manual = lookupManualByIdentity({ uri, displayName: uri })
   const isTool = !uri.startsWith('did:') && !!manual
@@ -37,7 +40,7 @@ export async function resolveEntry(uri: string): Promise<ResolveResult> {
   const identity = await resolveIdentity(uri, { isTool })
 
   // ── 2. Funding ─────────────────────────────────────────────────────────
-  const { funding } = await resolveFunding(identity)
+  const { funding } = await resolveFunding(identity, { ctx: scanCtx })
 
   const tags: StewardEntry['tags'] = isTool ? ['tool'] : []
 
@@ -50,7 +53,7 @@ export async function resolveEntry(uri: string): Promise<ResolveResult> {
   }
 
   // ── 4. Dependencies — resolve transitive deps from catalog ────────────
-  const referenced = await resolveDependencies([entry])
+  const referenced = await resolveDependencies([entry], undefined, scanCtx)
 
   return { entry, referenced }
 }

@@ -13,8 +13,8 @@ import {
   resolveSiteStandardPairs,
   stripDerivedCollections,
 } from '@/lib/repo-collection-resolve'
-import { createFundAtPrefetch } from '@/lib/fund-at-prefetch'
-import type { FundAtPrefetchMap } from '@/lib/fund-at-prefetch'
+import type { ScanContext } from '@/lib/scan-context'
+import { createScanContext } from '@/lib/scan-context'
 import { logger } from '@/lib/logger'
 import type { StewardTag } from '@/lib/steward-model'
 import { PUBLIC_API } from '@/lib/constants'
@@ -62,11 +62,8 @@ export type GatherResult = {
   feedUris: string[]
   /** Labeler DIDs from user prefs (for Phase 3). */
   labelerDids: string[]
-  /**
-   * Speculative fund.at record prefetches fired during Phase 1.
-   * Later phases await these instead of issuing their own fetches.
-   */
-  fundAtPrefetch: FundAtPrefetchMap
+  /** Shared scan context — prefetch map + orchestrator-level network state. */
+  ctx: ScanContext
 }
 
 // ---------------------------------------------------------------------------
@@ -118,6 +115,7 @@ export async function gatherAccounts(
   session: OAuthSession,
   selfReportedStewards: string[] = [],
   onStatus?: (msg: string) => void,
+  ctx?: ScanContext,
 ): Promise<GatherResult> {
   const client = new Client(session)
   const publicClient = new Client(PUBLIC_API)
@@ -125,9 +123,9 @@ export async function gatherAccounts(
   const unresolvedServices: UnresolvedService[] = []
   const warnings: ScanWarning[] = []
 
-  // Fire fund.at record prefetches as we discover DIDs.
-  // Later phases await the promises instead of issuing their own fetches.
-  const { map: fundAtPrefetch, prefetch } = createFundAtPrefetch()
+  // Use the orchestrator's scan context, or create a local one as fallback.
+  const scanCtx = ctx ?? createScanContext()
+  const prefetch = (did: string) => scanCtx.prefetch(did)
 
   // ── Resolve PDS URL ────────────────────────────────────────────────────
   let pdsUrl: string | undefined
@@ -282,5 +280,5 @@ export async function gatherAccounts(
     },
   })
 
-  return { did: session.did, handle: handle ?? undefined, pdsUrl, accounts, unresolvedServices, warnings, feedUris, labelerDids, fundAtPrefetch }
+  return { did: session.did, handle: handle ?? undefined, pdsUrl, accounts, unresolvedServices, warnings, feedUris, labelerDids, ctx: scanCtx }
 }

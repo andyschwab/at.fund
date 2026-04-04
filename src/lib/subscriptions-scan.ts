@@ -4,6 +4,8 @@ import type { StewardEntry, StewardTag, Capability } from '@/lib/steward-model'
 import { buildIdentity, batchFetchProfiles } from '@/lib/identity'
 import { resolveFunding } from '@/lib/funding'
 import { xrpcQuery } from '@/lib/xrpc'
+import { createScanContext } from '@/lib/scan-context'
+import type { ScanContext } from '@/lib/scan-context'
 import { logger } from '@/lib/logger'
 import { PUBLIC_API } from '@/lib/constants'
 import { runWithConcurrency } from '@/lib/concurrency'
@@ -119,7 +121,8 @@ async function resolveSubscriptionEntry(
   did: string,
   tag: StewardTag,
   fallback: { handle?: string; displayName?: string; description?: string } | undefined,
-  capabilities?: Capability[],
+  capabilities: Capability[] | undefined,
+  ctx: ScanContext,
 ): Promise<StewardEntry> {
   const identity = buildIdentity({
     ref: fallback?.handle ?? did,
@@ -129,7 +132,7 @@ async function resolveSubscriptionEntry(
     description: fallback?.description,
   })
 
-  const { funding } = await resolveFunding(identity)
+  const { funding } = await resolveFunding(identity, { ctx })
 
   return { ...identity, ...funding, tags: [tag], capabilities }
 }
@@ -146,7 +149,9 @@ export type SubscriptionScanResult = {
 
 export async function scanSubscriptions(
   session: OAuthSession,
+  ctx?: ScanContext,
 ): Promise<SubscriptionScanResult> {
+  const scanCtx = ctx ?? createScanContext()
   const authClient = new Client(session, {
     service: 'did:web:api.bsky.app#bsky_appview',
   })
@@ -195,10 +200,10 @@ export async function scanSubscriptions(
     fetchFeedDisplayInfo(publicClient, feedUris),
   ])
 
-  // Collect all unique DIDs that need handle resolution
+  // Collect all unique DIDs and fire prefetches
   const allDids = new Set<string>()
-  for (const did of labelerDids) allDids.add(did)
-  for (const f of feedInfoList) allDids.add(f.creatorDid)
+  for (const did of labelerDids) { allDids.add(did); scanCtx.prefetch(did) }
+  for (const f of feedInfoList) { allDids.add(f.creatorDid); scanCtx.prefetch(f.creatorDid) }
 
   const needsHandle = [...allDids].filter((did) => {
     const labelerHandle = labelerDisplayInfo.get(did)?.handle
@@ -232,7 +237,7 @@ export async function scanSubscriptions(
   }
 
   const labelerEntries = await runWithConcurrency(labelerDids, CONCURRENCY, (did) =>
-    resolveSubscriptionEntry(did, 'labeler', labelerDisplayInfo.get(did), labelerCapsByDid.get(did)),
+    resolveSubscriptionEntry(did, 'labeler', labelerDisplayInfo.get(did), labelerCapsByDid.get(did), scanCtx),
   )
 
   // ── Build feed entries grouped by creator DID ──
@@ -265,7 +270,7 @@ export async function scanSubscriptions(
       handle: handle ?? feeds[0]?.creatorHandle,
     }
 
-    return resolveSubscriptionEntry(did, 'feed', fallback, caps)
+    return resolveSubscriptionEntry(did, 'feed', fallback, caps, scanCtx)
   })
 
   const entries = [...labelerEntries, ...feedEntries]

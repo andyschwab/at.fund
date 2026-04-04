@@ -3,6 +3,8 @@ import type { StewardEntry } from '@/lib/steward-model'
 import { buildIdentity } from '@/lib/identity'
 import { resolveFundingForDep } from '@/lib/funding'
 import { xrpcQuery } from '@/lib/xrpc'
+import { createScanContext } from '@/lib/scan-context'
+import type { ScanContext } from '@/lib/scan-context'
 import { logger } from '@/lib/logger'
 import { PUBLIC_API } from '@/lib/constants'
 import { runWithConcurrency } from '@/lib/concurrency'
@@ -18,6 +20,7 @@ type FollowRef = {
 
 async function resolveFollowEntry(
   follow: FollowRef,
+  ctx: ScanContext,
 ): Promise<StewardEntry | null> {
   const identity = buildIdentity({
     ref: follow.handle ?? follow.did,
@@ -27,7 +30,7 @@ async function resolveFollowEntry(
     description: follow.description,
   })
 
-  const funding = await resolveFundingForDep(identity)
+  const funding = await resolveFundingForDep(identity, ctx)
 
   // Only return follows that have a contribute URL
   if (!funding.contributeUrl) return null
@@ -42,10 +45,12 @@ async function resolveFollowEntry(
  */
 export async function scanFollows(
   did: string,
+  ctx?: ScanContext,
 ): Promise<StewardEntry[]> {
+  const scanCtx = ctx ?? createScanContext()
   const publicClient = new Client(PUBLIC_API)
 
-  // Paginate through follows
+  // Paginate through follows, firing prefetches as we discover DIDs
   const follows: FollowRef[] = []
   let cursor: string | undefined
   do {
@@ -64,6 +69,7 @@ export async function scanFollows(
         displayName: follow.displayName,
         description: follow.description,
       })
+      scanCtx.prefetch(follow.did)
     }
     cursor = res.cursor
   } while (cursor)
@@ -77,7 +83,7 @@ export async function scanFollows(
 
   const results = await runWithConcurrency(follows, CONCURRENCY, async (follow) => {
     try {
-      return await resolveFollowEntry(follow)
+      return await resolveFollowEntry(follow, scanCtx)
     } catch (e) {
       logger.warn('follow-scan: error checking follow', {
         did: follow.did,
