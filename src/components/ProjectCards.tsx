@@ -164,28 +164,17 @@ export function PdsHostSupportCard({
   pdsHostname: string
   funding?: PdsHostFunding | null
 }) {
-  const pdsStewardLabel = funding?.pdsStewardHandle ?? funding?.pdsStewardUri
-  const stewardWebsiteFallback = funding?.pdsStewardUri
-    ? websiteFallbackForUri(funding.pdsStewardUri)
-    : undefined
-  const title =
-    pdsStewardLabel
-      ? `Your host steward (${pdsStewardLabel})`
-      : `Your host (${pdsHostname})`
+  const stewardLabel = funding?.pdsStewardHandle ?? funding?.pdsStewardUri
+  const websiteUrl = (stewardLabel ? websiteFallbackForUri(stewardLabel) : undefined)
+    ?? `https://${pdsHostname}`
+  const displayName = stewardLabel ?? pdsHostname
   const contributeUrl = funding?.contributeUrl
-  const websiteFallback = stewardWebsiteFallback ?? `https://${pdsHostname}`
-  const summary =
-    pdsStewardLabel
-      ? `Your account's home server (${pdsHostname}), operated by ${pdsStewardLabel}.`
-      : `Your account's home server (${pdsHostname}) -- support options if published.`
-
-  const websiteUrl = websiteFallback
   const initials = pdsHostname.slice(0, 2).toUpperCase()
 
   return (
     <li className={`px-4 py-3.5 transition-all duration-100 ${
       contributeUrl
-        ? 'bg-sky-50/70 hover:bg-sky-100 dark:bg-sky-950/20 dark:hover:bg-sky-950/50'
+        ? 'bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/50'
         : 'opacity-60 hover:opacity-100 hover:bg-slate-100 dark:hover:bg-slate-800/50'
     }`}>
       <div className="flex items-start gap-3">
@@ -197,15 +186,20 @@ export function PdsHostSupportCard({
           tabIndex={-1}
           aria-hidden
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-xs font-semibold text-sky-600 dark:bg-sky-950/40 dark:text-sky-400">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             {initials}
           </span>
         </a>
 
         <div className="min-w-0 flex-1">
-          <StewardNameHeading name={title} href={websiteUrl} linkVariant="sky" />
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <StewardNameHeading name={displayName} href={websiteUrl} linkVariant="support" />
+            <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-600 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-400">
+              home server
+            </span>
+          </div>
           <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
-            {summary}
+            {pdsHostname}
           </p>
         </div>
 
@@ -216,7 +210,7 @@ export function PdsHostSupportCard({
               target="_blank"
               rel="noreferrer"
               title="Opens their contribution page"
-              className="flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium text-sky-600 transition-opacity hover:opacity-75 dark:text-sky-400"
+              className="flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium text-[var(--support)] transition-opacity hover:opacity-75"
             >
               <DropletIcon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
               <span>Fund</span>
