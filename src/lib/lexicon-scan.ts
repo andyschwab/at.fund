@@ -38,6 +38,8 @@ export async function scanRepo(
     session,
     gathered.accounts,
     gathered.unresolvedServices,
+    undefined,
+    gathered.fundAtPrefetch,
   )
 
   const allEntries = [...enriched.entries, ...enriched.unresolvedEntries]
@@ -53,7 +55,7 @@ export async function scanRepo(
   }
 
   // ── Phase 4: Dependencies ───────────────────────────────────────────
-  const referencedEntries = await resolveDependencies(allEntries)
+  const referencedEntries = await resolveDependencies(allEntries, undefined, gathered.fundAtPrefetch)
 
   // ── PDS host entry ──────────────────────────────────────────────────
   let pdsEntry: StewardEntry | undefined

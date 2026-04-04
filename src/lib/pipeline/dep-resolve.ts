@@ -1,6 +1,7 @@
 import type { StewardEntry } from '@/lib/steward-model'
 import { buildIdentity, batchFetchProfiles, resolveRefToDid } from '@/lib/identity'
 import { resolveFundingForDep } from '@/lib/funding'
+import type { FundAtPrefetchMap } from '@/lib/fund-at-prefetch'
 import { logger } from '@/lib/logger'
 
 // ---------------------------------------------------------------------------
@@ -19,6 +20,7 @@ import { logger } from '@/lib/logger'
 export async function resolveDependencies(
   entries: StewardEntry[],
   onReferenced?: (entry: StewardEntry) => void,
+  prefetch?: FundAtPrefetchMap,
 ): Promise<StewardEntry[]> {
   const knownUris = new Set<string>()
   for (const e of entries) {
@@ -43,7 +45,7 @@ export async function resolveDependencies(
     if (resolved.has(depUri) || knownUris.has(depUri)) continue
     resolved.add(depUri)
 
-    const refEntry = await resolveDepEntry(depUri)
+    const refEntry = await resolveDepEntry(depUri, prefetch)
     referenced.push(refEntry)
     onReferenced?.(refEntry)
 
@@ -74,7 +76,10 @@ export async function resolveDependencies(
 // Single dependency resolution: identity + funding
 // ---------------------------------------------------------------------------
 
-async function resolveDepEntry(depUri: string): Promise<StewardEntry> {
+async function resolveDepEntry(
+  depUri: string,
+  prefetch?: FundAtPrefetchMap,
+): Promise<StewardEntry> {
   const did = await resolveRefToDid(depUri)
 
   const identity = buildIdentity({
@@ -83,7 +88,7 @@ async function resolveDepEntry(depUri: string): Promise<StewardEntry> {
     // No profile data yet — backfillProfiles handles that later
   })
 
-  const funding = await resolveFundingForDep(identity)
+  const funding = await resolveFundingForDep(identity, prefetch)
 
   return { ...identity, ...funding, tags: ['dependency'] }
 }

@@ -2,6 +2,7 @@ import type { OAuthSession } from '@atproto/oauth-client'
 import type { StewardEntry, StewardTag } from '@/lib/steward-model'
 import { buildIdentity, batchFetchProfiles } from '@/lib/identity'
 import { resolveFunding } from '@/lib/funding'
+import type { FundAtPrefetchMap } from '@/lib/fund-at-prefetch'
 import { logger } from '@/lib/logger'
 import { runWithConcurrency } from '@/lib/concurrency'
 import type { GatheredAccount, UnresolvedService, ScanWarning } from './account-gather'
@@ -23,6 +24,7 @@ export async function enrichAccounts(
   accounts: Map<string, GatheredAccount>,
   unresolvedServices: UnresolvedService[],
   onEntry?: (entry: StewardEntry) => void,
+  prefetch?: FundAtPrefetchMap,
 ): Promise<EnrichResult> {
   const warnings: ScanWarning[] = []
 
@@ -61,6 +63,7 @@ export async function enrichAccounts(
     const { funding, warning } = await resolveFunding(identity, {
       session,
       extraCatalogKeys: [...stub.hostnames],
+      prefetch,
     })
 
     if (warning) {
@@ -76,7 +79,7 @@ export async function enrichAccounts(
   const unresolvedEntries: StewardEntry[] = []
   for (const svc of unresolvedServices) {
     const identity = buildIdentity({ ref: svc.hostname, isTool: true })
-    const { funding } = await resolveFunding(identity)
+    const { funding } = await resolveFunding(identity, { prefetch })
     const entry: StewardEntry = { ...identity, ...funding, tags: svc.tags }
     unresolvedEntries.push(entry)
     onEntry?.(entry)

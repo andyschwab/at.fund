@@ -13,6 +13,8 @@ import {
   resolveSiteStandardPairs,
   stripDerivedCollections,
 } from '@/lib/repo-collection-resolve'
+import { createFundAtPrefetch } from '@/lib/fund-at-prefetch'
+import type { FundAtPrefetchMap } from '@/lib/fund-at-prefetch'
 import { logger } from '@/lib/logger'
 import type { StewardTag } from '@/lib/steward-model'
 import { PUBLIC_API } from '@/lib/constants'
@@ -60,6 +62,11 @@ export type GatherResult = {
   feedUris: string[]
   /** Labeler DIDs from user prefs (for Phase 3). */
   labelerDids: string[]
+  /**
+   * Speculative fund.at record prefetches fired during Phase 1.
+   * Later phases await these instead of issuing their own fetches.
+   */
+  fundAtPrefetch: FundAtPrefetchMap
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +78,9 @@ function addToAccount(
   did: string,
   tag: StewardTag,
   extra?: { handle?: string; displayName?: string; description?: string; hostname?: string },
+  onNewDid?: (did: string) => void,
 ) {
+  const isNew = !accounts.has(did)
   let stub = accounts.get(did)
   if (!stub) {
     stub = { did, tags: new Set(), hostnames: new Set() }
@@ -82,6 +91,7 @@ function addToAccount(
   if (extra?.displayName && !stub.displayName) stub.displayName = extra.displayName
   if (extra?.description && !stub.description) stub.description = extra.description
   if (extra?.hostname) stub.hostnames.add(extra.hostname)
+  if (isNew) onNewDid?.(did)
 }
 
 /**
@@ -89,9 +99,14 @@ function addToAccount(
  * Used for feed creators and labelers whose tags are derived from confirmed
  * capability data in Phase 3 (capability-scan), not from the discovery source.
  */
-function ensureAccount(accounts: Map<string, GatheredAccount>, did: string) {
+function ensureAccount(
+  accounts: Map<string, GatheredAccount>,
+  did: string,
+  onNewDid?: (did: string) => void,
+) {
   if (!accounts.has(did)) {
     accounts.set(did, { did, tags: new Set(), hostnames: new Set() })
+    onNewDid?.(did)
   }
 }
 
@@ -109,6 +124,10 @@ export async function gatherAccounts(
   const accounts = new Map<string, GatheredAccount>()
   const unresolvedServices: UnresolvedService[] = []
   const warnings: ScanWarning[] = []
+
+  // Fire fund.at record prefetches as we discover DIDs.
+  // Later phases await the promises instead of issuing their own fetches.
+  const { map: fundAtPrefetch, prefetch } = createFundAtPrefetch()
 
   // ── Resolve PDS URL ────────────────────────────────────────────────────
   let pdsUrl: string | undefined
@@ -167,14 +186,14 @@ export async function gatherAccounts(
   await Promise.allSettled(
     [...stewardUris].sort().map(async (stewardUri) => {
       if (stewardUri.startsWith('did:')) {
-        addToAccount(accounts, stewardUri, 'tool')
+        addToAccount(accounts, stewardUri, 'tool', undefined, prefetch)
         return
       }
       // Hostname — try DNS lookup
       try {
         const did = await lookupAtprotoDid(stewardUri)
         if (did) {
-          addToAccount(accounts, did, 'tool', { hostname: stewardUri })
+          addToAccount(accounts, did, 'tool', { hostname: stewardUri }, prefetch)
           return
         }
       } catch (e) {
@@ -208,7 +227,7 @@ export async function gatherAccounts(
           for (const f of res.follows) {
             addToAccount(accounts, f.did, 'follow', {
               handle: f.handle, displayName: f.displayName, description: f.description,
-            })
+            }, prefetch)
           }
           cursor = res.cursor
         } while (cursor)
@@ -232,14 +251,14 @@ export async function gatherAccounts(
         for (const pref of prefs.preferences) {
           if (pref.$type === 'app.bsky.actor.defs#labelersPref' && pref.labelers) {
             labelerDids = pref.labelers.map((l) => l.did)
-            for (const did of labelerDids) ensureAccount(accounts, did)
+            for (const did of labelerDids) ensureAccount(accounts, did, prefetch)
           }
           if (pref.$type === 'app.bsky.actor.defs#savedFeedsPrefV2' && pref.items) {
             feedUris = pref.items.filter((f) => f.type === 'feed').map((f) => f.value)
             // Ensure feed creator DIDs exist; tags derived in Phase 3
             for (const uri of feedUris) {
               const m = uri.match(/^at:\/\/(did:[^/]+)\//)
-              if (m) ensureAccount(accounts, m[1]!)
+              if (m) ensureAccount(accounts, m[1]!, prefetch)
             }
           }
         }
@@ -263,5 +282,5 @@ export async function gatherAccounts(
     },
   })
 
-  return { did: session.did, handle: handle ?? undefined, pdsUrl, accounts, unresolvedServices, warnings, feedUris, labelerDids }
+  return { did: session.did, handle: handle ?? undefined, pdsUrl, accounts, unresolvedServices, warnings, feedUris, labelerDids, fundAtPrefetch }
 }

@@ -120,37 +120,50 @@ async function getClientForDid(
 /**
  * Fetches fund.at.* records for a DID from its PDS.
  * Returns null when no records exist.
+ *
+ * When `pdsUrl` is provided, skips the DID document fetch (saves one round-trip).
+ * The two PDS calls (contribute + dependency) run in parallel.
  */
 export async function fetchFundAtRecords(
   stewardDid: string,
+  pdsUrl?: string,
 ): Promise<FundAtResult | null> {
-  const readClient = await getClientForDid(stewardDid)
+  let readClient: Client | null
+  if (pdsUrl) {
+    readClient = new Client(pdsUrl)
+  } else {
+    readClient = await getClientForDid(stewardDid)
+  }
   if (!readClient) return null
 
   const repo = stewardDid as AtIdentifierString
 
-  let contributeUrl: string | undefined
-  try {
-    const res = await readClient.get(fund.at.contribute, { repo })
-    if (res.value.url) contributeUrl = res.value.url
-  } catch {
-    // optional — record may not exist
-  }
-
-  let dependencies: Array<{ uri: string; label?: string }> | undefined
-  try {
-    const res = await readClient.list(fund.at.dependency, { repo, limit: 100 })
-    const deps: Array<{ uri: string; label?: string }> = []
-    for (const r of res.records) {
-      const uri = r.value.uri?.trim()
-      if (!uri) continue
-      const label = r.value.label?.trim() || undefined
-      deps.push({ uri, label })
-    }
-    if (deps.length > 0) dependencies = deps
-  } catch {
-    // optional
-  }
+  // Run contribute + dependency fetches in parallel
+  const [contributeUrl, dependencies] = await Promise.all([
+    (async (): Promise<string | undefined> => {
+      try {
+        const res = await readClient.get(fund.at.contribute, { repo })
+        return res.value.url || undefined
+      } catch {
+        return undefined
+      }
+    })(),
+    (async (): Promise<Array<{ uri: string; label?: string }> | undefined> => {
+      try {
+        const res = await readClient.list(fund.at.dependency, { repo, limit: 100 })
+        const deps: Array<{ uri: string; label?: string }> = []
+        for (const r of res.records) {
+          const uri = r.value.uri?.trim()
+          if (!uri) continue
+          const label = r.value.label?.trim() || undefined
+          deps.push({ uri, label })
+        }
+        return deps.length > 0 ? deps : undefined
+      } catch {
+        return undefined
+      }
+    })(),
+  ])
 
   if (!contributeUrl && !dependencies) return null
   return { contributeUrl, dependencies }

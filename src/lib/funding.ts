@@ -3,6 +3,7 @@ import type { Identity, Funding } from '@/lib/steward-model'
 import { lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { fetchOwnFundAtRecords, fetchFundAtRecords } from '@/lib/fund-at-records'
+import type { FundAtPrefetchMap } from '@/lib/fund-at-prefetch'
 import { logger } from '@/lib/logger'
 import { mergeDeps } from '@/lib/merge-deps'
 
@@ -46,6 +47,8 @@ export type ResolveFundingOptions = {
   session?: OAuthSession
   /** Additional catalog keys (e.g. tool hostnames from gather phase). */
   extraCatalogKeys?: string[]
+  /** Prefetched fund.at promises from Phase 1 — avoids redundant fetches. */
+  prefetch?: FundAtPrefetchMap
 }
 
 export type ResolveFundingResult = {
@@ -75,6 +78,10 @@ export async function resolveFunding(
       if (options?.session && identity.did === options.session.did) {
         const own = await fetchOwnFundAtRecords(options.session)
         fundAt = own ? { stewardDid: identity.did, ...own } : null
+      } else if (options?.prefetch?.has(identity.did)) {
+        // Use the prefetched promise from Phase 1
+        const result = await options.prefetch.get(identity.did)!
+        fundAt = result ? { stewardDid: identity.did, ...result } : null
       } else {
         fundAt = await fetchFundAtForStewardDid(identity.did)
       }
@@ -115,10 +122,16 @@ export async function resolveFunding(
  */
 export async function resolveFundingForDep(
   identity: Identity,
+  prefetch?: FundAtPrefetchMap,
 ): Promise<Funding> {
   if (identity.did) {
     try {
-      const fundAt = await fetchFundAtRecords(identity.did)
+      let fundAt
+      if (prefetch?.has(identity.did)) {
+        fundAt = await prefetch.get(identity.did)!
+      } else {
+        fundAt = await fetchFundAtRecords(identity.did)
+      }
       if (fundAt) {
         const manual = lookupManualByIdentity(identity)
         return {
@@ -141,6 +154,9 @@ export async function resolveFundingForDep(
 
   return (await resolveFundingFallback(identity)).funding
 }
+
+// Re-export for convenience
+export type { FundAtPrefetchMap } from '@/lib/fund-at-prefetch'
 
 // ---------------------------------------------------------------------------
 // Internal fallback: manual catalog → unknown
