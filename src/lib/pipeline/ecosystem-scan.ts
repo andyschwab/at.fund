@@ -14,8 +14,10 @@ export type EndorsementCounts = {
 
 /** Raw discovery result — URIs that should appear in the ecosystem section. */
 export type EcosystemDiscovery = {
-  /** URI → endorsement counts for every URI we want to show. */
+  /** URI → endorsement counts for every URI we want to show in ecosystem. */
   uris: Map<string, EndorsementCounts>
+  /** URI → endorsement counts for ALL URIs seen in the sample (for display on any card). */
+  allCounts: Map<string, EndorsementCounts>
 }
 
 // ---------------------------------------------------------------------------
@@ -79,13 +81,23 @@ export async function discoverEcosystem(
     })
   }
 
+  // ── Build full counts map for all URIs in the sample ─────────────────
+  const allCounts = new Map<string, EndorsementCounts>()
+  for (const [uri, agg] of aggregation) {
+    allCounts.set(uri, {
+      endorsementCount: agg.sampleCount,
+      networkEndorsementCount: agg.networkDids.size,
+    })
+  }
+
   logger.info('ecosystem: discovery completed', {
     sampleRecords: records.length,
     globalStats: stats ? { creates: stats.creates, didsEstimate: stats.dids_estimate } : null,
     catalogCount: getEcosystemCatalogEntries().length,
     networkDiscovered: [...uris.values()].filter((c) => c.networkEndorsementCount > 0).length,
     totalUris: uris.size,
+    allCountsUris: allCounts.size,
   })
 
-  return { uris }
+  return { uris, allCounts }
 }

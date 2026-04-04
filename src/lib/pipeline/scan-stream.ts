@@ -32,6 +32,7 @@ export type ScanStreamEvent =
   | { type: 'referenced'; entry: StewardEntry }
   | { type: 'pds-host'; funding: PdsHostFunding }
   | { type: 'ecosystem'; entries: EcosystemEntry[] }
+  | { type: 'endorsement-counts'; counts: Record<string, EndorsementCounts> }
   | { type: 'warning'; warning: ScanWarning }
   | { type: 'done' }
 
@@ -84,6 +85,7 @@ export async function scanStreaming(
   // Ecosystem URIs get added to the same accounts/unresolvedServices maps
   // so they flow through Phases 2–4 in a single pass.
   const ecosystemUriCounts = new Map<string, EndorsementCounts>()
+  let globalEndorsementCounts = new Map<string, EndorsementCounts>()
 
   try {
     const discovery = await ecosystemPromise
@@ -97,6 +99,8 @@ export async function scanStreaming(
       const finalDiscovery = followDids.size > 0
         ? await discoverEcosystem(followDids)
         : discovery
+
+      globalEndorsementCounts = finalDiscovery.allCounts
 
       // Build set of URIs already gathered (by DID or hostname)
       const existingUris = new Set<string>()
@@ -212,6 +216,15 @@ export async function scanStreaming(
     if (ecosystemEntries.length > 0) {
       emit({ type: 'ecosystem', entries: ecosystemEntries })
     }
+  }
+
+  // ── Emit endorsement counts for all URIs (so any card can show them) ──
+  if (globalEndorsementCounts.size > 0) {
+    const counts: Record<string, EndorsementCounts> = {}
+    for (const [uri, c] of globalEndorsementCounts) {
+      counts[uri] = c
+    }
+    emit({ type: 'endorsement-counts', counts })
   }
 
   // ── PDS host funding (parallel with nothing — runs last) ───────────────

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import type { ScanStreamEvent, ScanWarning, PdsHostFunding, EcosystemEntry } from '@/lib/pipeline/scan-stream'
+import type { ScanStreamEvent, ScanWarning, PdsHostFunding, EcosystemEntry, EndorsementCounts } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
 import { EntryIndex } from '@/lib/steward-merge'
 import { pdslsRepoUrl } from '@/lib/pdsls'
@@ -36,6 +36,7 @@ type ScanCache = {
   pdsHostFunding: PdsHostFunding | undefined
   endorsedUris: Set<string>
   ecosystemEntries: EcosystemEntry[]
+  endorsementCounts: Record<string, EndorsementCounts>
 }
 
 let _scanCache: ScanCache | null = null
@@ -88,6 +89,7 @@ export function GiveClient() {
   const [pdsHostFunding, setPdsHostFunding] = useState<PdsHostFunding | undefined>()
   const [endorsedUris, setEndorsedUris] = useState<Set<string>>(new Set())
   const [ecosystemEntries, setEcosystemEntries] = useState<EcosystemEntry[]>([])
+  const [endorsementCounts, setEndorsementCounts] = useState<Record<string, EndorsementCounts>>({})
   const [scanDone, setScanDone] = useState(false)
   const [scanStatus, setScanStatus] = useState<string>('')
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
@@ -156,11 +158,28 @@ export function GiveClient() {
     return counts
   }, [discoveredEntries])
 
-  // Ecosystem entries: filter out entries already endorsed (in My Stack)
-  const visibleEcosystemEntries = useMemo(
-    () => ecosystemEntries.filter((e) => !isEndorsed(e, endorsedUris)),
-    [ecosystemEntries, endorsedUris],
-  )
+  // Look up endorsement counts for any entry by URI, DID, or handle
+  const lookupCounts = useCallback((entry: StewardEntry): EndorsementCounts | undefined => {
+    return endorsementCounts[entry.uri]
+      ?? (entry.did ? endorsementCounts[entry.did] : undefined)
+      ?? (entry.handle ? endorsementCounts[entry.handle] : undefined)
+  }, [endorsementCounts])
+
+  // Ecosystem entries: filter out entries already in discover/endorse lists
+  const visibleEcosystemEntries = useMemo(() => {
+    const mainUris = new Set<string>()
+    for (const e of entries) {
+      mainUris.add(e.uri)
+      if (e.did) mainUris.add(e.did)
+      if (e.handle) mainUris.add(e.handle)
+    }
+    return ecosystemEntries.filter(
+      (e) =>
+        !mainUris.has(e.uri) &&
+        !mainUris.has(e.did ?? '') &&
+        !mainUris.has(e.handle ?? ''),
+    )
+  }, [ecosystemEntries, entries])
 
   // Endorse / unendorse handlers
   const handleEndorse = useCallback(async (uri: string) => {
@@ -255,6 +274,7 @@ export function GiveClient() {
     setPdsHostFunding(undefined)
     setEndorsedUris(new Set())
     setEcosystemEntries([])
+    setEndorsementCounts({})
     setErr(null)
     setActiveTag('all')
     entryIndexRef.current = new EntryIndex()
@@ -307,6 +327,8 @@ export function GiveClient() {
             setPdsHostFunding(event.funding)
           } else if (event.type === 'ecosystem') {
             setEcosystemEntries(event.entries)
+          } else if (event.type === 'endorsement-counts') {
+            setEndorsementCounts(event.counts)
           } else if (event.type === 'warning') {
             setWarnings((prev) => [...prev, event.warning])
           } else if (event.type === 'done') {
@@ -332,7 +354,7 @@ export function GiveClient() {
   // Save completed scan to cache
   useEffect(() => {
     if (!scanDone) return
-    _scanCache = { meta, entries, referencedEntries, warnings, pdsHostFunding, endorsedUris, ecosystemEntries }
+    _scanCache = { meta, entries, referencedEntries, warnings, pdsHostFunding, endorsedUris, ecosystemEntries, endorsementCounts }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanDone])
 
@@ -346,6 +368,7 @@ export function GiveClient() {
       setPdsHostFunding(_scanCache.pdsHostFunding)
       setEndorsedUris(_scanCache.endorsedUris)
       setEcosystemEntries(_scanCache.ecosystemEntries)
+      setEndorsementCounts(_scanCache.endorsementCounts)
       setScanDone(true)
       return
     }
@@ -450,18 +473,23 @@ export function GiveClient() {
                     funding={pdsHostFunding}
                   />
                 )}
-                {endorsedEntries.map((entry) => (
-                  <StewardCard
-                    key={entry.uri}
-                    entry={entry}
-                    allEntries={allEntriesForLookup}
-                    endorsed
-                    endorsedSet={endorsedUris}
-                    onEndorse={handleEndorse}
-                    onUnendorse={handleUnendorse}
-                    compact
-                  />
-                ))}
+                {endorsedEntries.map((entry) => {
+                  const counts = lookupCounts(entry)
+                  return (
+                    <StewardCard
+                      key={entry.uri}
+                      entry={entry}
+                      allEntries={allEntriesForLookup}
+                      endorsed
+                      endorsedSet={endorsedUris}
+                      onEndorse={handleEndorse}
+                      onUnendorse={handleUnendorse}
+                      compact
+                      endorsementCount={counts?.endorsementCount}
+                      networkEndorsementCount={counts?.networkEndorsementCount}
+                    />
+                  )
+                })}
               </ul>
             )}
 
@@ -577,17 +605,22 @@ export function GiveClient() {
               {/* Flat entry list — compact rows in a shared container */}
               {filteredEntries.length > 0 && (
                 <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-                  {filteredEntries.map((entry) => (
-                    <StewardCard
-                      key={entry.uri}
-                      entry={entry}
-                      allEntries={allEntriesForLookup}
-                      endorsedSet={endorsedUris}
-                      onEndorse={handleEndorse}
-                      onUnendorse={handleUnendorse}
-                      compact
-                    />
-                  ))}
+                  {filteredEntries.map((entry) => {
+                    const counts = lookupCounts(entry)
+                    return (
+                      <StewardCard
+                        key={entry.uri}
+                        entry={entry}
+                        allEntries={allEntriesForLookup}
+                        endorsedSet={endorsedUris}
+                        onEndorse={handleEndorse}
+                        onUnendorse={handleUnendorse}
+                        compact
+                        endorsementCount={counts?.endorsementCount}
+                        networkEndorsementCount={counts?.networkEndorsementCount}
+                      />
+                    )
+                  })}
                 </ul>
               )}
               {filteredEntries.length === 0 && discoveredEntries.length === 0 && loading && (
