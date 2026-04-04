@@ -21,15 +21,11 @@ import { logger } from '@/lib/logger'
 export type { ScanWarning }
 export type { EndorsementCounts }
 
-export type EcosystemEntry = StewardEntry & EndorsementCounts
-
 export type ScanStreamEvent =
   | { type: 'meta'; did: string; handle?: string; pdsUrl?: string }
   | { type: 'status'; message: string }
   | { type: 'endorsed'; uris: string[] }
   | { type: 'entry'; entry: StewardEntry }
-  | { type: 'referenced'; entry: StewardEntry }
-  | { type: 'ecosystem'; entries: EcosystemEntry[] }
   | { type: 'endorsement-counts'; counts: Record<string, EndorsementCounts> }
   | { type: 'warning'; warning: ScanWarning }
   | { type: 'done' }
@@ -150,8 +146,7 @@ export async function scanStreaming(
     gathered.accounts,
     gathered.unresolvedServices,
     (entry) => {
-      const isEcosystemOnly = entry.tags.length === 1 && entry.tags[0] === 'ecosystem'
-      if (entry.tags.length > 0 && !isEcosystemOnly) {
+      if (entry.tags.length > 0) {
         emit({ type: 'entry', entry })
       }
     },
@@ -177,30 +172,8 @@ export async function scanStreaming(
   // ── Phase 4: Dependencies ──────────────────────────────────────────────
   emit({ type: 'status', message: 'Resolving dependencies…' })
   await resolveDependencies(allEntries, (entry) => {
-    emit({ type: 'referenced', entry })
+    emit({ type: 'entry', entry })
   })
-
-  // ── Extract ecosystem entries and emit with endorsement counts ─────────
-  if (ecosystemUriCounts.size > 0) {
-    const ecosystemEntries: EcosystemEntry[] = []
-    for (const entry of allEntries) {
-      if (!entry.tags.includes('ecosystem')) continue
-
-      const counts = ecosystemUriCounts.get(entry.uri)
-        ?? (entry.did ? ecosystemUriCounts.get(entry.did) : undefined)
-        ?? { endorsementCount: 0, networkEndorsementCount: 0 }
-
-      ecosystemEntries.push({ ...entry, ...counts })
-    }
-
-    ecosystemEntries.sort(
-      (a, b) => b.endorsementCount - a.endorsementCount || a.uri.localeCompare(b.uri),
-    )
-
-    if (ecosystemEntries.length > 0) {
-      emit({ type: 'ecosystem', entries: ecosystemEntries })
-    }
-  }
 
   // ── Emit endorsement counts for ALL entries (from the single-pass map) ─
   const allCounts: Record<string, EndorsementCounts> = {}

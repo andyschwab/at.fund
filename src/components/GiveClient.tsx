@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import type { ScanStreamEvent, ScanWarning, EcosystemEntry, EndorsementCounts } from '@/lib/pipeline/scan-stream'
+import type { ScanStreamEvent, ScanWarning, EndorsementCounts } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
 import { EntryIndex } from '@/lib/steward-merge'
 import { pdslsRepoUrl } from '@/lib/pdsls'
@@ -16,8 +16,6 @@ import {
   BadgePlus,
   CheckCircle2,
   ExternalLink,
-
-  PlusCircle,
   RefreshCw,
 } from 'lucide-react'
 
@@ -28,10 +26,8 @@ import {
 type ScanCache = {
   meta: { did: string; handle?: string; pdsUrl?: string } | null
   entries: StewardEntry[]
-  referencedEntries: StewardEntry[]
   warnings: ScanWarning[]
   endorsedUris: Set<string>
-  ecosystemEntries: EcosystemEntry[]
   endorsementCounts: Record<string, EndorsementCounts>
 }
 
@@ -77,13 +73,11 @@ export function GiveClient() {
   const [err, setErr] = useState<string | null>(null)
   const [hasOwnRecords, setHasOwnRecords] = useState<boolean | null>(null)
 
-  // Streaming scan state
+  // Streaming scan state — single unified EntryIndex holds all entries
   const [meta, setMeta] = useState<{ did: string; handle?: string; pdsUrl?: string } | null>(null)
   const [entries, setEntries] = useState<StewardEntry[]>([])
-  const [referencedEntries, setReferencedEntries] = useState<StewardEntry[]>([])
   const [warnings, setWarnings] = useState<ScanWarning[]>([])
   const [endorsedUris, setEndorsedUris] = useState<Set<string>>(new Set())
-  const [ecosystemEntries, setEcosystemEntries] = useState<EcosystemEntry[]>([])
   const [endorsementCounts, setEndorsementCounts] = useState<Record<string, EndorsementCounts>>({})
   const [scanDone, setScanDone] = useState(false)
   const [scanStatus, setScanStatus] = useState<string>('')
@@ -108,10 +102,8 @@ export function GiveClient() {
     }
   }, [sessionDid])
 
-  const allEntriesForLookup = useMemo(
-    () => [...entries, ...referencedEntries, ...ecosystemEntries],
-    [entries, referencedEntries, ecosystemEntries],
-  )
+  // All entries live in a single deduped index — no separate arrays needed
+  const allEntriesForLookup = entries
 
   // PDS-host entries are pinned to My Stack — exclude from the main discovered list
   const pdsEntries = useMemo(
@@ -119,12 +111,17 @@ export function GiveClient() {
     [entries],
   )
 
-  // Inclusion rule: tools/labelers/feeds always; follows only if actionable; pds-host excluded (pinned separately)
+  // Inclusion rule: tools/labelers/feeds always; follows only if actionable;
+  // pds-host excluded (pinned separately); ecosystem-only excluded (own tab)
+  const isEcosystemOnly = (e: StewardEntry) =>
+    e.tags.includes('ecosystem') && !e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed' || t === 'follow')
+
   const visibleEntries = useMemo(() => {
     const lookup = (uri: string) => allEntriesForLookup.find((e) => e.uri === uri)
     const included = entries.filter(
       (e) =>
         !e.tags.includes('pds-host') &&
+        !isEcosystemOnly(e) &&
         (e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') ||
           (e.tags.includes('follow') && !!e.contributeUrl)),
     )
@@ -168,21 +165,17 @@ export function GiveClient() {
       ?? (entry.handle ? endorsementCounts[entry.handle] : undefined)
   }, [endorsementCounts])
 
-  // Ecosystem entries: filter out entries already in discover/endorse lists
+  // Ecosystem entries: entries with 'ecosystem' tag that aren't in the discover list
   const visibleEcosystemEntries = useMemo(() => {
-    const mainUris = new Set<string>()
-    for (const e of entries) {
-      mainUris.add(e.uri)
-      if (e.did) mainUris.add(e.did)
-      if (e.handle) mainUris.add(e.handle)
-    }
-    return ecosystemEntries.filter(
-      (e) =>
-        !mainUris.has(e.uri) &&
-        !mainUris.has(e.did ?? '') &&
-        !mainUris.has(e.handle ?? ''),
-    )
-  }, [ecosystemEntries, entries])
+    const discoverUris = new Set(visibleEntries.map((e) => e.uri))
+    return entries
+      .filter((e) => isEcosystemOnly(e) && !discoverUris.has(e.uri))
+      .sort((a, b) => {
+        const ca = lookupCounts(a)?.networkEndorsementCount ?? 0
+        const cb = lookupCounts(b)?.networkEndorsementCount ?? 0
+        return cb - ca || a.uri.localeCompare(b.uri)
+      })
+  }, [entries, visibleEntries, lookupCounts])
 
   // Endorse / unendorse handlers
   const handleEndorse = useCallback(async (uri: string) => {
@@ -256,9 +249,12 @@ export function GiveClient() {
       if (data.entry.did && data.entry.did !== uri) {
         setEndorsedUris((prev) => new Set([...prev, data.entry.did!]))
       }
-      // Add referenced deps for drill-down
+      // Upsert referenced deps into the same index for drill-down lookup
+      for (const ref of data.referenced) {
+        entryIndexRef.current.upsert(ref)
+      }
       if (data.referenced.length > 0) {
-        setReferencedEntries((prev) => [...prev, ...data.referenced])
+        setEntries(entryIndexRef.current.toArray())
       }
     } catch (e) {
       console.warn('endorseAndFetch failed', e)
@@ -272,10 +268,8 @@ export function GiveClient() {
     setScanStatus('')
     setMeta(null)
     setEntries([])
-    setReferencedEntries([])
     setWarnings([])
     setEndorsedUris(new Set())
-    setEcosystemEntries([])
     setEndorsementCounts({})
     setErr(null)
     setActiveTag('all')
@@ -323,10 +317,6 @@ export function GiveClient() {
           } else if (event.type === 'entry') {
             entryIndexRef.current.upsert(event.entry)
             setEntries(entryIndexRef.current.toArray())
-          } else if (event.type === 'referenced') {
-            setReferencedEntries((prev) => [...prev, event.entry])
-          } else if (event.type === 'ecosystem') {
-            setEcosystemEntries(event.entries)
           } else if (event.type === 'endorsement-counts') {
             setEndorsementCounts(event.counts)
           } else if (event.type === 'warning') {
@@ -354,7 +344,7 @@ export function GiveClient() {
   // Save completed scan to cache
   useEffect(() => {
     if (!scanDone) return
-    _scanCache = { meta, entries, referencedEntries, warnings, endorsedUris, ecosystemEntries, endorsementCounts }
+    _scanCache = { meta, entries, warnings, endorsedUris, endorsementCounts }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanDone])
 
@@ -363,10 +353,8 @@ export function GiveClient() {
     if (_scanCache) {
       setMeta(_scanCache.meta)
       setEntries(_scanCache.entries)
-      setReferencedEntries(_scanCache.referencedEntries)
       setWarnings(_scanCache.warnings)
       setEndorsedUris(_scanCache.endorsedUris)
-      setEcosystemEntries(_scanCache.ecosystemEntries)
       setEndorsementCounts(_scanCache.endorsementCounts)
       setScanDone(true)
       return
@@ -672,17 +660,20 @@ export function GiveClient() {
               </p>
               {visibleEcosystemEntries.length > 0 ? (
                 <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-                  {visibleEcosystemEntries.map((entry) => (
-                    <StewardCard
-                      key={entry.uri}
-                      entry={entry}
-                      allEntries={allEntriesForLookup}
-                      endorsedSet={endorsedUris}
-                      onEndorse={handleEndorse}
-                      onUnendorse={handleUnendorse}
-                      networkEndorsementCount={entry.networkEndorsementCount}
-                    />
-                  ))}
+                  {visibleEcosystemEntries.map((entry) => {
+                    const counts = lookupCounts(entry)
+                    return (
+                      <StewardCard
+                        key={entry.uri}
+                        entry={entry}
+                        allEntries={allEntriesForLookup}
+                        endorsedSet={endorsedUris}
+                        onEndorse={handleEndorse}
+                        onUnendorse={handleUnendorse}
+                        networkEndorsementCount={counts?.networkEndorsementCount}
+                      />
+                    )
+                  })}
                 </ul>
               ) : scanDone ? (
                 <p className="text-sm text-slate-600 dark:text-slate-400">
