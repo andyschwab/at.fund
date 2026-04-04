@@ -1,21 +1,13 @@
 import { Client } from '@atproto/lex'
-import { fetchFundAtRecords } from '@/lib/fund-at-records'
+import type { StewardEntry } from '@/lib/steward-model'
+import { buildIdentity } from '@/lib/identity'
+import { resolveFundingForDep } from '@/lib/funding'
 import { xrpcQuery } from '@/lib/xrpc'
-import { lookupManualStewardRecord } from '@/lib/catalog'
 import { logger } from '@/lib/logger'
 import { PUBLIC_API } from '@/lib/constants'
 import { runWithConcurrency } from '@/lib/concurrency'
 
 const CONCURRENCY = 10
-
-export type FollowedAccountCard = {
-  did: string
-  handle?: string
-  displayName?: string
-  description?: string
-  landingPage?: string
-  contributeUrl?: string
-}
 
 type FollowRef = {
   did: string
@@ -24,52 +16,33 @@ type FollowRef = {
   description?: string
 }
 
-async function checkFollowForFundAt(
+async function resolveFollowEntry(
   follow: FollowRef,
-): Promise<FollowedAccountCard | null> {
-  const { did, handle, displayName, description } = follow
+): Promise<StewardEntry | null> {
+  const identity = buildIdentity({
+    ref: follow.handle ?? follow.did,
+    did: follow.did,
+    handle: follow.handle,
+    displayName: follow.displayName,
+    description: follow.description,
+  })
 
-  // Try fund.at records from the follow's own PDS
-  try {
-    const fundAt = await fetchFundAtRecords(did)
-    if (fundAt?.contributeUrl) {
-      return {
-        did,
-        handle,
-        displayName,
-        description,
-        contributeUrl: fundAt.contributeUrl,
-      }
-    }
-  } catch {
-    // fund.at fetch failed — fall through to manual catalog
-  }
+  const funding = await resolveFundingForDep(identity)
 
-  // Fall back to manual catalog by handle
-  if (handle) {
-    const manual = lookupManualStewardRecord(handle)
-    if (manual?.contributeUrl) {
-      return {
-        did,
-        handle,
-        displayName,
-        description,
-        contributeUrl: manual.contributeUrl,
-      }
-    }
-  }
+  // Only return follows that have a contribute URL
+  if (!funding.contributeUrl) return null
 
-  return null
+  return { ...identity, ...funding, tags: ['follow'] }
 }
 
 /**
  * Fetches the user's follow list and checks each for fund.at.contribute records,
  * falling back to the manual catalog.
- * Returns only followed accounts that have a contribute URL.
+ * Returns only followed accounts that have a contribute URL, as StewardEntries.
  */
 export async function scanFollows(
   did: string,
-): Promise<FollowedAccountCard[]> {
+): Promise<StewardEntry[]> {
   const publicClient = new Client(PUBLIC_API)
 
   // Paginate through follows
@@ -104,7 +77,7 @@ export async function scanFollows(
 
   const results = await runWithConcurrency(follows, CONCURRENCY, async (follow) => {
     try {
-      return await checkFollowForFundAt(follow)
+      return await resolveFollowEntry(follow)
     } catch (e) {
       logger.warn('follow-scan: error checking follow', {
         did: follow.did,
@@ -114,23 +87,16 @@ export async function scanFollows(
     }
   })
 
-  const cards = results.filter((r): r is FollowedAccountCard => r !== null)
+  const entries = results.filter((r): r is StewardEntry => r !== null)
 
-  // Sort: accounts with contribute URL first, then alphabetically
-  cards.sort((a, b) => {
-    const aHas = !!a.contributeUrl
-    const bHas = !!b.contributeUrl
-    if (aHas !== bHas) return aHas ? -1 : 1
-    const aName = a.displayName ?? a.handle ?? a.did
-    const bName = b.displayName ?? b.handle ?? b.did
-    return aName.localeCompare(bName)
-  })
+  // Sort: alphabetically by display name
+  entries.sort((a, b) => a.displayName.localeCompare(b.displayName))
 
   logger.info('follow-scan: completed', {
     did,
     followsChecked: follows.length,
-    withFundAt: cards.length,
+    withFundAt: entries.length,
   })
 
-  return cards
+  return entries
 }

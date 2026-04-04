@@ -24,23 +24,68 @@ and import.
 | `AvatarBadge` component | 2 components → `components/AvatarBadge.tsx` | **done** |
 | `cardType()` + `LINK_VARIANT` | 2 card files → `components/card-utils.ts` | **done** |
 
-## 2. Edge Cases Masking Missing General Abstractions
+## 2. Canonical Type System & Resolution Layer
 
-These require design decisions — the same question is answered differently in
-multiple places.
+Previously, the same identity resolution question was answered differently in
+6+ places (display name heuristic, URI preference, landing page derivation,
+funding chain, profile batch fetch). This was caused by a flat `StewardEntry`
+type used at every lifecycle stage, plus 5 ad-hoc types (`AccountStub`,
+`FollowedAccountCard`, `Actor`, `DisplayInfo`, `UnresolvedService`) all
+representing "an AT Protocol identity."
 
-| Pattern | Occurrences | Notes |
-|---------|-------------|-------|
-| Display name vs DID heuristic | 5 implementations | Should be one `isHumanReadableName()` function |
-| URI preference / fallback chains | 3 approaches | `steward-merge`, `entry-resolve`, `account-enrich` each pick differently |
-| Landing page URL derivation | 3 places | "If not tool and has handle → bsky.app/profile/{handle}" |
-| "Own records" auth branch | 3 occurrences | `if (stewardDid === session.did)` fork |
-| Multi-key catalog lookup | 2 approaches | Chained `??` vs dedicated `lookupByAllKeys()` |
-| Tiering / priority systems | 4 implementations | `SOURCE_PRIORITY`, `stewardTier`, `entryTier`, `depRowTier` |
-| Entry resolution pattern | 3 modules | fund.at → manual → unknown fallback |
-| Profile batch-fetch loop | 6 occurrences | Same `for` loop with `getProfiles` |
+### Canonical Types (new)
 
-## 3. Component Architecture Issues
+| Type | Location | Purpose |
+|------|----------|---------|
+| `Identity` | `lib/steward-model.ts` | Resolved presentation: uri, did, handle, displayName, avatar, landingPage |
+| `Funding` | `lib/steward-model.ts` | How to contribute: source, contributeUrl, dependencies |
+| `StewardEntry` | `lib/steward-model.ts` | `Identity & Funding & { tags, capabilities }` — backwards-compatible composition |
+| `ProfileData` | `lib/steward-model.ts` | Raw profile fields from batch fetch |
+
+### Resolution Layer (new)
+
+| Function | Location | Replaces |
+|----------|----------|----------|
+| `buildIdentity(input)` | `lib/identity.ts` | 6 ad-hoc display name + URI + landing page derivations |
+| `isHumanReadableName(name)` | `lib/identity.ts` | 6 `!name.startsWith('did:')` checks |
+| `batchFetchProfiles(dids)` | `lib/identity.ts` | 4 identical batch-fetch loops |
+| `resolveRefToDid(ref)` | `lib/identity.ts` | 3 separate handle/DNS resolution paths |
+| `resolveIdentity(ref)` | `lib/identity.ts` | Convenience composition for single-entry resolution |
+| `resolveFunding(identity)` | `lib/funding.ts` | 4 fund.at → manual → unknown chains |
+| `resolveFundingForDep(identity)` | `lib/funding.ts` | Public (no-auth) variant for dependency resolution |
+| `lookupManualByIdentity(identity)` | `lib/funding.ts` | 3 multi-key catalog lookup implementations |
+
+### Types Eliminated
+
+| Old Type | Replaced By | Status |
+|----------|-------------|--------|
+| `FollowedAccountCard` | `StewardEntry` (follow-scan returns entries directly) | **done** |
+| `DisplayInfo` | `buildIdentity` input | **done** |
+| `followedAccountToEntry()` | No longer needed | **done** |
+| `lookupByAllKeys()` | `lookupManualByIdentity()` | **done** |
+
+### Pipeline Refactored
+
+| Module | Change | Status |
+|--------|--------|--------|
+| `account-enrich.ts` | Uses `buildIdentity` + `resolveFunding` | **done** |
+| `entry-resolve.ts` | Uses `resolveIdentity` + `resolveFunding` | **done** |
+| `dep-resolve.ts` | Uses `buildIdentity` + `resolveRefToDid` + `resolveFundingForDep` | **done** |
+| `follow-scan.ts` | Uses `buildIdentity` + `resolveFundingForDep`, returns `StewardEntry[]` | **done** |
+| `subscriptions-scan.ts` | Uses `buildIdentity` + `resolveFunding` + `batchFetchProfiles` | **done** |
+| `steward-merge.ts` | Uses `isHumanReadableName`, simplified `mergeIntoEntries(...lists)` | **done** |
+
+## 3. Remaining Opportunities
+
+### Migrate lexicon-scan.ts to pipeline
+
+`lexicon-scan.ts` still has its own inline resolution chain (fund.at → manual →
+unknown) in both `scanRepo()` and `scanRepoStreaming()`. These should be
+migrated to use the resolution layer. This is blocked on the GiveClient
+decomposition (Phase 3) which would replace the streaming scan with the
+pipeline phases.
+
+### Component Architecture
 
 | Issue | Location | Severity |
 |-------|----------|----------|
@@ -49,29 +94,18 @@ multiple places.
 | Three independent avatar implementations | `src/components/` | Low |
 | Card actions duplicated in StewardCard + ModalCardContent | `src/components/` | Low |
 
-## 4. Type Consolidation Opportunities
+### Type Consolidation
 
 | Redundant types | Location |
 |-----------------|----------|
-| `AccountStub`, `FollowedAccountCard`, `Actor` | 3 files, all represent "an AT Proto account" |
+| `AccountStub` still used in gather phase | Could adopt `Identity` with tag/hostname metadata |
+| `Actor` in AvatarBadge | Small UI-specific type (handle required); acceptable |
 | Multiple endorsement representations | `EndorsementCounts`, `EndorsementResult`, `EndorsementMap` |
 
-## 5. Recommended Refactoring Order
+### Recommended Next Steps
 
-### Phase 1: Mechanical extractions (no logic changes) ← **current**
-Extract shared constants and utility functions. Zero risk.
-
-### Phase 2: Unified helpers (small logic consolidation)
-- `isHumanReadableName(name, did)` — replaces 5 ad-hoc checks
-- `bestUri(hostname, handle, did)` — replaces 3 fallback chains
-- `landingPageFor(entry)` — replaces 3 copy-paste blocks
-- `batchFetchProfiles()` — replaces 6 identical loops
-
-### Phase 3: Component decomposition
-- Decompose `GiveClient` into `useScanStream` hook + focused sub-components
-- Extract shared `useTypeahead` hook from autocomplete components
-- Create shared `CardActions` component
-
-### Phase 4: Type unification
-- Canonical `AccountIdentity` type replacing 3 ad-hoc types
-- Unified tiering/priority system
+1. **Migrate lexicon-scan.ts** inline resolution to use `buildIdentity` + `resolveFunding`
+2. **Decompose GiveClient** into `useScanStream` hook + focused sub-components
+3. **Extract shared `useTypeahead`** hook from autocomplete components
+4. **Unify tiering/priority systems** (`SOURCE_PRIORITY`, `stewardTier`, `entryTier`, `depRowTier`)
+5. **Replace `AccountStub`** with `Identity` + gather metadata wrapper

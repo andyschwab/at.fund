@@ -8,8 +8,7 @@ import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { fetchOwnFundAtRecords, resolvePdsUrl } from '@/lib/fund-at-records'
 import type { StewardEntry } from '@/lib/steward-model'
 import { scanFollows } from '@/lib/follow-scan'
-import type { FollowedAccountCard } from '@/lib/follow-scan'
-import { mergeIntoEntries, referencedStewardsToEntries, followedAccountToEntry } from '@/lib/steward-merge'
+import { mergeIntoEntries, referencedStewardsToEntries } from '@/lib/steward-merge'
 import { scanSubscriptions } from '@/lib/subscriptions-scan'
 import {
   getBlueskyHandleFallback,
@@ -42,8 +41,6 @@ async function resolveSessionPdsUrl(
     return null
   }
 }
-
-export type { FollowedAccountCard }
 
 export type ScanWarning = {
   stewardUri: string
@@ -211,7 +208,7 @@ export async function scanRepo(
 
   // Run PDS host, follow scan, and subscriptions scan in parallel
   let pdsEntry: StewardEntry | undefined
-  let followedAccounts: FollowedAccountCard[] = []
+  let followEntries: StewardEntry[] = []
   let subscriptionEntries: StewardEntry[] = []
 
   const pdsHostPromise = (async () => {
@@ -243,7 +240,7 @@ export async function scanRepo(
 
   const followsPromise = (async () => {
     try {
-      followedAccounts = await scanFollows(session.did)
+      followEntries = await scanFollows(session.did)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Follow scan failed'
       logger.warn('scan: follow scan failed', { did: session.did, error: msg })
@@ -281,7 +278,7 @@ export async function scanRepo(
     did: session.did,
     handle,
     pdsUrl: pdsUrl?.origin,
-    entries: mergeIntoEntries(allStewards, followedAccounts, subscriptionEntries),
+    entries: mergeIntoEntries(allStewards, followEntries, subscriptionEntries),
     referencedEntries: referencedStewardsToEntries(referencedStewards),
     warnings,
   }
@@ -474,9 +471,9 @@ export async function scanRepoStreaming(
     })(),
     (async () => {
       try {
-        const followedAccounts = await scanFollows(session.did)
-        for (const account of followedAccounts) {
-          emit({ type: 'entry', entry: followedAccountToEntry(account) })
+        const followEntries = await scanFollows(session.did)
+        for (const entry of followEntries) {
+          emit({ type: 'entry', entry })
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Follow scan failed'
