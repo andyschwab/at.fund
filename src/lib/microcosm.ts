@@ -60,10 +60,13 @@ async function fetchEndorserDids(
         { headers: HEADERS },
       )
       if (!res.ok) {
-        logger.warn('constellation: getDistinct failed', {
-          subject: targetUri,
-          status: res.status,
-        })
+        // 404 = no records for this target (expected for most entries)
+        if (res.status !== 404) {
+          logger.warn('constellation: getDistinct failed', {
+            subject: targetUri,
+            status: res.status,
+          })
+        }
         break
       }
 
