@@ -171,6 +171,18 @@ export function HandleBadge({ handle, did }: { handle?: string; did?: string }) 
 // CapabilitiesSection
 // ---------------------------------------------------------------------------
 
+const CAP_ICON: Record<Capability['type'], string> = {
+  feed: '📰',
+  labeler: '🏷️',
+  pds: '🖥️',
+}
+
+const CAP_LABEL: Record<Capability['type'], string> = {
+  feed: 'Feed',
+  labeler: 'Labeler',
+  pds: 'Personal Data Server',
+}
+
 export function CapabilitiesSection({ capabilities }: { capabilities: Capability[] }) {
   if (capabilities.length === 0) return null
   return (
@@ -179,28 +191,47 @@ export function CapabilitiesSection({ capabilities }: { capabilities: Capability
         Provides
       </p>
       <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-        {capabilities.map((cap) => {
-          const icon = cap.type === 'feed' ? '📰' : '🏷️'
-          return (
-            <div key={cap.uri ?? `${cap.type}:${cap.name}`} className="flex items-center gap-2 py-1.5">
-              <span className="shrink-0 text-sm" aria-hidden>{icon}</span>
-              <span className="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300">
-                {cap.landingPage ? (
-                  <a
-                    href={cap.landingPage}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-900 dark:decoration-slate-600 dark:hover:text-slate-100"
-                  >
-                    {cap.name}
-                  </a>
-                ) : (
-                  cap.name
-                )}
-              </span>
+        {capabilities.map((cap) => (
+          <div key={cap.uri ?? `${cap.type}:${cap.name}`} className="flex items-center gap-2 py-1.5">
+            <span className="shrink-0 text-sm" aria-hidden>{CAP_ICON[cap.type]}</span>
+            <div className="min-w-0 flex-1">
+              {cap.type === 'pds' ? (
+                <span className="flex flex-wrap items-baseline gap-x-1.5">
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {CAP_LABEL.pds}
+                  </span>
+                  {cap.landingPage ? (
+                    <a
+                      href={cap.landingPage}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="truncate text-xs text-slate-700 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-900 dark:text-slate-300 dark:decoration-slate-600 dark:hover:text-slate-100"
+                    >
+                      {cap.name}
+                    </a>
+                  ) : (
+                    <span className="truncate text-xs text-slate-700 dark:text-slate-300">{cap.name}</span>
+                  )}
+                </span>
+              ) : (
+                <span className="truncate text-xs text-slate-700 dark:text-slate-300">
+                  {cap.landingPage ? (
+                    <a
+                      href={cap.landingPage}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-900 dark:decoration-slate-600 dark:hover:text-slate-100"
+                    >
+                      {cap.name}
+                    </a>
+                  ) : (
+                    cap.name
+                  )}
+                </span>
+              )}
             </div>
-          )
-        })}
+          </div>
+        ))}
       </div>
     </div>
   )

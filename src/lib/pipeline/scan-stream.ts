@@ -104,8 +104,11 @@ export async function scanStreaming(
     emit({ type: 'referenced', entry })
   })
 
-  // ── PDS host funding (parallel with nothing — runs last) ───────────────
-  if (gathered.pdsUrl) {
+  // ── PDS host funding — fallback for unresolved operators ─────────────
+  // If the PDS hostname chain resolved to a known operator account, it already
+  // flowed through the main pipeline as a tool entry with a pds capability.
+  // Only fall back to the legacy pds-host path for unrecognised PDSes.
+  if (gathered.pdsUrl && !gathered.pdsOperatorResolved) {
     try {
       const funding = await fetchFundingForUriLike(gathered.pdsUrl)
       if (funding) emit({ type: 'pds-host', funding })

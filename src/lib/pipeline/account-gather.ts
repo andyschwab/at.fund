@@ -29,6 +29,8 @@ export type AccountStub = {
   tags: Set<StewardTag>
   /** Tool hostnames associated with this DID (for catalog lookup). */
   hostnames: Set<string>
+  /** PDS entryway hostname if this stub was discovered via PDS host resolution (e.g. 'bsky.social'). */
+  pdsEntryway?: string
 }
 
 export type UnresolvedService = {
@@ -46,6 +48,8 @@ export type GatherResult = {
   did: string
   handle?: string
   pdsUrl?: string
+  /** True if the PDS host was resolved to an operator account via the resolver chain. */
+  pdsOperatorResolved: boolean
   accounts: Map<string, AccountStub>
   unresolvedServices: UnresolvedService[]
   warnings: ScanWarning[]
@@ -118,6 +122,41 @@ export async function gatherAccounts(
       const url = await resolvePdsUrl(session.did)
       if (url) pdsUrl = url.origin
     } catch { /* ignore */ }
+  }
+
+  // ── Resolve PDS operator via resolver chain ────────────────────────────
+  // Chain: physical host (lionsmane.us-east.host.bsky.network)
+  //   → matchSuffix resolver → entryway (bsky.social)
+  //   → matchPrefix resolver → operator (bsky.app)
+  //   → DNS lookup → operator DID
+  if (pdsUrl) {
+    try {
+      const physicalHostname = new URL(pdsUrl).hostname
+      const entryway = resolveStewardUri(physicalHostname)
+      if (entryway && entryway !== physicalHostname) {
+        const operator = resolveStewardUri(entryway) ?? entryway
+        try {
+          const operatorDid = await lookupAtprotoDid(operator)
+          if (operatorDid) {
+            const stub = accounts.get(operatorDid) ?? {
+              did: operatorDid, tags: new Set<StewardTag>(), hostnames: new Set<string>(),
+            }
+            stub.tags.add('pds-host')
+            stub.hostnames.add(operator)
+            stub.pdsEntryway = entryway
+            accounts.set(operatorDid, stub)
+          }
+        } catch (e) {
+          logger.warn('gather: PDS operator DNS lookup failed', {
+            operator, error: e instanceof Error ? e.message : String(e),
+          })
+        }
+      }
+    } catch (e) {
+      logger.warn('gather: PDS operator resolution failed', {
+        pdsUrl, error: e instanceof Error ? e.message : String(e),
+      })
+    }
   }
 
   // ── Describe repo ──────────────────────────────────────────────────────
@@ -258,5 +297,6 @@ export async function gatherAccounts(
     },
   })
 
-  return { did: session.did, handle: handle ?? undefined, pdsUrl, accounts, unresolvedServices, warnings, feedUris, labelerDids }
+  const pdsOperatorResolved = [...accounts.values()].some((s) => s.tags.has('pds-host'))
+  return { did: session.did, handle: handle ?? undefined, pdsUrl, pdsOperatorResolved, accounts, unresolvedServices, warnings, feedUris, labelerDids }
 }

@@ -6,10 +6,13 @@ import { normalizeStewardUri } from '@/lib/steward-uri'
 type ManualRecord = {
   contributeUrl?: string
   dependencies?: string[]
+  /** PDS entryway hostnames this operator provides (e.g. ["bsky.social"]). */
+  pdsHostnames?: string[]
 }
 
 type ResolverOverride = {
-  matchPrefix: string
+  matchPrefix?: string
+  matchSuffix?: string
   stewardUri: string
 }
 
@@ -50,12 +53,25 @@ function inferHostnameFromNsidLike(value: string): string | null {
 
 function overrideForObservedKey(observedKey: string): string | null {
   let best: ResolverOverride | null = null
+  let bestLen = -1
+
   for (const o of resolverCatalog.overrides ?? []) {
-    const p = normalizePrefix(o.matchPrefix)
-    if (observedKey === o.matchPrefix || observedKey.startsWith(p)) {
-      if (!best || p.length > normalizePrefix(best.matchPrefix).length) best = o
+    if (o.matchPrefix !== undefined) {
+      const p = normalizePrefix(o.matchPrefix)
+      if (observedKey === o.matchPrefix || observedKey.startsWith(p)) {
+        if (p.length > bestLen) { best = o; bestLen = p.length }
+      }
+    }
+    if (o.matchSuffix !== undefined) {
+      const bare = o.matchSuffix.startsWith('.') ? o.matchSuffix.slice(1) : o.matchSuffix
+      const dotted = o.matchSuffix.startsWith('.') ? o.matchSuffix : `.${o.matchSuffix}`
+      if (observedKey === bare || observedKey.endsWith(dotted)) {
+        // Prefer longer suffixes; use negative length so longer wins over shorter
+        if (dotted.length > bestLen) { best = o; bestLen = dotted.length }
+      }
     }
   }
+
   return best ? normalizeStewardUri(best.stewardUri) : null
 }
 
@@ -90,9 +106,10 @@ export type ManualStewardRecord = {
   stewardUri: string
   contributeUrl?: string
   dependencies?: string[]
+  pdsHostnames?: string[]
 }
 
-/** Manual fallback keyed by steward URI. Returns contribute/dependency data from our curated catalog. */
+/** Manual fallback keyed by steward URI. Returns contribute/dependency/pdsHostnames from our curated catalog. */
 export function lookupManualStewardRecord(
   stewardUri: string,
 ): ManualStewardRecord | null {
@@ -102,13 +119,16 @@ export function lookupManualStewardRecord(
   const record = manualCatalogRecords[key]
   if (!record) return null
 
-  if (!record.contributeUrl && (!record.dependencies || record.dependencies.length === 0)) {
-    return null
-  }
+  const hasContent =
+    record.contributeUrl ||
+    (record.dependencies && record.dependencies.length > 0) ||
+    (record.pdsHostnames && record.pdsHostnames.length > 0)
+  if (!hasContent) return null
 
   return {
     stewardUri: key,
     contributeUrl: record.contributeUrl,
     dependencies: record.dependencies,
+    pdsHostnames: record.pdsHostnames,
   }
 }
