@@ -7,7 +7,7 @@
 
 import { Redis } from '@upstash/redis'
 import { logger } from '@/lib/logger'
-import type { UfosRecord } from '@/lib/microcosm'
+import type { UfosRecordSample } from '@/lib/microcosm'
 
 // ---------------------------------------------------------------------------
 // Redis singleton (reuses env-var pattern from kv-store.ts)
@@ -41,7 +41,6 @@ const TTL = {
   graph: 15 * 60,          // 15 minutes — computed graph
   records: 60 * 60,        // 1 hour — raw UFOs records
   endorsements: 30 * 60,   // 30 minutes — Constellation counts
-  cursor: 7 * 24 * 60 * 60, // 7 days — pagination cursors persist longer
 } as const
 
 // ---------------------------------------------------------------------------
@@ -51,7 +50,6 @@ const TTL = {
 const KEY = {
   graph: 'analytics:graph',
   records: (nsid: string) => `analytics:records:${nsid}`,
-  cursor: (nsid: string) => `analytics:cursor:${nsid}`,
   endorsements: (uri: string) => `analytics:endorsements:${uri}`,
 } as const
 
@@ -132,24 +130,12 @@ export async function setCachedGraph(graph: StoredGraph): Promise<void> {
 // UFOs record cache
 // ---------------------------------------------------------------------------
 
-export async function getCachedRecords(nsid: string): Promise<UfosRecord[] | null> {
-  return storeGet<UfosRecord[]>(KEY.records(nsid))
+export async function getCachedRecords(key: string): Promise<UfosRecordSample[] | string | null> {
+  return storeGet<UfosRecordSample[] | string>(KEY.records(key))
 }
 
-export async function setCachedRecords(nsid: string, records: UfosRecord[]): Promise<void> {
-  await storeSet(KEY.records(nsid), records, TTL.records)
-}
-
-// ---------------------------------------------------------------------------
-// Pagination cursors
-// ---------------------------------------------------------------------------
-
-export async function getCursor(nsid: string): Promise<string | null> {
-  return storeGet<string>(KEY.cursor(nsid))
-}
-
-export async function setCursor(nsid: string, cursor: string): Promise<void> {
-  await storeSet(KEY.cursor(nsid), cursor, TTL.cursor)
+export async function setCachedRecords(key: string, records: UfosRecordSample[] | string): Promise<void> {
+  await storeSet(KEY.records(key), records, TTL.records)
 }
 
 // ---------------------------------------------------------------------------

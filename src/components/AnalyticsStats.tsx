@@ -157,8 +157,8 @@ export function AnalyticsStats({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
           icon={Users}
-          label="Stewards"
-          value={stats.totalStewards}
+          label={stats.ufos?.contributeDids ? 'Stewards (network-wide)' : 'Stewards (graph)'}
+          value={stats.ufos?.contributeDids || stats.totalStewards}
           color="#059669"
         />
         <StatCard
@@ -169,14 +169,14 @@ export function AnalyticsStats({
         />
         <StatCard
           icon={Link}
-          label="Dependencies"
-          value={stats.totalDependencyLinks}
+          label={stats.ufos?.dependencyRecords ? 'Dependencies (network)' : 'Dependencies (graph)'}
+          value={stats.ufos?.dependencyRecords || stats.totalDependencyLinks}
           color="#7c3aed"
         />
         <StatCard
           icon={Heart}
-          label="Endorsements"
-          value={stats.totalEndorsements}
+          label={stats.ufos?.endorseRecords ? 'Endorsements (network)' : 'Endorsements (graph)'}
+          value={stats.ufos?.endorseRecords || stats.totalEndorsements}
           color="#d97706"
         />
       </div>

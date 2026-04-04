@@ -2,9 +2,19 @@
  * Graph data aggregation for the public analytics page.
  *
  * Merges three data sources into a unified dependency graph:
- *   1. Manual catalog (src/data/catalog/*.json)
- *   2. UFOs network-wide fund.at.* records
- *   3. Constellation backlink counts (endorsements, dependency in-degree)
+ *   1. Manual catalog (src/data/catalog/*.json) — curated dependency edges
+ *   2. UFOs record samples — most recent fund.at.* records from the firehose
+ *   3. UFOs collection stats — aggregate create/DID counts for fund.at.*
+ *   4. Constellation backlink counts — endorsements and dependency in-degree
+ *
+ * Important: UFOs does NOT provide a full record dump. It provides:
+ *   - GET /records?collection=... → recent *samples* (a window of latest records)
+ *   - GET /prefix?prefix=fund.at → aggregate stats per collection
+ *   - GET /collections/stats?collection=... → creates, deletes, unique DIDs
+ *   - GET /timeseries?collection=... → hourly/daily bucketed stats
+ *
+ * We combine samples (for concrete records to render) with stats (for totals)
+ * and Constellation (for per-node backlink counts).
  */
 
 import fs from 'node:fs'
@@ -12,17 +22,17 @@ import path from 'node:path'
 import { logger } from '@/lib/logger'
 import { normalizeStewardUri } from '@/lib/steward-uri'
 import {
-  safeFetchAllRecords,
+  safeListPrefix,
+  safeGetRecordSamples,
+  safeGetCollectionStats,
   safeGetAllLinksCounts,
-  type UfosRecord,
+  type UfosRecordSample,
 } from '@/lib/microcosm'
 import {
   getCachedGraph,
   setCachedGraph,
   getCachedRecords,
   setCachedRecords,
-  getCursor,
-  setCursor,
   getCachedEndorsements,
   setCachedEndorsements,
   type StoredGraph,
@@ -60,6 +70,15 @@ export type NetworkStats = {
   totalDependencyLinks: number
   totalEndorsements: number
   fundedPercentage: number
+  /** Aggregate stats from UFOs — total creates across all fund.at.* collections */
+  ufos?: {
+    contributeRecords: number
+    contributeDids: number
+    dependencyRecords: number
+    dependencyDids: number
+    endorseRecords: number
+    endorseDids: number
+  }
 }
 
 export type AnalyticsGraph = {
@@ -137,66 +156,66 @@ function buildCatalogGraph(): { nodes: Map<string, GraphNode>; edges: GraphEdge[
 }
 
 // ---------------------------------------------------------------------------
-// Enrich with UFOs records
+// Enrich with UFOs record samples
 // ---------------------------------------------------------------------------
 
-/** Extract DID from an AT URI (at://did:plc:.../collection/rkey → did:plc:...) */
-function didFromAtUri(atUri: string): string | null {
-  if (!atUri.startsWith('at://')) return null
-  const authority = atUri.slice(5).split('/')[0]
-  return authority?.startsWith('did:') ? authority : null
-}
-
-/** Best-effort steward URI from a DID — just the DID itself for now */
-function stewardIdFromDid(did: string): string {
-  return did
-}
-
-async function fetchFundAtRecords(nsid: string): Promise<UfosRecord[]> {
-  // Check cache first
-  const cached = await getCachedRecords(nsid)
-  if (cached) return cached
-
-  // Fetch from UFOs with incremental cursor
-  const startCursor = await getCursor(nsid) ?? undefined
-  const result = await safeFetchAllRecords(nsid, { startCursor })
-
-  // Merge with any cached records
-  const merged = cached ? [...cached, ...result.records] : result.records
-  await setCachedRecords(nsid, merged)
-  if (result.lastCursor) {
-    await setCursor(nsid, result.lastCursor)
+/**
+ * UFOs /records returns a window of the most recently seen records.
+ * We use these to discover concrete steward identities (DIDs) and their
+ * contribute URLs / dependency targets / endorsement targets.
+ */
+async function fetchSamples(): Promise<{
+  contribute: UfosRecordSample[]
+  dependency: UfosRecordSample[]
+  endorse: UfosRecordSample[]
+}> {
+  const cacheKey = 'fund.at.samples'
+  const cached = await getCachedRecords(cacheKey)
+  if (cached) {
+    return JSON.parse(cached as unknown as string) as {
+      contribute: UfosRecordSample[]
+      dependency: UfosRecordSample[]
+      endorse: UfosRecordSample[]
+    }
   }
 
-  return merged
+  // Fetch samples for all three collections in parallel
+  const [contribute, dependency, endorse] = await Promise.all([
+    safeGetRecordSamples(['fund.at.contribute']),
+    safeGetRecordSamples(['fund.at.dependency']),
+    safeGetRecordSamples(['fund.at.endorse']),
+  ])
+
+  const result = { contribute, dependency, endorse }
+  await setCachedRecords(cacheKey, JSON.stringify(result) as unknown as UfosRecordSample[])
+  return result
 }
 
-function enrichWithContributeRecords(
+function enrichWithContributeSamples(
   nodes: Map<string, GraphNode>,
-  records: UfosRecord[],
+  samples: UfosRecordSample[],
 ): void {
-  for (const rec of records) {
-    const did = rec.did ?? didFromAtUri(rec.uri)
+  for (const sample of samples) {
+    const did = sample.did
     if (!did) continue
 
-    const id = stewardIdFromDid(did)
-    const url = (rec.value as { url?: string }).url
-    const createdAt = (rec.value as { createdAt?: string }).createdAt ?? rec.indexedAt
+    const url = (sample.record as { url?: string }).url
+    const createdAt = (sample.record as { createdAt?: string }).createdAt
+    const timeMs = sample.time_us ? Math.floor(sample.time_us / 1000) : undefined
+    const timestamp = createdAt ?? (timeMs ? new Date(timeMs).toISOString() : undefined)
 
-    const existing = nodes.get(id)
+    const existing = nodes.get(did)
     if (existing) {
       existing.did = existing.did ?? did
       if (url) {
         existing.contributeUrl = existing.contributeUrl ?? url
         existing.hasFunding = true
       }
-      if (createdAt) {
-        existing.createdAt = existing.createdAt ?? createdAt
-      }
+      if (timestamp) existing.createdAt = existing.createdAt ?? timestamp
       existing.source = existing.source === 'manual' ? 'both' : 'fund.at'
     } else {
-      nodes.set(id, {
-        id,
+      nodes.set(did, {
+        id: did,
         did,
         displayName: did,
         hasFunding: !!url,
@@ -206,36 +225,36 @@ function enrichWithContributeRecords(
         dependsOn: 0,
         tags: [],
         source: 'fund.at',
-        createdAt,
+        createdAt: timestamp,
       })
     }
   }
 }
 
-function enrichWithDependencyRecords(
+function enrichWithDependencySamples(
   nodes: Map<string, GraphNode>,
   edges: GraphEdge[],
-  records: UfosRecord[],
+  samples: UfosRecordSample[],
 ): void {
   const edgeSet = new Set(edges.map((e) => `${e.source}→${e.target}`))
 
-  for (const rec of records) {
-    const did = rec.did ?? didFromAtUri(rec.uri)
+  for (const sample of samples) {
+    const did = sample.did
     if (!did) continue
 
-    const sourceId = stewardIdFromDid(did)
-    const depUri = (rec.value as { uri?: string }).uri
+    const depUri = (sample.record as { uri?: string }).uri
     if (!depUri) continue
 
+    const sourceId = did
     const targetId = normalizeStewardUri(depUri) ?? depUri
     const edgeKey = `${sourceId}→${targetId}`
     if (edgeSet.has(edgeKey)) continue
     edgeSet.add(edgeKey)
 
-    const label = (rec.value as { label?: string }).label
+    const label = (sample.record as { label?: string }).label
     edges.push({ source: sourceId, target: targetId, label })
 
-    // Ensure source node exists
+    // Ensure both nodes exist
     if (!nodes.has(sourceId)) {
       nodes.set(sourceId, {
         id: sourceId,
@@ -249,8 +268,6 @@ function enrichWithDependencyRecords(
         source: 'fund.at',
       })
     }
-
-    // Ensure target node exists
     if (!nodes.has(targetId)) {
       nodes.set(targetId, {
         id: targetId,
@@ -266,14 +283,13 @@ function enrichWithDependencyRecords(
   }
 }
 
-function countEndorsementsFromRecords(
+function countEndorsementsFromSamples(
   nodes: Map<string, GraphNode>,
-  records: UfosRecord[],
+  samples: UfosRecordSample[],
 ): void {
-  // Count endorsements per target URI
   const counts = new Map<string, number>()
-  for (const rec of records) {
-    const targetUri = (rec.value as { uri?: string }).uri
+  for (const sample of samples) {
+    const targetUri = (sample.record as { uri?: string }).uri
     if (!targetUri) continue
     const normalized = normalizeStewardUri(targetUri) ?? targetUri
     counts.set(normalized, (counts.get(normalized) ?? 0) + 1)
@@ -294,10 +310,8 @@ function countEndorsementsFromRecords(
 async function enrichWithConstellationCounts(
   nodes: Map<string, GraphNode>,
 ): Promise<void> {
-  // Only query Constellation for nodes that have a DID (needed as target)
   const nodesWithDid = [...nodes.values()].filter((n) => n.did)
 
-  // Batch in parallel, but limit concurrency
   const BATCH = 10
   for (let i = 0; i < nodesWithDid.length; i += BATCH) {
     const batch = nodesWithDid.slice(i, i + BATCH)
@@ -305,7 +319,6 @@ async function enrichWithConstellationCounts(
       batch.map(async (node) => {
         if (!node.did) return
 
-        // Check cache
         const cached = await getCachedEndorsements(node.did)
         if (cached !== null) {
           node.endorsementCount = Math.max(node.endorsementCount, cached)
@@ -313,10 +326,8 @@ async function enrichWithConstellationCounts(
         }
 
         const counts = await safeGetAllLinksCounts(node.did)
-        const endorseCount =
-          counts['fund.at.endorse']?.['.uri'] ?? 0
-        const depCount =
-          counts['fund.at.dependency']?.['.uri'] ?? 0
+        const endorseCount = counts['fund.at.endorse']?.['.uri'] ?? 0
+        const depCount = counts['fund.at.dependency']?.['.uri'] ?? 0
 
         node.endorsementCount = Math.max(node.endorsementCount, endorseCount)
         node.dependedOnBy = Math.max(node.dependedOnBy, depCount)
@@ -335,7 +346,6 @@ function computeDegrees(
   nodes: Map<string, GraphNode>,
   edges: GraphEdge[],
 ): void {
-  // Reset
   for (const node of nodes.values()) {
     node.dependedOnBy = Math.max(node.dependedOnBy, 0)
     node.dependsOn = 0
@@ -346,6 +356,39 @@ function computeDegrees(
     const target = nodes.get(edge.target)
     if (source) source.dependsOn += 1
     if (target) target.dependedOnBy += 1
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fetch UFOs aggregate stats (network-wide totals)
+// ---------------------------------------------------------------------------
+
+async function fetchUfosStats(): Promise<NetworkStats['ufos']> {
+  const COLLECTIONS = ['fund.at.contribute', 'fund.at.dependency', 'fund.at.endorse']
+
+  // Use /prefix for the summary, and /collections/stats for per-collection detail
+  const [prefixData, statsData] = await Promise.all([
+    safeListPrefix('fund.at'),
+    safeGetCollectionStats(COLLECTIONS),
+  ])
+
+  const findChild = (nsid: string) =>
+    prefixData.children.find((c) => c.nsid === nsid)
+
+  const contributeInfo = findChild('fund.at.contribute')
+  const dependencyInfo = findChild('fund.at.dependency')
+  const endorseInfo = findChild('fund.at.endorse')
+
+  // Stats data gives us creates/dids for the default time window (last 7d)
+  // Prefix data gives us all-time creates
+  // Use prefix for totals (all-time is more meaningful for the graph)
+  return {
+    contributeRecords: contributeInfo?.creates ?? statsData['fund.at.contribute']?.creates ?? 0,
+    contributeDids: contributeInfo?.dids_estimate ?? statsData['fund.at.contribute']?.dids_estimate ?? 0,
+    dependencyRecords: dependencyInfo?.creates ?? statsData['fund.at.dependency']?.creates ?? 0,
+    dependencyDids: dependencyInfo?.dids_estimate ?? statsData['fund.at.dependency']?.dids_estimate ?? 0,
+    endorseRecords: endorseInfo?.creates ?? statsData['fund.at.endorse']?.creates ?? 0,
+    endorseDids: endorseInfo?.dids_estimate ?? statsData['fund.at.endorse']?.dids_estimate ?? 0,
   }
 }
 
@@ -369,29 +412,28 @@ export async function buildAnalyticsGraph(): Promise<AnalyticsGraph> {
     edges: edges.length,
   })
 
-  // 2. Fetch fund.at.* records from UFOs
-  const [contributeRecords, dependencyRecords, endorseRecords] =
-    await Promise.all([
-      fetchFundAtRecords('fund.at.contribute'),
-      fetchFundAtRecords('fund.at.dependency'),
-      fetchFundAtRecords('fund.at.endorse'),
-    ])
+  // 2. Fetch UFOs samples + stats in parallel
+  const [samples, ufosStats] = await Promise.all([
+    fetchSamples(),
+    fetchUfosStats(),
+  ])
 
-  logger.info('analytics-graph: UFOs records fetched', {
-    contribute: contributeRecords.length,
-    dependency: dependencyRecords.length,
-    endorse: endorseRecords.length,
+  logger.info('analytics-graph: UFOs data fetched', {
+    contributeSamples: samples.contribute.length,
+    dependencySamples: samples.dependency.length,
+    endorseSamples: samples.endorse.length,
+    ufosStats,
   })
 
-  // 3. Merge UFOs data into graph
-  enrichWithContributeRecords(nodes, contributeRecords)
-  enrichWithDependencyRecords(nodes, edges, dependencyRecords)
-  countEndorsementsFromRecords(nodes, endorseRecords)
+  // 3. Merge sample data into graph
+  enrichWithContributeSamples(nodes, samples.contribute)
+  enrichWithDependencySamples(nodes, edges, samples.dependency)
+  countEndorsementsFromSamples(nodes, samples.endorse)
 
   // 4. Compute edge-based degrees
   computeDegrees(nodes, edges)
 
-  // 5. Enrich with Constellation backlink counts (supplements edge-based)
+  // 5. Enrich with Constellation backlink counts
   await enrichWithConstellationCounts(nodes)
 
   // 6. Compute stats
@@ -414,6 +456,7 @@ export async function buildAnalyticsGraph(): Promise<AnalyticsGraph> {
         allNodes.length > 0
           ? Math.round((totalWithFunding / allNodes.length) * 100)
           : 0,
+      ufos: ufosStats ?? undefined,
     },
     updatedAt: new Date().toISOString(),
   }
