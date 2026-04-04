@@ -195,7 +195,7 @@ export function PdsHostSupportCard({
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <StewardNameHeading name={displayName} href={websiteUrl} linkVariant="support" />
             <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-600 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-400">
-              home server
+              personal data server
             </span>
           </div>
           <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
