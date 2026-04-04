@@ -95,9 +95,12 @@ export async function fetchFundingForUriLike(
     const resolvedHandle = await resolveHandleFromDid(resolvedDid)
     const resolvedUri = resolvedHandle ?? fallback.pdsStewardUri ?? resolvedDid
 
+    // fallback.pdsStewardUri is the entryway (e.g. 'bsky.social'); resolvedUri is the operator (e.g. 'bsky.app')
+    const pdsEntryway = fallback.pdsStewardUri !== resolvedUri ? fallback.pdsStewardUri : undefined
     const hostFunding = await fetchPdsHostFunding(resolvedDid, hostname, {
       pdsStewardUri: resolvedUri,
       pdsStewardHandle: resolvedHandle ?? fallback.pdsStewardHandle,
+      pdsEntryway,
     })
     if (hostFunding) return hostFunding
 
@@ -106,6 +109,7 @@ export async function fetchFundingForUriLike(
       stewardDid: resolvedDid,
       pdsStewardUri: resolvedUri,
       pdsStewardHandle: resolvedHandle ?? fallback.pdsStewardHandle,
+      pdsEntryway,
     }
   }
   const pdsStewardHandle = await resolveHandleFromDid(did)
@@ -114,6 +118,8 @@ export async function fetchFundingForUriLike(
   const hostFunding = await fetchPdsHostFunding(did, hostname, {
     pdsStewardUri,
     pdsStewardHandle,
+    // direct path: hostname IS the entryway (e.g. 'bsky.social')
+    pdsEntryway: hostname !== pdsStewardUri ? hostname : undefined,
   })
   if (hostFunding) return hostFunding
 
@@ -123,5 +129,6 @@ export async function fetchFundingForUriLike(
     stewardDid: did,
     pdsStewardUri,
     pdsStewardHandle,
+    pdsEntryway: hostname !== pdsStewardUri ? hostname : undefined,
   }
 }

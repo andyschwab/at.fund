@@ -108,16 +108,18 @@ export async function scanStreaming(
     try {
       const pdsHostname = new URL(gathered.pdsUrl).hostname
       const funding = await fetchFundingForUriLike(gathered.pdsUrl)
+      // entryway: the user-visible PDS domain (e.g. 'bsky.social')
+      const entryway = funding?.pdsEntryway ?? pdsHostname
       const pdsEntry: StewardEntry = {
-        uri: funding?.pdsStewardUri ?? pdsHostname,
+        uri: funding?.pdsStewardUri ?? entryway,
         did: funding?.stewardDid,
         handle: funding?.pdsStewardHandle,
         tags: ['tool', 'pds-host'],
-        displayName: funding?.pdsStewardUri ?? pdsHostname,
-        description: `Hosts your personal data at ${pdsHostname}`,
+        displayName: funding?.pdsStewardUri ?? entryway,
         contributeUrl: funding?.contributeUrl,
         dependencies: funding?.dependencies?.map((d) => d.uri),
         source: funding ? 'fund.at' : 'unknown',
+        capabilities: [{ type: 'pds', name: entryway, hostname: entryway, landingPage: `https://${entryway}` }],
       }
       emit({ type: 'entry', entry: pdsEntry })
     } catch (e) {

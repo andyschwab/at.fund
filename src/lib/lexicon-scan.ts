@@ -219,16 +219,17 @@ export async function scanRepo(
     try {
       const pdsHostname = new URL(pdsUrl.origin).hostname
       const funding = (await fetchFundingForUriLike(pdsUrl.origin)) ?? undefined
+      const entryway = funding?.pdsEntryway ?? pdsHostname
       pdsEntry = {
-        uri: funding?.pdsStewardUri ?? pdsHostname,
+        uri: funding?.pdsStewardUri ?? entryway,
         did: funding?.stewardDid,
         handle: funding?.pdsStewardHandle,
         tags: ['tool', 'pds-host'],
-        displayName: funding?.pdsStewardUri ?? pdsHostname,
-        description: `Hosts your personal data at ${pdsHostname}`,
+        displayName: funding?.pdsStewardUri ?? entryway,
         contributeUrl: funding?.contributeUrl,
         dependencies: funding?.dependencies?.map((d) => d.uri),
         source: funding ? 'fund.at' : 'unknown',
+        capabilities: [{ type: 'pds', name: entryway, hostname: entryway, landingPage: `https://${entryway}` }],
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'PDS host lookup failed'
@@ -452,16 +453,17 @@ export async function scanRepoStreaming(
       try {
         const pdsHostname = new URL(pdsUrl.origin).hostname
         const funding = await fetchFundingForUriLike(pdsUrl.origin)
+        const entryway = funding?.pdsEntryway ?? pdsHostname
         const pdsEntry: StewardEntry = {
-          uri: funding?.pdsStewardUri ?? pdsHostname,
+          uri: funding?.pdsStewardUri ?? entryway,
           did: funding?.stewardDid,
           handle: funding?.pdsStewardHandle,
           tags: ['tool', 'pds-host'],
-          displayName: funding?.pdsStewardUri ?? pdsHostname,
-          description: `Hosts your personal data at ${pdsHostname}`,
+          displayName: funding?.pdsStewardUri ?? entryway,
           contributeUrl: funding?.contributeUrl,
           dependencies: funding?.dependencies?.map((d) => d.uri),
           source: funding ? 'fund.at' : 'unknown',
+          capabilities: [{ type: 'pds', name: entryway, hostname: entryway, landingPage: `https://${entryway}` }],
         }
         emit({ type: 'entry', entry: pdsEntry })
       } catch (e) {
