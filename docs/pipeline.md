@@ -12,7 +12,7 @@ Everything is account-centric. A card represents an **ATProto account** (identif
 
 | Path | Trigger | Implementation |
 |------|---------|----------------|
-| **Full scan** | Sign-in, refresh | `scanStreaming()` — 4-phase pipeline, streams all entries |
+| **Full scan** | Sign-in, refresh | `scanStreaming()` — 6-phase pipeline, streams all entries |
 | **Single entry** | Endorse-add, dep modal | `resolveEntry()` — full vertical for one URI |
 
 Both produce the same `StewardEntry` shape. The full scan discovers accounts from the user's relationships; the single-entry path resolves one URI on demand.
@@ -21,9 +21,11 @@ Both produce the same `StewardEntry` shape. The full scan discovers accounts fro
 
 ```
 Phase 1: GATHER         Discover every account the user has a relationship with
-Phase 2: ENRICH         Resolve funding info (fund.at, manual catalog, profiles)
-Phase 3: CAPABILITIES   Attach feed/labeler details to enriched accounts
-Phase 4: DEPENDENCIES   Resolve referenced entries for drill-down modal
+Phase 2: ENDORSEMENTS   Collect network endorsements (single-pass over all follows)
+Phase 3: ECOSYSTEM      Discover entries endorsed by the user's network
+Phase 4: ENRICH         Resolve funding info (fund.at, manual catalog, profiles)
+Phase 5: CAPABILITIES   Attach feed/labeler details to enriched accounts
+Phase 6: DEPENDENCIES   Resolve referenced entries for drill-down
 ```
 
 ## Phase 1: Gather accounts
@@ -38,11 +40,11 @@ Collects every DID the user has a relationship with. No fund.at lookups — just
 |--------|-----|-------------|
 | Repo collections | NSIDs + `createdWith` + `$type` → resolver catalog → steward URI → DNS → DID | `tool` |
 | Follows | `app.bsky.graph.getFollows` (paginated, ALL follows) | `follow` |
-| Feed subscriptions | `getPreferences` → saved feed URIs → extract creator DID | *(none — held for Phase 3)* |
-| Labeler subscriptions | `getPreferences` → labeler DIDs | *(none — held for Phase 3)* |
+| Feed subscriptions | `getPreferences` → saved feed URIs → extract creator DID | *(none — held for Phase 5)* |
+| Labeler subscriptions | `getPreferences` → labeler DIDs | *(none — held for Phase 5)* |
 | Self-reported | User-provided handles/DIDs from "Endorse" input | `tool` |
 
-Feed and labeler DIDs are registered with `ensureAccount()` — this reserves the DID slot in the accounts map **without assigning a tag**. Tags for these are derived from confirmed capability data in Phase 3. This prevents feeds from appearing as standalone cards before we know they're real capabilities.
+Feed and labeler DIDs are registered with `ensureAccount()` — this reserves the DID slot in the accounts map **without assigning a tag**. Tags for these are derived from confirmed capability data in Phase 5. This prevents feeds from appearing as standalone cards before we know they're real capabilities.
 
 ### Output
 
@@ -54,8 +56,8 @@ type GatherResult = {
   accounts: Map<string, AccountStub>      // DID → stub with tags + hostnames
   unresolvedServices: UnresolvedService[]  // hostnames that didn't resolve to a DID
   warnings: ScanWarning[]
-  feedUris: string[]                       // AT URIs for Phase 3
-  labelerDids: string[]                    // DIDs for Phase 3
+  feedUris: string[]                       // AT URIs for Phase 5
+  labelerDids: string[]                    // DIDs for Phase 5
 }
 ```
 
@@ -75,7 +77,39 @@ Observed keys (NSIDs, URLs, `$type` values) pass through `resolveStewardUri()` f
 4. If 3+ dot segments → NSID; infer hostname from first two segments
 5. If 1-2 dot segments → already a hostname; normalize and return
 
-## Phase 2: Enrich accounts
+## Phase 2: Collect network endorsements
+
+**Files:** `src/lib/microcosm.ts`, `src/lib/pipeline/scan-stream.ts`
+
+Single-pass collection of all endorsements made by the user's follows. O(follows): one Slingshot `resolveMiniDoc` (to find each follow's PDS) + one PDS `listRecords` (to fetch their `fund.at.endorse` records).
+
+### How it works
+
+1. For each follow DID, resolve their PDS URL via Slingshot's `blue.microcosm.identity.resolveMiniDoc`
+2. Query each PDS directly with `com.atproto.repo.listRecords` for the `fund.at.endorse` collection
+3. Build an `EndorsementMap`: `Map<endorsedURI, Set<endorserDID>>`
+
+Results are cached in Redis (with in-memory fallback) keyed by a lightweight fingerprint of the follow DID list.
+
+### Output
+
+```typescript
+type EndorsementMap = Map<string, Set<string>>
+// endorsed URI → Set of endorser DIDs
+```
+
+## Phase 3: Ecosystem discovery
+
+**File:** `src/lib/pipeline/ecosystem-scan.ts`
+
+Fast in-memory lookup against the endorsement map. Discovers two kinds of entries:
+
+1. **Curated catalog entries** tagged `ecosystem` (always shown)
+2. **Network-discovered URIs** endorsed by 1+ follows (from endorsement map)
+
+Ecosystem URIs are injected into the gathered accounts (with tag `ecosystem`) so they flow through enrichment alongside everything else.
+
+## Phase 4: Enrich accounts
 
 **File:** `src/lib/pipeline/account-enrich.ts`
 
@@ -97,15 +131,15 @@ For each `AccountStub`:
 - `uri`: hostname preferred (readable), then handle, then DID
 - `displayName`: profile name preferred (non-DID), then hostname, then handle, then DID
 
-### Emission gating
+### Emission
 
-Phase 2 only emits entries that have at least one tag (`tags.length > 0`). Accounts that were registered with `ensureAccount()` in Phase 1 (feed/labeler-only accounts) have no tags yet and are **held** — they won't appear as cards until Phase 3 confirms their capabilities and adds tags.
+All entries with at least one tag are emitted as `entry` events, including ecosystem entries. The client's `EntryIndex` handles dedup.
 
 ### Output
 
 One `StewardEntry` per account, plus entries for unresolved services.
 
-## Phase 3: Attach capabilities
+## Phase 5: Attach capabilities
 
 **File:** `src/lib/pipeline/capability-scan.ts`
 
@@ -119,7 +153,7 @@ Fetches display info for feeds and labelers, then attaches them as `Capability` 
 - `uri` — AT URI, parsed for rkey
 - `landingPage` — constructed as `https://bsky.app/profile/{handle}/feed/{rkey}`
 
-Multiple feeds by the same creator become multiple capabilities on one card. Phase 3 also back-fills handle, displayName, and landingPage onto entries from API responses if the Phase 2 profile fetch returned incomplete data.
+Multiple feeds by the same creator become multiple capabilities on one card. Phase 5 also back-fills handle, displayName, and landingPage onto entries from API responses if the Phase 4 profile fetch returned incomplete data.
 
 ### Labelers
 
@@ -140,29 +174,46 @@ type Capability = {
 }
 ```
 
-## Phase 4: Resolve dependencies
+## Phase 6: Resolve dependencies
 
 **File:** `src/lib/pipeline/dep-resolve.ts`
 
-For entries with `dependencies[]`, looks up each dependency URI in the manual catalog. These "referenced entries" power the dependency drill-down modal — they're not shown as primary cards. Resolution is multi-level (breadth-first queue) so nested dependency chains are fully resolved.
+For entries with `dependencies[]`, resolves each dependency URI via fund.at records and the manual catalog. Resolution is multi-level (breadth-first queue) so nested dependency chains are fully resolved. Resolved deps are emitted as `entry` events and merge into the unified `EntryIndex`.
 
 ## Orchestration
 
 **File:** `src/lib/pipeline/scan-stream.ts`
 
-`scanStreaming()` runs all four phases and emits `ScanStreamEvent` objects for the client to consume progressively:
+`scanStreaming()` runs all phases and emits `ScanStreamEvent` objects for the client to consume progressively:
 
-1. Endorsements → `endorsed` event with the user's endorsed URIs
+1. Endorsements → `endorsed` event with the user's own endorsed URIs
 2. Phase 1 → `status` events during discovery, `meta` event with user info, `warning` events
-3. Phase 2 → `entry` events as each account is enriched (gated: only entries with tags)
-4. Phase 3 → updated `entry` events with capabilities attached (first emission for feed/labeler-only accounts)
-5. Phase 4 → `referenced` events for dependency entries
-6. PDS host → `entry` event with `tags: ['tool', 'pds-host']` and a `pds` capability for the entryway
-7. `done` event
+3. Phase 2–3 → `status` events during endorsement collection and ecosystem discovery
+4. Phase 4 → `entry` events as each account is enriched (all entries with tags)
+5. Phase 5 → updated `entry` events with capabilities attached (first emission for feed/labeler-only accounts)
+6. Phase 6 → `entry` events for dependency entries
+7. `endorsement-counts` → per-entry network endorsement counts
+8. PDS host → `entry` event with `tags: ['tool', 'pds-host']` and a `pds` capability for the entryway
+9. `done` event
+
+### Event types
+
+```typescript
+type ScanStreamEvent =
+  | { type: 'meta'; did: string; handle?: string; pdsUrl?: string }
+  | { type: 'status'; message: string }
+  | { type: 'endorsed'; uris: string[] }
+  | { type: 'entry'; entry: StewardEntry }
+  | { type: 'endorsement-counts'; counts: Record<string, EndorsementCounts> }
+  | { type: 'warning'; warning: ScanWarning }
+  | { type: 'done' }
+```
 
 ### Client-side merging
 
-The client (`GiveClient.tsx`) uses `EntryIndex` from `steward-merge.ts` to deduplicate entries by DID as they stream in. When Phase 3 re-emits entries with capabilities, the merge unions tags and capabilities correctly.
+The client (`GiveClient.tsx`) uses a single `EntryIndex` from `steward-merge.ts` to deduplicate all entries by DID as they stream in. Primary entries, dependency entries, and ecosystem entries all flow through the same index. When later phases re-emit entries (e.g., with capabilities or profile data), the merge unions tags, dependencies, and capabilities correctly.
+
+Lookup maps in `ProjectCards.tsx` and `card-dependencies.tsx` key by `uri`, `did`, and `handle` so dependencies can be found regardless of which identifier form is used.
 
 ## Single-entry resolution
 
@@ -199,7 +250,7 @@ Input: handle, DID, or hostname
   │
   ▼
 4. DEPENDENCIES
-   • resolveDependencies([entry]) → referenced entries (multi-level, catalog-only)
+   • resolveDependencies([entry]) → referenced entries (multi-level)
   │
   ▼
 Output: { entry: StewardEntry, referenced: StewardEntry[] }
@@ -228,7 +279,7 @@ card-primitives.tsx     Stateless building blocks
   ├── ProfileAvatar         Avatar image with initials fallback
   ├── StewardNameHeading    Linked title with variant-colored hover
   ├── HandleBadge           @handle linking to DID profile
-  ├── TagBadges             Inline tag pills (tool, feed, labeler, follow, personal data server)
+  ├── TagBadges             Inline tag pills (tool, feed, labeler, follow, ecosystem, personal data server)
   ├── CapabilitiesSection   "Provides" list of feeds, labelers, and PDS capabilities
   └── helpers               heartState, websiteFallbackForUri, profileUrlFor
 
@@ -239,7 +290,7 @@ card-dependencies.tsx   Drill-down modal system
 
 ProjectCards.tsx        Card exports
   └── StewardCard           Compact <li> row: avatar, name, tags, Fund/Endorse buttons,
-                            capabilities section, dependencies section
+                            network endorsement count, capabilities section, dependencies section
 ```
 
 ### Card anatomy
@@ -247,6 +298,7 @@ ProjectCards.tsx        Card exports
 ```
 [Avatar]  Title  @handle  tag  tag     [Fund] [Endorse]
           Description text
+          N endorsement(s) from your network
           ┌ Provides ──────────────────────┐
           │ 📰 Feed Name                   │
           │ 🏷️ Labeler Name               │
@@ -257,23 +309,22 @@ ProjectCards.tsx        Card exports
           └────────────────────────┘
 ```
 
-### My Stack
+### Page layout
 
-The "My Stack" section sits at the top of the give page and contains two groups:
+The give page has three sections:
 
-1. **PDS host** — always shown; the operator account that runs the user's personal data server, with a `pds` capability displaying the entryway hostname (e.g. `bsky.social`). Resolved via the catalog chain: physical PDS hostname → entryway → operator.
-2. **Endorsed entries** — entries the user has explicitly endorsed. Endorsements are `fund.at.endorse` records — public, protocol-level signals of trust.
+1. **My Stack** — pinned at top. Contains PDS host entry and all entries the user has endorsed. Endorsements are `fund.at.endorse` records — public, protocol-level signals of trust. The hover state on endorsed buttons swaps to "Remove" with a red color shift.
 
-The hover state on endorsed buttons swaps to "Remove" with a red color shift to indicate the action.
+2. **My Fundable Services** tab — tools, feeds, labelers, and follows (with contribute URLs) discovered from the user's account data. Excludes ecosystem-only entries and PDS host (pinned above). Filter pills (Tools, Feeds, Labelers, Network) filter by tag.
 
-### Filtering
-
-Filter pills (Tools, Feeds, Labelers, Network) filter by tag. Since an account can have multiple tags, the same card may appear in multiple filtered views.
+3. **Endorsed by My Network** tab — entries with the `ecosystem` tag that aren't already in the discover list. Sorted by network endorsement count. These are projects endorsed by people the user follows but not already surfaced in their own fundable services.
 
 ### Visibility rules
 
 - Tools, labelers, feeds: always visible
 - Follows: only visible if they have a `contributeUrl`
+- Ecosystem-only: visible in the "Endorsed by My Network" tab
+- PDS host: always pinned in My Stack
 
 ## File map
 
@@ -290,7 +341,7 @@ src/
 │       │   └── stream/route.ts           Streaming API → scanStreaming()
 │       └── steward/route.ts              Thin steward lookup (legacy)
 ├── components/
-│   ├── GiveClient.tsx                    Client: streaming scan, endorsement, card layout
+│   ├── GiveClient.tsx                    Client: streaming scan, unified EntryIndex, tabs, endorsement
 │   ├── ProjectCards.tsx                  StewardCard (compact <li> row)
 │   ├── card-primitives.tsx               ProfileAvatar, TagBadges, CapabilitiesSection, etc.
 │   ├── card-dependencies.tsx             DependencyRow, ModalCardContent, DependenciesSection
@@ -304,11 +355,13 @@ src/
 └── lib/
     ├── pipeline/
     │   ├── account-gather.ts             Phase 1: discover accounts + unresolved services
-    │   ├── account-enrich.ts             Phase 2: fund.at + catalog + profile resolution
-    │   ├── capability-scan.ts            Phase 3: feed/labeler capabilities
-    │   ├── dep-resolve.ts                Phase 4: dependency entry resolution
+    │   ├── account-enrich.ts             Phase 4: fund.at + catalog + profile resolution
+    │   ├── capability-scan.ts            Phase 5: feed/labeler capabilities
+    │   ├── dep-resolve.ts                Phase 6: dependency entry resolution
+    │   ├── ecosystem-scan.ts             Phase 3: ecosystem URI discovery from endorsement map
     │   ├── entry-resolve.ts              Full vertical: single-entry pipeline
     │   └── scan-stream.ts                Orchestrator: runs phases, emits stream events
+    ├── microcosm.ts                      Phase 2: network endorsement collection (Slingshot + PDS)
     ├── catalog.ts                        resolveStewardUri + lookupManualStewardRecord
     ├── steward-model.ts                  StewardEntry, Capability, StewardTag types
     ├── steward-merge.ts                  EntryIndex (client-side dedup) + merge logic
@@ -316,10 +369,10 @@ src/
     ├── fund-at-records.ts                Low-level fund.at record fetching
     ├── atfund-dns.ts                     _atproto DNS TXT → DID
     ├── atfund-uri.ts                     URI-like → hostname → PDS host funding
-    ├── atfund-steward.ts                 PdsHostFunding type + fetch
     ├── repo-inspect.ts                   Filter noise collections (Bluesky core)
     ├── repo-collection-resolve.ts        Calendar createdWith + Standard.site $type
     ├── steward-uri.ts                    normalizeStewardUri (input validation)
+    ├── auth/kv-store.ts                  Upstash Redis (OAuth session store + endorsement cache)
     └── xrpc.ts                           Raw XRPC query helper + cache
 ```
 

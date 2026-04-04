@@ -3,18 +3,20 @@
 ## Status: Concept — not yet implemented
 
 This doc describes a real-time endorsement indexer using Bluesky's Jetstream
-service. It's the next step when Constellation query volume or latency becomes
-a bottleneck (Option B from the endorsement data architecture discussion).
+service. It's the next evolution when the current per-follow PDS query approach
+becomes a bottleneck.
 
 ## Why
 
-The current approach (Option A) queries Constellation per-URI during each scan.
-This gives complete data with zero new infrastructure, but:
+The current approach collects endorsements via a single pass over the user's
+follows: one Slingshot `resolveMiniDoc` per follow (to find their PDS) + one
+PDS `listRecords` per follow (to fetch their `fund.at.endorse` records). This
+gives complete network data with zero new infrastructure, but:
 
-- At high scan volume, per-URI queries multiply (N entries × 1 query each)
-- Constellation is a public best-effort service with no SLA
-- Network endorsement counts require fetching full endorser DID lists
-- 15-minute Redis cache means counts are slightly stale
+- At high follow counts, O(follows) PDS queries add scan latency
+- Results are cached per-session with a fingerprint key — cache misses trigger full recollection
+- Endorsements from non-follows (the broader network) are invisible
+- Each scan rediscovers the same endorsement data
 
 A Jetstream listener eliminates all scan-time API calls — everything reads
 from Redis.
@@ -94,11 +96,11 @@ const networkCount = endorserDids.filter(did => followDids.has(did)).length
 
 Jetstream only provides live events + ~24h replay buffer. For historical data:
 
-1. **Initial backfill from Constellation**: Query `getBacklinks` for all known
-   ecosystem URIs and populate Redis sets
+1. **Initial backfill from current approach**: Use the existing Slingshot + PDS
+   `listRecords` collection to populate Redis sets for all known endorsers
 2. **Switch to Jetstream**: Once caught up, the collector maintains the index
-3. **Constellation as fallback**: If the collector goes down for >24h (beyond
-   Jetstream's replay window), re-backfill from Constellation
+3. **PDS re-scan as fallback**: If the collector goes down for >24h (beyond
+   Jetstream's replay window), re-backfill using the per-follow PDS approach
 
 ## Deployment
 
@@ -109,18 +111,18 @@ Jetstream only provides live events + ~24h replay buffer. For historical data:
 
 ## Migration Path
 
-1. Deploy collector alongside existing Constellation queries
-2. Verify Redis data matches Constellation results
-3. Switch at.fund to read from Redis instead of querying Constellation
-4. Keep Constellation as a fallback for cache misses
+1. Deploy collector alongside existing per-follow PDS queries
+2. Verify Redis data matches PDS query results
+3. Switch at.fund to read from Redis instead of querying PDS per follow
+4. Keep PDS approach as a fallback for cache misses
 
 ## When to Build This
 
 Consider building when:
-- Constellation query volume causes rate limiting
-- Scan latency from Constellation queries becomes noticeable (>2s added)
+- Follow counts are high enough that per-follow PDS queries add noticeable latency (>5s)
+- We want endorsement data from beyond the user's immediate follow graph
 - We need sub-minute endorsement freshness
-- Constellation has reliability issues
+- PDS rate limiting becomes an issue at scale
 
-Current Constellation approach is likely sufficient until the network has
+The current per-follow PDS approach is sufficient until the network has
 thousands of active endorsers.
