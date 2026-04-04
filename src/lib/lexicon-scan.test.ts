@@ -70,6 +70,7 @@ vi.mock('@/lib/fund-at-records', () => ({
 }))
 
 import { scanRepo } from './lexicon-scan'
+import { clearXrpcCache } from '@/lib/xrpc'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import type { StewardFundAt } from '@/lib/steward-funding'
@@ -83,7 +84,8 @@ function makeMockSession(did = 'did:plc:testuser123'): OAuthSession {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
+  clearXrpcCache()
 
   // Reset describeRepo default
   describeRepoResponse = {
@@ -111,8 +113,15 @@ beforeEach(() => {
     if (path.includes('app.bsky.graph.getFollows')) {
       return new Response(JSON.stringify({ follows: [] }), { status: 200 })
     }
+    if (path.includes('app.bsky.actor.getPreferences')) {
+      return new Response(JSON.stringify({ preferences: [] }), { status: 200 })
+    }
     return new Response(JSON.stringify({}), { status: 200 })
   })
+
+  // Restore default mock behaviors from module-level vi.mock calls
+  vi.mocked(lookupAtprotoDid).mockResolvedValue(null)
+  vi.mocked(fetchFundAtForStewardDid).mockResolvedValue(null)
 
   // Default: no records in any collection
   mockListRecords.mockResolvedValue({ body: { records: [] } })
@@ -262,7 +271,9 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    expect(result.entries).toEqual([])
+    // No tool entries from repo collections; only PDS host entry from session PDS URL
+    const toolEntries = result.entries.filter((e) => !e.tags.includes('pds-host'))
+    expect(toolEntries).toEqual([])
     expect(result.did).toBe('did:plc:testuser123')
   })
 
@@ -280,7 +291,14 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    expect(result.entries).toEqual([])
+    // Noise collections resolve to bsky.app which has pdsHostnames in catalog
+    // Only PDS host entry should exist; no third-party tool entries
+    const toolEntries = result.entries.filter(
+      (e) => !e.tags.includes('pds-host') && !e.tags.includes('follow'),
+    )
+    // chat.bsky.convo resolves to bsky.app via resolver catalog
+    const nonBsky = toolEntries.filter((e) => e.uri !== 'bsky.app')
+    expect(nonBsky).toEqual([])
   })
 
   it('deduplicates steward URIs from multiple collections', async () => {
@@ -300,6 +318,10 @@ describe('scanRepo pipeline', () => {
     // Both popfeed collections should resolve to popfeed.social (one entry)
     const popfeedCards = result.entries.filter((e) => e.uri === 'popfeed.social')
     expect(popfeedCards).toHaveLength(1)
+
+    // PDS host entry is separate and expected
+    const toolEntries = result.entries.filter((e) => !e.tags.includes('pds-host'))
+    expect(toolEntries.length).toBeGreaterThanOrEqual(1)
   })
 
   it('captures warnings when DNS lookup throws', async () => {

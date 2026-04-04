@@ -70,9 +70,12 @@ describe('lookupManualStewardRecord', () => {
     expect(lookupManualStewardRecord('')).toBeNull()
   })
 
-  it('returns null for stewards without contribute or dependency data', () => {
-    // bsky.app has no catalog entry with contribute or dependency data
-    expect(lookupManualStewardRecord('bsky.app')).toBeNull()
+  it('returns record for stewards with pdsHostnames but no contribute/dependency data', () => {
+    // bsky.app has a catalog entry with pdsHostnames (counts as content)
+    const record = lookupManualStewardRecord('bsky.app')
+    expect(record).not.toBeNull()
+    expect(record!.pdsHostnames).toContain('bsky.social')
+    expect(record!.contributeUrl).toBeUndefined()
   })
 
   it('finds deck.blue in the manual catalog with contributeUrl', () => {
