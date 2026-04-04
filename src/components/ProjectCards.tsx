@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react'
 import type { StewardEntry } from '@/lib/steward-model'
-import type { PdsHostFunding } from '@/lib/atfund-steward'
 import Link from 'next/link'
 import {
   BadgeCheck,
@@ -24,6 +23,7 @@ import {
   ProfileAvatar,
   CardIconSlot,
 } from '@/components/card-primitives'
+
 import { DependenciesSection } from '@/components/card-dependencies'
 
 // ---------------------------------------------------------------------------
@@ -156,80 +156,6 @@ function CardInner({
 // ---------------------------------------------------------------------------
 // Card exports
 // ---------------------------------------------------------------------------
-
-export function PdsHostSupportCard({
-  pdsHostname,
-  funding,
-}: {
-  pdsHostname: string
-  funding?: PdsHostFunding | null
-}) {
-  const stewardLabel = funding?.pdsStewardHandle ?? funding?.pdsStewardUri
-  const websiteUrl = (stewardLabel ? websiteFallbackForUri(stewardLabel) : undefined)
-    ?? `https://${pdsHostname}`
-  const displayName = stewardLabel ?? pdsHostname
-  const contributeUrl = funding?.contributeUrl
-  const initials = pdsHostname.slice(0, 2).toUpperCase()
-
-  return (
-    <li className={`px-4 py-3.5 transition-all duration-100 ${
-      contributeUrl
-        ? 'bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/50'
-        : 'opacity-60 hover:opacity-100 hover:bg-slate-100 dark:hover:bg-slate-800/50'
-    }`}>
-      <div className="flex items-start gap-3">
-        <a
-          href={websiteUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="shrink-0 transition-opacity hover:opacity-75"
-          tabIndex={-1}
-          aria-hidden
-        >
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-            {initials}
-          </span>
-        </a>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <StewardNameHeading name={displayName} href={websiteUrl} linkVariant="support" />
-            <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-600 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-400">
-              personal data server
-            </span>
-          </div>
-          <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
-            {pdsHostname}
-          </p>
-        </div>
-
-        <div className="flex shrink-0 items-start gap-1">
-          {contributeUrl ? (
-            <a
-              href={contributeUrl}
-              target="_blank"
-              rel="noreferrer"
-              title="Opens their contribution page"
-              className="flex w-11 flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium text-[var(--support)] transition-opacity hover:opacity-75"
-            >
-              <DropletIcon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
-              <span>Fund</span>
-            </a>
-          ) : (
-            <span
-              title="This account hasn't configured a contribution link yet"
-              className="flex w-11 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600"
-            >
-              <DropletIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-              <span>Fund</span>
-            </span>
-          )}
-          <span className="w-11" aria-hidden />
-        </div>
-      </div>
-    </li>
-  )
-}
 
 /**
  * Unified steward card. Two card types:

@@ -2,15 +2,12 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import type { ScanStreamEvent, ScanWarning, PdsHostFunding } from '@/lib/pipeline/scan-stream'
+import type { ScanStreamEvent, ScanWarning } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
 import { EntryIndex } from '@/lib/steward-merge'
 import { pdslsRepoUrl } from '@/lib/pdsls'
 import { useSession } from '@/components/SessionContext'
-import {
-  StewardCard,
-  PdsHostSupportCard,
-} from '@/components/ProjectCards'
+import { StewardCard } from '@/components/ProjectCards'
 import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
   AlertCircle,
@@ -32,7 +29,6 @@ type ScanCache = {
   entries: StewardEntry[]
   referencedEntries: StewardEntry[]
   warnings: ScanWarning[]
-  pdsHostFunding: PdsHostFunding | undefined
   endorsedUris: Set<string>
 }
 
@@ -83,7 +79,6 @@ export function GiveClient() {
   const [entries, setEntries] = useState<StewardEntry[]>([])
   const [referencedEntries, setReferencedEntries] = useState<StewardEntry[]>([])
   const [warnings, setWarnings] = useState<ScanWarning[]>([])
-  const [pdsHostFunding, setPdsHostFunding] = useState<PdsHostFunding | undefined>()
   const [endorsedUris, setEndorsedUris] = useState<Set<string>>(new Set())
   const [scanDone, setScanDone] = useState(false)
   const [scanStatus, setScanStatus] = useState<string>('')
@@ -112,13 +107,20 @@ export function GiveClient() {
     [entries, referencedEntries],
   )
 
-  // Inclusion rule: tools/labelers/feeds always; follows only if actionable
+  // PDS-host entries are pinned to My Stack — exclude from the main discovered list
+  const pdsEntries = useMemo(
+    () => entries.filter((e) => e.tags.includes('pds-host')),
+    [entries],
+  )
+
+  // Inclusion rule: tools/labelers/feeds always; follows only if actionable; pds-host excluded (pinned separately)
   const visibleEntries = useMemo(() => {
     const lookup = (uri: string) => allEntriesForLookup.find((e) => e.uri === uri)
     const included = entries.filter(
       (e) =>
-        e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') ||
-        (e.tags.includes('follow') && !!e.contributeUrl),
+        !e.tags.includes('pds-host') &&
+        (e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') ||
+          (e.tags.includes('follow') && !!e.contributeUrl)),
     )
     return included.sort((a, b) => {
       const diff = entryTier(a, lookup) - entryTier(b, lookup)
@@ -243,7 +245,6 @@ export function GiveClient() {
     setEntries([])
     setReferencedEntries([])
     setWarnings([])
-    setPdsHostFunding(undefined)
     setEndorsedUris(new Set())
     setErr(null)
     setActiveTag('all')
@@ -293,8 +294,6 @@ export function GiveClient() {
             setEntries(entryIndexRef.current.toArray())
           } else if (event.type === 'referenced') {
             setReferencedEntries((prev) => [...prev, event.entry])
-          } else if (event.type === 'pds-host') {
-            setPdsHostFunding(event.funding)
           } else if (event.type === 'warning') {
             setWarnings((prev) => [...prev, event.warning])
           } else if (event.type === 'done') {
@@ -320,7 +319,7 @@ export function GiveClient() {
   // Save completed scan to cache
   useEffect(() => {
     if (!scanDone) return
-    _scanCache = { meta, entries, referencedEntries, warnings, pdsHostFunding, endorsedUris }
+    _scanCache = { meta, entries, referencedEntries, warnings, endorsedUris }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanDone])
 
@@ -331,7 +330,6 @@ export function GiveClient() {
       setEntries(_scanCache.entries)
       setReferencedEntries(_scanCache.referencedEntries)
       setWarnings(_scanCache.warnings)
-      setPdsHostFunding(_scanCache.pdsHostFunding)
       setEndorsedUris(_scanCache.endorsedUris)
       setScanDone(true)
       return
@@ -429,14 +427,16 @@ export function GiveClient() {
 
           <div className="flex flex-col gap-3">
             {/* PDS host + endorsed entries — single compact list */}
-            {(pdsUrl || endorsedEntries.length > 0) && (
+            {(pdsEntries.length > 0 || endorsedEntries.length > 0) && (
               <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-                {pdsUrl && (
-                  <PdsHostSupportCard
-                    pdsHostname={new URL(pdsUrl).hostname}
-                    funding={pdsHostFunding}
+                {pdsEntries.map((entry) => (
+                  <StewardCard
+                    key={entry.uri}
+                    entry={entry}
+                    allEntries={allEntriesForLookup}
+                    compact
                   />
-                )}
+                ))}
                 {endorsedEntries.map((entry) => (
                   <StewardCard
                     key={entry.uri}

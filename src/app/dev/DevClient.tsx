@@ -106,7 +106,7 @@ const ENDPOINTS: EndpointConfig[] = [
     method: 'GET',
     path: '/api/lexicons/stream',
     description:
-      'Streaming NDJSON scan. Each newline-delimited JSON object is a pipeline event: meta, status, entry, referenced, pds-host, warning, done.',
+      'Streaming NDJSON scan. Each newline-delimited JSON object is a pipeline event: meta, status, entry, referenced, warning, done.',
     auth: 'auth',
     params: [
       {

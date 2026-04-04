@@ -31,6 +31,7 @@ const TAG_LABEL: Partial<Record<StewardTag, string>> = {
   labeler: 'labeler',
   feed: 'feed',
   follow: 'follow',
+  'pds-host': 'personal data server',
 }
 
 export function TagBadges({ tags }: { tags: StewardTag[] }) {

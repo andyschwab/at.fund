@@ -1,7 +1,6 @@
 import { Client } from '@atproto/lex'
 import type { OAuthSession } from '@atproto/oauth-client'
 import { xrpcQuery } from '@/lib/xrpc'
-import type { PdsHostFunding } from '@/lib/atfund-steward'
 import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { resolveStewardUri, lookupManualStewardRecord } from '@/lib/catalog'
@@ -44,7 +43,6 @@ async function resolveSessionPdsUrl(
   }
 }
 
-export type { PdsHostFunding }
 export type { FollowedAccountCard }
 
 export type ScanWarning = {
@@ -58,7 +56,6 @@ export type ScanStreamEvent =
   | { type: 'status'; message: string }
   | { type: 'entry'; entry: StewardEntry }
   | { type: 'referenced'; entry: StewardEntry }
-  | { type: 'pds-host'; funding: PdsHostFunding }
   | { type: 'warning'; warning: ScanWarning }
   | { type: 'done' }
 
@@ -69,7 +66,6 @@ export type ScanResult = {
   entries: StewardEntry[]
   referencedEntries: StewardEntry[]
   warnings: ScanWarning[]
-  pdsHostFunding?: PdsHostFunding
 }
 
 export async function scanRepo(
@@ -213,18 +209,30 @@ export async function scanRepo(
     return a.uri.localeCompare(b.uri)
   })
 
-  // Run PDS host funding, follow scan, and subscriptions scan in parallel
-  let pdsHostFunding: ScanResult['pdsHostFunding']
+  // Run PDS host, follow scan, and subscriptions scan in parallel
+  let pdsEntry: StewardEntry | undefined
   let followedAccounts: FollowedAccountCard[] = []
   let subscriptionEntries: StewardEntry[] = []
 
   const pdsHostPromise = (async () => {
     if (!pdsUrl) return
     try {
-      pdsHostFunding = (await fetchFundingForUriLike(pdsUrl.origin)) ?? undefined
+      const pdsHostname = new URL(pdsUrl.origin).hostname
+      const funding = (await fetchFundingForUriLike(pdsUrl.origin)) ?? undefined
+      pdsEntry = {
+        uri: funding?.pdsStewardUri ?? pdsHostname,
+        did: funding?.stewardDid,
+        handle: funding?.pdsStewardHandle,
+        tags: ['tool', 'pds-host'],
+        displayName: funding?.pdsStewardUri ?? pdsHostname,
+        description: `Hosts your personal data at ${pdsHostname}`,
+        contributeUrl: funding?.contributeUrl,
+        dependencies: funding?.dependencies?.map((d) => d.uri),
+        source: funding ? 'fund.at' : 'unknown',
+      }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'
-      logger.warn('scan: PDS host funding lookup failed', {
+      const msg = e instanceof Error ? e.message : 'PDS host lookup failed'
+      logger.warn('scan: PDS host lookup failed', {
         pdsUrl: pdsUrl.origin,
         error: msg,
       })
@@ -267,14 +275,14 @@ export async function scanRepo(
     },
   })
 
+  const allStewards = pdsEntry ? [pdsEntry, ...stewards] : stewards
   return {
     did: session.did,
     handle,
     pdsUrl: pdsUrl?.origin,
-    entries: mergeIntoEntries(stewards, followedAccounts, subscriptionEntries),
+    entries: mergeIntoEntries(allStewards, followedAccounts, subscriptionEntries),
     referencedEntries: referencedStewardsToEntries(referencedStewards),
     warnings,
-    pdsHostFunding,
   }
 }
 
@@ -442,11 +450,23 @@ export async function scanRepoStreaming(
     (async () => {
       if (!pdsUrl) return
       try {
+        const pdsHostname = new URL(pdsUrl.origin).hostname
         const funding = await fetchFundingForUriLike(pdsUrl.origin)
-        if (funding) emit({ type: 'pds-host', funding })
+        const pdsEntry: StewardEntry = {
+          uri: funding?.pdsStewardUri ?? pdsHostname,
+          did: funding?.stewardDid,
+          handle: funding?.pdsStewardHandle,
+          tags: ['tool', 'pds-host'],
+          displayName: funding?.pdsStewardUri ?? pdsHostname,
+          description: `Hosts your personal data at ${pdsHostname}`,
+          contributeUrl: funding?.contributeUrl,
+          dependencies: funding?.dependencies?.map((d) => d.uri),
+          source: funding ? 'fund.at' : 'unknown',
+        }
+        emit({ type: 'entry', entry: pdsEntry })
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'
-        logger.warn('scan-streaming: PDS host funding lookup failed', { pdsUrl: pdsUrl.origin, error: msg })
+        const msg = e instanceof Error ? e.message : 'PDS host lookup failed'
+        logger.warn('scan-streaming: PDS host lookup failed', { pdsUrl: pdsUrl.origin, error: msg })
         emit({ type: 'warning', warning: { stewardUri: pdsUrl.origin, step: 'pds-host-funding', message: msg } })
       }
     })(),

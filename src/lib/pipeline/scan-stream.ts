@@ -1,6 +1,5 @@
 import type { OAuthSession } from '@atproto/oauth-client'
 import type { StewardEntry } from '@/lib/steward-model'
-import type { PdsHostFunding } from '@/lib/atfund-steward'
 import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { fetchOwnEndorsements } from '@/lib/fund-at-records'
 import { gatherAccounts } from './account-gather'
@@ -15,7 +14,6 @@ import { logger } from '@/lib/logger'
 // ---------------------------------------------------------------------------
 
 export type { ScanWarning }
-export type { PdsHostFunding }
 
 export type ScanStreamEvent =
   | { type: 'meta'; did: string; handle?: string; pdsUrl?: string }
@@ -23,7 +21,6 @@ export type ScanStreamEvent =
   | { type: 'endorsed'; uris: string[] }
   | { type: 'entry'; entry: StewardEntry }
   | { type: 'referenced'; entry: StewardEntry }
-  | { type: 'pds-host'; funding: PdsHostFunding }
   | { type: 'warning'; warning: ScanWarning }
   | { type: 'done' }
 
@@ -104,14 +101,28 @@ export async function scanStreaming(
     emit({ type: 'referenced', entry })
   })
 
-  // ── PDS host funding ──────────────────────────────────────────────────
+  // ── PDS host ───────────────────────────────────────────────────────────
+  // Always emit a pds-host entry so the user sees their data server in My Stack.
+  // Funding details are optional — the entry shows regardless.
   if (gathered.pdsUrl) {
     try {
+      const pdsHostname = new URL(gathered.pdsUrl).hostname
       const funding = await fetchFundingForUriLike(gathered.pdsUrl)
-      if (funding) emit({ type: 'pds-host', funding })
+      const pdsEntry: StewardEntry = {
+        uri: funding?.pdsStewardUri ?? pdsHostname,
+        did: funding?.stewardDid,
+        handle: funding?.pdsStewardHandle,
+        tags: ['tool', 'pds-host'],
+        displayName: funding?.pdsStewardUri ?? pdsHostname,
+        description: `Hosts your personal data at ${pdsHostname}`,
+        contributeUrl: funding?.contributeUrl,
+        dependencies: funding?.dependencies?.map((d) => d.uri),
+        source: funding ? 'fund.at' : 'unknown',
+      }
+      emit({ type: 'entry', entry: pdsEntry })
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'
-      logger.warn('scan: PDS host funding failed', { error: msg })
+      const msg = e instanceof Error ? e.message : 'PDS host lookup failed'
+      logger.warn('scan: PDS host lookup failed', { error: msg })
       emit({ type: 'warning', warning: { stewardUri: gathered.pdsUrl, step: 'pds-host-funding', message: msg } })
     }
   }
