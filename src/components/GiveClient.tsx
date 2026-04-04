@@ -434,7 +434,6 @@ export function GiveClient() {
                     key={entry.uri}
                     entry={entry}
                     allEntries={allEntriesForLookup}
-                    compact
                   />
                 ))}
                 {endorsedEntries.map((entry) => (
@@ -446,7 +445,6 @@ export function GiveClient() {
                     endorsedSet={endorsedUris}
                     onEndorse={handleEndorse}
                     onUnendorse={handleUnendorse}
-                    compact
                   />
                 ))}
               </ul>
@@ -572,7 +570,6 @@ export function GiveClient() {
                       endorsedSet={endorsedUris}
                       onEndorse={handleEndorse}
                       onUnendorse={handleUnendorse}
-                      compact
                     />
                   ))}
                 </ul>
