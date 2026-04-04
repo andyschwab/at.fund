@@ -3,33 +3,36 @@ import { normalizeStewardUri } from '@/lib/steward-uri'
 import { logger } from '@/lib/logger'
 
 // ---------------------------------------------------------------------------
-// Constellation API — complete backlink index for AT Protocol
+// Slingshot API — fast AT Protocol record proxy by Microcosm
+// ---------------------------------------------------------------------------
+//
+// Constellation doesn't index fund.at.endorse (custom lexicon).
+// Instead, we use Slingshot's getRecord to check each follow's repo
+// for endorsement records. Since rkey = endorsed URI, checking
+// "did X endorse URI Y?" is a single fast GET.
+//
+// Slingshot URL: https://slingshot.microcosm.blue
 // ---------------------------------------------------------------------------
 
-const CONSTELLATION_BASE = 'https://constellation.microcosm.blue'
+const SLINGSHOT_BASE = 'https://slingshot.microcosm.blue'
 const CACHE_TTL_SECONDS = 15 * 60 // 15 minutes
-const CACHE_PREFIX = 'endorse:backlinks:'
-const MAX_PAGES = 20 // safety limit to avoid runaway pagination
-const CONCURRENCY = 5 // max parallel Constellation requests
+const CACHE_PREFIX = 'endorse:slingshot:'
+const CONCURRENCY = 20 // Slingshot is a fast cache proxy
 
-// The "source" param combines collection NSID and json-path to the link field.
-// For fund.at.endorse records, the endorsed URI lives at the `.uri` field.
-const ENDORSE_SOURCE = 'fund.at.endorse:uri'
-
-const HEADERS = { 'User-Agent': 'at.fund/1.0 (endorsement-index)' }
+const HEADERS = { 'User-Agent': 'at.fund/1.0 (endorsement-check)' }
 
 // In-memory fallback when Redis is unavailable (local dev)
-const memoryCache = new Map<string, { data: BacklinkResult; fetchedAt: number }>()
+const memoryCache = new Map<string, { data: EndorsementResult; fetchedAt: number }>()
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type BacklinkResult = {
-  /** DIDs of accounts that endorsed this URI. */
+export type EndorsementResult = {
+  /** DIDs that endorsed this URI (from the checked set, e.g. follows). */
   endorserDids: string[]
-  /** Total endorsement count. */
-  totalCount: number
+  /** Count of endorsers found in the checked set. */
+  networkEndorsementCount: number
 }
 
 // ---------------------------------------------------------------------------
@@ -56,121 +59,85 @@ async function runWithConcurrency<T, R>(
 }
 
 // ---------------------------------------------------------------------------
-// Constellation queries
+// Slingshot queries
 // ---------------------------------------------------------------------------
 
 /**
- * Diagnostic: try multiple Constellation query forms to discover how
- * fund.at.endorse records are indexed (if at all).
+ * Check if a single DID has endorsed a given URI via Slingshot.
+ * Returns true if the record exists (200), false otherwise.
  */
-async function diagnoseTarget(targetUri: string): Promise<void> {
-  const queries = [
-    // 1. /links/all — shows ALL link types for this target
-    { label: '/links/all (bare)', url: `${CONSTELLATION_BASE}/links/all?${new URLSearchParams({ target: targetUri })}` },
-    // 2. /links/all with https:// prefix
-    { label: '/links/all (https)', url: `${CONSTELLATION_BASE}/links/all?${new URLSearchParams({ target: `https://${targetUri}` })}` },
-    // 3. Deprecated /links with explicit collection+path
-    { label: '/links (deprecated)', url: `${CONSTELLATION_BASE}/links?${new URLSearchParams({ target: targetUri, collection: 'fund.at.endorse', path: '.uri' })}` },
-    // 4. Deprecated /links with https:// target
-    { label: '/links (deprecated+https)', url: `${CONSTELLATION_BASE}/links?${new URLSearchParams({ target: `https://${targetUri}`, collection: 'fund.at.endorse', path: '.uri' })}` },
-  ]
-
-  for (const q of queries) {
-    try {
-      const res = await fetch(q.url, { headers: HEADERS })
-      const body = await res.text()
-      logger.info('constellation: diagnostic', {
-        query: q.label,
-        target: targetUri,
-        status: res.status,
-        body: body.slice(0, 500),
-      })
-    } catch (e) {
-      logger.warn('constellation: diagnostic failed', {
-        query: q.label,
-        target: targetUri,
-        error: e instanceof Error ? e.message : String(e),
-      })
-    }
+async function checkEndorsement(
+  did: string,
+  endorsedUri: string,
+): Promise<boolean> {
+  const params = new URLSearchParams({
+    repo: did,
+    collection: 'fund.at.endorse',
+    rkey: endorsedUri,
+  })
+  try {
+    const res = await fetch(
+      `${SLINGSHOT_BASE}/xrpc/com.atproto.repo.getRecord?${params}`,
+      { headers: HEADERS },
+    )
+    return res.status === 200
+  } catch {
+    return false
   }
 }
 
 /**
- * Fetch distinct endorser DIDs for a target URI from Constellation.
- * Uses the getDistinct endpoint which returns just DIDs — perfect for
- * intersecting with the user's follow set.
+ * Check which DIDs from a set have endorsed a given URI.
+ * Queries Slingshot in parallel with concurrency control.
  */
-async function fetchEndorserDids(
+async function findEndorsersForUri(
   targetUri: string,
-): Promise<BacklinkResult> {
-  const dids: string[] = []
-  let cursor: string | undefined
-  let pagesQueried = 0
-  let lastStatus: number | undefined
+  candidateDids: string[],
+): Promise<string[]> {
+  const endorsers: string[] = []
 
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const params = new URLSearchParams({
-      subject: targetUri,
-      source: ENDORSE_SOURCE,
-      limit: '100',
-    })
-    if (cursor) params.set('cursor', cursor)
+  await runWithConcurrency(candidateDids, CONCURRENCY, async (did) => {
+    const endorsed = await checkEndorsement(did, targetUri)
+    if (endorsed) endorsers.push(did)
+    return endorsed
+  })
 
-    const url = `${CONSTELLATION_BASE}/xrpc/blue.microcosm.links.getDistinct?${params}`
-
-    try {
-      const res = await fetch(url, { headers: HEADERS })
-      lastStatus = res.status
-      pagesQueried++
-
-      if (!res.ok) {
-        if (res.status !== 404) {
-          logger.warn('constellation: getDistinct failed', {
-            subject: targetUri,
-            status: res.status,
-          })
-        }
-        break
-      }
-
-      const data = (await res.json()) as Record<string, unknown>
-      const responseDids = data.dids as string[] | undefined
-      if (responseDids) dids.push(...responseDids)
-
-      if (!data.cursor) break
-      cursor = data.cursor as string
-    } catch (e) {
-      logger.warn('constellation: fetch error', {
-        subject: targetUri,
-        error: e instanceof Error ? e.message : String(e),
-      })
-      break
-    }
-  }
-
-  return { endorserDids: dids, totalCount: dids.length }
+  return endorsers
 }
 
 // ---------------------------------------------------------------------------
 // Caching layer — Redis with in-memory fallback
 // ---------------------------------------------------------------------------
 
-async function getCached(uri: string): Promise<BacklinkResult | null> {
-  const key = `${CACHE_PREFIX}${uri}`
+function cacheKey(uri: string, didsHash: string): string {
+  return `${CACHE_PREFIX}${uri}:${didsHash}`
+}
+
+/** Simple hash of sorted DID list for cache keying. */
+function hashDids(dids: string[]): string {
+  // Use count + first/last DID as a lightweight fingerprint.
+  // Full hash would be better but this avoids crypto imports.
+  if (dids.length === 0) return '0'
+  const sorted = [...dids].sort()
+  return `${dids.length}:${sorted[0]!.slice(-8)}:${sorted[sorted.length - 1]!.slice(-8)}`
+}
+
+async function getCached(uri: string, didsHash: string): Promise<EndorsementResult | null> {
+  const key = cacheKey(uri, didsHash)
 
   const redis = getRedisClient()
   if (redis) {
     try {
-      const cached = await redis.get<BacklinkResult>(key)
+      const cached = await redis.get<EndorsementResult>(key)
       if (cached) return cached
     } catch (e) {
-      logger.warn('constellation: redis get failed', {
+      logger.warn('slingshot: redis get failed', {
         error: e instanceof Error ? e.message : String(e),
       })
     }
   }
 
-  const mem = memoryCache.get(uri)
+  const mem = memoryCache.get(key)
   if (mem && Date.now() - mem.fetchedAt < CACHE_TTL_SECONDS * 1000) {
     return mem.data
   }
@@ -178,21 +145,21 @@ async function getCached(uri: string): Promise<BacklinkResult | null> {
   return null
 }
 
-async function setCache(uri: string, result: BacklinkResult): Promise<void> {
-  const key = `${CACHE_PREFIX}${uri}`
+async function setCache(uri: string, didsHash: string, result: EndorsementResult): Promise<void> {
+  const key = cacheKey(uri, didsHash)
 
   const redis = getRedisClient()
   if (redis) {
     try {
       await redis.set(key, result, { ex: CACHE_TTL_SECONDS })
     } catch (e) {
-      logger.warn('constellation: redis set failed', {
+      logger.warn('slingshot: redis set failed', {
         error: e instanceof Error ? e.message : String(e),
       })
     }
   }
 
-  memoryCache.set(uri, { data: result, fetchedAt: Date.now() })
+  memoryCache.set(key, { data: result, fetchedAt: Date.now() })
 }
 
 // ---------------------------------------------------------------------------
@@ -200,45 +167,54 @@ async function setCache(uri: string, result: BacklinkResult): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * Get endorsement data for a single URI. Returns cached result if available,
- * otherwise queries Constellation and caches the response.
+ * Check which DIDs from `candidateDids` have endorsed the given URI.
+ * Uses Slingshot (fast record proxy) to check each DID's repo.
+ * Results are cached by URI + DID set fingerprint.
  */
-export async function getEndorsersForUri(
+export async function getNetworkEndorsements(
   uri: string,
-): Promise<BacklinkResult> {
+  candidateDids: string[],
+): Promise<EndorsementResult> {
   const normalized = normalizeStewardUri(uri) ?? uri
-  const cached = await getCached(normalized)
+  const didsHash = hashDids(candidateDids)
+
+  const cached = await getCached(normalized, didsHash)
   if (cached) return cached
 
-  const result = await fetchEndorserDids(normalized)
-  await setCache(normalized, result)
+  const endorsers = await findEndorsersForUri(normalized, candidateDids)
+  const result: EndorsementResult = {
+    endorserDids: endorsers,
+    networkEndorsementCount: endorsers.length,
+  }
+
+  await setCache(normalized, didsHash, result)
   return result
 }
 
 /**
- * Get endorsement data for multiple URIs with concurrency control.
- * Uses cache where available; fetches from Constellation for misses.
+ * Check endorsements for multiple URIs against the same set of candidate DIDs.
+ * Runs URI checks sequentially (each URI fans out to CONCURRENCY DID checks).
  */
-export async function getEndorsersForUris(
+export async function getNetworkEndorsementsForUris(
   uris: string[],
-): Promise<Map<string, BacklinkResult>> {
-  const results = new Map<string, BacklinkResult>()
+  candidateDids: string[],
+): Promise<Map<string, EndorsementResult>> {
+  const results = new Map<string, EndorsementResult>()
   const normalized = uris.map((u) => normalizeStewardUri(u) ?? u)
   const unique = [...new Set(normalized)]
 
-  await runWithConcurrency(unique, CONCURRENCY, async (uri) => {
-    const result = await getEndorsersForUri(uri)
+  // Process URIs sequentially — each one already fans out to many DID checks
+  for (const uri of unique) {
+    const result = await getNetworkEndorsements(uri, candidateDids)
     results.set(uri, result)
-    return result
+  }
+
+  logger.info('slingshot: endorsement check complete', {
+    urisChecked: unique.length,
+    didsPerUri: candidateDids.length,
+    totalQueries: unique.length * candidateDids.length,
+    endorsementsFound: [...results.values()].reduce((s, r) => s + r.networkEndorsementCount, 0),
   })
 
   return results
-}
-
-/**
- * Run a one-time diagnostic to check what Constellation has for known targets.
- * Call this once per scan to verify the API is reachable and has our data.
- */
-export async function runDiagnostic(sampleUri: string): Promise<void> {
-  await diagnoseTarget(sampleUri)
 }

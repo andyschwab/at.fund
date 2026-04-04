@@ -12,7 +12,6 @@ import { attachCapabilities } from './capability-scan'
 import { resolveDependencies } from './dep-resolve'
 import { discoverEcosystem } from './ecosystem-scan'
 import type { EndorsementCounts } from './ecosystem-scan'
-import { runDiagnostic } from '@/lib/microcosm'
 import { logger } from '@/lib/logger'
 
 // ---------------------------------------------------------------------------
@@ -47,10 +46,8 @@ export async function scanStreaming(
   emit: (event: ScanStreamEvent) => void,
 ): Promise<void> {
   // ── Endorsements: fetch early so the client can mark entries ────────────
-  let endorsedUris: string[] = []
   try {
-    endorsedUris = await fetchOwnEndorsements(session)
-    logger.info('scan: own endorsements', { count: endorsedUris.length, uris: endorsedUris })
+    const endorsedUris = await fetchOwnEndorsements(session)
     if (endorsedUris.length > 0) {
       emit({ type: 'endorsed', uris: endorsedUris })
     }
@@ -59,21 +56,7 @@ export async function scanStreaming(
     logger.warn('scan: endorsement fetch failed', { error: msg })
   }
 
-  // ── Diagnostic: use first endorsed URI to test Constellation ───────────
-  if (endorsedUris.length > 0) {
-    runDiagnostic(endorsedUris[0]!).catch(() => {})
-  }
-
-  // ── Phase 1: Gather + start ecosystem discovery in parallel ───────────
-  // Constellation queries run concurrently with account gathering.
-  // We pass an empty follow set now; network counts are recomputed later.
-  const ecosystemPromise = discoverEcosystem(new Set()).catch((e) => {
-    logger.warn('scan: ecosystem prefetch failed', {
-      error: e instanceof Error ? e.message : String(e),
-    })
-    return null
-  })
-
+  // ── Phase 1: Gather accounts ──────────────────────────────────────────
   const gathered = await gatherAccounts(session, selfReportedStewards, (msg) => {
     emit({ type: 'status', message: msg })
   })
@@ -89,24 +72,19 @@ export async function scanStreaming(
     emit({ type: 'warning', warning: w })
   }
 
-  // ── Inject ecosystem entries inline before enrichment ──────────────────
+  // ── Ecosystem: discover + check endorsements via Slingshot ────────────
   const ecosystemUriCounts = new Map<string, EndorsementCounts>()
 
-  // Extract follow DIDs (needed for network endorsement counts)
   const followDids = new Set<string>()
   for (const [did, stub] of gathered.accounts) {
     if (stub.tags.has('follow')) followDids.add(did)
   }
 
   try {
-    const discovery = await ecosystemPromise
-    if (discovery && discovery.uris.size > 0) {
-      // Recompute with real follows for accurate network counts.
-      // Constellation results are cached, so this is fast.
-      const finalDiscovery = followDids.size > 0
-        ? await discoverEcosystem(followDids)
-        : discovery
+    emit({ type: 'status', message: 'Checking ecosystem endorsements…' })
+    const discovery = await discoverEcosystem(followDids)
 
+    if (discovery.uris.size > 0) {
       // Build set of URIs already gathered (by DID or hostname)
       const existingUris = new Set<string>()
       for (const [did, stub] of gathered.accounts) {
@@ -117,7 +95,7 @@ export async function scanStreaming(
         existingUris.add(svc.hostname)
       }
 
-      const uriEntries = [...finalDiscovery.uris.entries()]
+      const uriEntries = [...discovery.uris.entries()]
         .filter(([uri]) => !existingUris.has(uri))
 
       await Promise.all(uriEntries.map(async ([uri, counts]) => {
@@ -168,7 +146,6 @@ export async function scanStreaming(
     gathered.accounts,
     gathered.unresolvedServices,
     (entry) => {
-      // Ecosystem-only entries are held for the ecosystem event after Phase 4.
       const isEcosystemOnly = entry.tags.length === 1 && entry.tags[0] === 'ecosystem'
       if (entry.tags.length > 0 && !isEcosystemOnly) {
         emit({ type: 'entry', entry })
@@ -219,27 +196,16 @@ export async function scanStreaming(
     if (ecosystemEntries.length > 0) {
       emit({ type: 'ecosystem', entries: ecosystemEntries })
     }
-  }
 
-  // ── Emit ecosystem endorsement counts ───────────────────────────────────
-  // For now, only ecosystem entries get Constellation-backed counts.
-  // Querying all entries would require 100+ API calls and rate-limits.
-  if (ecosystemUriCounts.size > 0) {
+    // Emit counts map so any card can display them
     const counts: Record<string, EndorsementCounts> = {}
     for (const [uri, c] of ecosystemUriCounts) {
       counts[uri] = c
     }
-    emit({ type: 'endorsement-counts', counts })
-  }
-
-  // ── Diagnostic: check what Constellation indexes for a known target ────
-  // Runs once per scan to help debug whether fund.at.endorse is indexed.
-  try {
-    const sampleEcosystemUri = [...ecosystemUriCounts.keys()][0]
-    if (sampleEcosystemUri) {
-      await runDiagnostic(sampleEcosystemUri)
+    if (Object.keys(counts).length > 0) {
+      emit({ type: 'endorsement-counts', counts })
     }
-  } catch { /* diagnostic is best-effort */ }
+  }
 
   // ── PDS host funding ──────────────────────────────────────────────────
   if (gathered.pdsUrl) {

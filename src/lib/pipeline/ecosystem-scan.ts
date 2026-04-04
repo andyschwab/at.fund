@@ -1,4 +1,4 @@
-import { getEndorsersForUris } from '@/lib/microcosm'
+import { getNetworkEndorsementsForUris } from '@/lib/microcosm'
 import { getEcosystemCatalogEntries } from '@/lib/catalog'
 import { logger } from '@/lib/logger'
 
@@ -18,16 +18,17 @@ export type EcosystemDiscovery = {
 }
 
 // ---------------------------------------------------------------------------
-// Discovery: query Constellation for complete endorsement data
+// Discovery: check follow repos for endorsement records via Slingshot
 // ---------------------------------------------------------------------------
 
 /**
  * Discovers ecosystem URIs by combining:
  * 1. Curated catalog entries tagged "ecosystem" (always shown)
- * 2. Network-discovered URIs endorsed by 1+ of the user's follows
+ * 2. Network endorsement counts from the user's follows
  *
- * Uses Constellation (microcosm backlink index) for complete endorsement
- * data — no sampling limitations.
+ * Uses Slingshot (microcosm record proxy) to check each follow's repo
+ * for fund.at.endorse records. Since rkey = endorsed URI, this is a
+ * simple existence check per (follow, ecosystemUri) pair.
  */
 export async function discoverEcosystem(
   followDids: Set<string>,
@@ -35,33 +36,36 @@ export async function discoverEcosystem(
   const catalogEntries = getEcosystemCatalogEntries()
   const catalogUris = catalogEntries.map((c) => c.stewardUri)
 
-  // Query Constellation for endorsement data on all catalog ecosystem URIs
-  const backlinkResults = await getEndorsersForUris(catalogUris)
-
-  // Build result map
   const uris = new Map<string, EndorsementCounts>()
 
-  for (const cat of catalogEntries) {
-    const backlinks = backlinkResults.get(cat.stewardUri)
-    const endorserDids = backlinks?.endorserDids ?? []
+  if (followDids.size > 0 && catalogUris.length > 0) {
+    // Query Slingshot for endorsement records across all follows
+    const endorsementResults = await getNetworkEndorsementsForUris(
+      catalogUris,
+      [...followDids],
+    )
 
-    const networkCount = followDids.size > 0
-      ? endorserDids.filter((did) => followDids.has(did)).length
-      : 0
-
-    uris.set(cat.stewardUri, {
-      endorsementCount: endorserDids.length,
-      networkEndorsementCount: networkCount,
-    })
+    for (const cat of catalogEntries) {
+      const result = endorsementResults.get(cat.stewardUri)
+      uris.set(cat.stewardUri, {
+        // We don't have total counts without a full index — show network count
+        endorsementCount: result?.networkEndorsementCount ?? 0,
+        networkEndorsementCount: result?.networkEndorsementCount ?? 0,
+      })
+    }
+  } else {
+    // No follows available — just list catalog entries with zero counts
+    for (const cat of catalogEntries) {
+      uris.set(cat.stewardUri, { endorsementCount: 0, networkEndorsementCount: 0 })
+    }
   }
 
   logger.info('ecosystem: discovery completed', {
     catalogCount: catalogEntries.length,
     totalUris: uris.size,
+    followsChecked: followDids.size,
     withEndorsements: [...uris.values()].filter((c) => c.endorsementCount > 0).length,
-    networkDiscovered: [...uris.values()].filter((c) => c.networkEndorsementCount > 0).length,
   })
 
   return { uris }
 }
-
