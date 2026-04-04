@@ -1,4 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <circle cx="50" cy="50" r="50" fill="#059669"/>
-  <path d="M50 72 C50 72,22 54,22 36 A16 16 0 0 1 50 28 A16 16 0 0 1 78 36 C78 54,50 72,50 72 Z" fill="white"/>
+  <!-- Heart outline matching HeartHandshake navbar icon -->
+  <g fill="none" stroke="white" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M68 55c4-3.8 8-8.5 8-14.5A14 14 0 0 0 62 27c-4.4 0-7.5 1.2-12 5-4.5-3.8-7.6-5-12-5A14 14 0 0 0 24 40.5c0 6 4 10.7 8 14.5l18 18Z"/>
+    <path d="M50 34l-7.2 7.2a5.5 5.5 0 0 0 0 7.8c2.1 2.1 5.4 2.2 7.6.2l5-4.6a7 7 0 0 1 9.6 0l7 6.4"/>
+    <path d="M66 57.5l-5-5"/>
+    <path d="M59.5 64l-5-5"/>
+  </g>
 </svg>

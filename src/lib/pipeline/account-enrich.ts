@@ -55,19 +55,18 @@ export async function enrichAccounts(
   unresolvedServices: UnresolvedService[],
   onEntry?: (entry: StewardEntry) => void,
 ): Promise<EnrichResult> {
-  const client = new Client(session)
   const publicClient = new Client(PUBLIC_API)
   const warnings: ScanWarning[] = []
 
-  // ── Batch-resolve profiles for handles + displayNames ──────────────────
-  const needsProfile = [...accounts.values()].filter((a) => !a.handle)
+  // ── Batch-resolve profiles for handles, displayNames, and avatars ─────
+  const needsProfile = [...accounts.values()].filter((a) => !a.avatar)
   const profileDids = needsProfile.map((a) => a.did)
 
   for (let i = 0; i < profileDids.length; i += PROFILE_BATCH) {
     const batch = profileDids.slice(i, i + PROFILE_BATCH)
     try {
       const data = await xrpcQuery<{
-        profiles?: Array<{ did: string; handle?: string; displayName?: string; description?: string }>
+        profiles?: Array<{ did: string; handle?: string; displayName?: string; description?: string; avatar?: string }>
       }>(publicClient, 'app.bsky.actor.getProfiles', { actors: batch })
       for (const p of data.profiles ?? []) {
         const stub = accounts.get(p.did)
@@ -75,6 +74,7 @@ export async function enrichAccounts(
         if (p.handle && !stub.handle) stub.handle = p.handle
         if (p.displayName && !stub.displayName) stub.displayName = p.displayName
         if (p.description && !stub.description) stub.description = p.description
+        if (p.avatar && !stub.avatar) stub.avatar = p.avatar
       }
     } catch (e) {
       logger.warn('enrich: profile batch failed', {
@@ -91,19 +91,28 @@ export async function enrichAccounts(
     // Prefer hostname as URI (readable), fall back to handle, then DID
     const hostname = [...stub.hostnames][0]
     const uri = hostname ?? stub.handle ?? stub.did
+    const isTool = stub.hostnames.size > 0
 
     // Best displayName: profile name > hostname > handle > DID
     const displayName = stub.displayName && !stub.displayName.startsWith('did:')
       ? stub.displayName
       : hostname ?? stub.handle ?? stub.did
 
+    // Non-tool accounts (feeds, labelers, follows) get a Bluesky profile link.
+    // Tool accounts leave landingPage unset — the card derives it from hostname.
+    const landingPage = !isTool && stub.handle
+      ? `https://bsky.app/profile/${stub.handle}`
+      : undefined
+
     const base: Omit<StewardEntry, 'source'> = {
       uri,
       did: stub.did,
       handle: stub.handle,
+      avatar: stub.avatar,
       tags,
       displayName,
       description: stub.description,
+      landingPage,
     }
 
     // 1. Try fund.at records by DID
@@ -113,7 +122,7 @@ export async function enrichAccounts(
         const own = await fetchOwnFundAtRecords(session)
         fundAt = own ? { stewardDid: stub.did, ...own } : null
       } else {
-        fundAt = await fetchFundAtForStewardDid(stub.did, client)
+        fundAt = await fetchFundAtForStewardDid(stub.did)
       }
       if (fundAt) {
         // Also check manual catalog for extra deps

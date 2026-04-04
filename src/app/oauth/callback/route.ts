@@ -32,10 +32,18 @@ export async function GET(request: NextRequest) {
     return response
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
+    const isStateLost =
+      message.includes('state') ||
+      message.includes('PKCE') ||
+      message.includes('verifier')
+    const reason = isStateLost ? 'state_lost' : 'callback_error'
     logger.error('oauth: callback failed', {
       error: message,
+      reason,
       stack: error instanceof Error ? error.stack : undefined,
     })
-    return NextResponse.redirect(new URL('/?error=login_failed', publicUrl))
+    return NextResponse.redirect(
+      new URL(`/?error=login_failed&reason=${reason}`, publicUrl),
+    )
   }
 }

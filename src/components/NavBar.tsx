@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   AlertCircle,
+  Bug,
   HeartHandshake,
   LogIn,
   LogOut,
@@ -22,6 +23,8 @@ const NAV_LINKS = [
   { href: '/setup', label: 'Receive' },
   { href: '/lexicon', label: 'Build' },
 ] as const
+
+const BUG_REPORT_URL = 'https://github.com/andyschwab/at.fund/issues/new'
 
 function Logo() {
   return (
@@ -97,6 +100,15 @@ export function NavBar() {
                 </>
               )}
             </button>
+            <a
+              href={BUG_REPORT_URL}
+              target="_blank"
+              rel="noreferrer"
+              title="Report a bug"
+              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+            >
+              <Bug className="h-4 w-4" aria-hidden />
+            </a>
           </div>
 
           {/* Mobile hamburger */}
@@ -155,6 +167,15 @@ export function NavBar() {
                   </>
                 )}
               </button>
+              <a
+                href={BUG_REPORT_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+              >
+                <Bug className="h-4 w-4" aria-hidden />
+                Report a bug
+              </a>
             </div>
           </div>
         )}
@@ -222,14 +243,24 @@ export function NavBar() {
                 >
                   Your Bluesky handle
                 </label>
-                <HandleAutocomplete
-                  id="nav-handle-input"
-                  value={handle}
-                  onChange={setHandle}
-                  placeholder="you.bsky.social"
-                  disabled={loginLoading}
-                  inputClassName="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-                />
+                <div className="flex gap-2">
+                  <HandleAutocomplete
+                    id="nav-handle-input"
+                    value={handle}
+                    onChange={setHandle}
+                    placeholder="you.bsky.social"
+                    disabled={loginLoading}
+                    inputClassName="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={loginLoading || !handle.trim()}
+                    className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                  >
+                    <LogIn className="h-4 w-4" aria-hidden />
+                    {loginLoading ? 'Redirecting…' : 'Sign in'}
+                  </button>
+                </div>
               </div>
               {loginError && (
                 <p className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
@@ -237,14 +268,6 @@ export function NavBar() {
                   {loginError}
                 </p>
               )}
-              <button
-                type="submit"
-                disabled={loginLoading || !handle.trim()}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                <LogIn className="h-4 w-4" aria-hidden />
-                {loginLoading ? 'Redirecting…' : 'Sign in'}
-              </button>
               <details className="rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
                 <summary className="flex cursor-pointer list-none items-center gap-2 font-medium [&::-webkit-details-marker]:hidden">
                   <Monitor className="h-4 w-4 shrink-0" aria-hidden />

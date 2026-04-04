@@ -1,4 +1,3 @@
-import type { Client } from '@atproto/lex'
 import { fetchFundAtRecords } from '@/lib/fund-at-records'
 
 export type PdsHostFunding = {
@@ -21,9 +20,8 @@ export async function fetchPdsHostFunding(
     pdsStewardUri?: string
     pdsStewardHandle?: string
   },
-  client?: Client,
 ): Promise<PdsHostFunding | null> {
-  const result = await fetchFundAtRecords(stewardDid, client)
+  const result = await fetchFundAtRecords(stewardDid)
   if (!result) return null
   return { pdsHostname, stewardDid, ...opts, ...result }
 }

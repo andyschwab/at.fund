@@ -6,7 +6,7 @@ Fund what you use. Sign in with ATProto OAuth, and the app discovers the tools, 
 
 1. **Sign in** with your Bluesky handle
 2. **Scan** — the app reads your repo collections, follows, feed subscriptions, and labeler subscriptions
-3. **Resolve** — each account is enriched with `fund.at.*` records from their PDS, or from a curated manual catalog
+3. **Resolve** — each account is enriched with `fund.at.*` records from their PDS. For projects without an AT Protocol account, a curated catalog provides a fallback
 4. **Cards** — one card per account showing contribution links, capabilities (feeds/labelers), and dependencies
 
 See **[docs/pipeline.md](docs/pipeline.md)** for the full pipeline architecture.
@@ -35,18 +35,30 @@ See **[docs/pipeline.md](docs/pipeline.md)** for the full pipeline architecture.
 
 ## API
 
-- `GET /api/lexicons/stream?extraStewards=whtwnd.com,roomy.space` — streaming NDJSON scan (primary). Requires session cookie.
-- `GET /api/lexicons?extraStewards=...` — non-streaming JSON scan (legacy).
-- `GET /api/steward?uri=...` — single steward lookup (for dependency modal drill-down).
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /api/lexicons/stream?extraStewards=...` | Session cookie | Streaming NDJSON scan (primary) |
+| `GET /api/entry?uri=<handle-or-did>` | None | Full single-entry resolution (endorsement, dep modal) |
+| `GET /api/steward?uri=...` | None | Thin steward lookup (legacy) |
+| `POST /api/endorse` `{ uri }` | Session cookie | Create endorsement record |
+| `DELETE /api/endorse` `{ uri }` | Session cookie | Remove endorsement record |
 
 ## Project layout
 
 ```
 src/
 ├── app/                              Next.js pages and API routes
+│   └── api/
+│       ├── entry/route.ts            Full single-entry resolution endpoint
+│       ├── endorse/route.ts          Endorsement CRUD
+│       ├── lexicons/stream/route.ts  Streaming scan endpoint
+│       └── steward/route.ts          Thin steward lookup (legacy)
 ├── components/
-│   ├── GiveClient.tsx                Streaming scan client + card layout
-│   ├── ProjectCards.tsx              Card components (StewardCard, PdsHostSupportCard)
+│   ├── GiveClient.tsx                Streaming scan client + card layout + endorsement
+│   ├── ProjectCards.tsx              StewardCard, PdsHostSupportCard, CardInner
+│   ├── card-primitives.tsx           Shared building blocks (ProfileAvatar, CardIconSlot, etc.)
+│   ├── card-dependencies.tsx         DependencyRow, ModalCardContent, DependenciesSection
+│   ├── HandleAutocomplete.tsx        Bluesky handle typeahead search
 │   ├── NavBar.tsx                    Global nav bar + login/logout modal
 │   └── SessionContext.tsx            Auth state context (useSession hook)
 ├── data/
@@ -58,14 +70,17 @@ src/
     │   ├── account-enrich.ts         Phase 2: resolve funding info
     │   ├── capability-scan.ts        Phase 3: attach feed/labeler details
     │   ├── dep-resolve.ts            Phase 4: resolve dependency entries
+    │   ├── entry-resolve.ts          Full vertical resolution for a single entry
     │   └── scan-stream.ts            Orchestrator
     ├── catalog.ts                    Steward URI resolver + manual catalog lookup
-    ├── steward-model.ts              StewardEntry type (shared between pipeline and UI)
+    ├── steward-model.ts              StewardEntry, Capability, StewardTag types
     ├── steward-merge.ts              Client-side entry dedup (EntryIndex)
     └── steward-funding.ts            fund.at.* record fetching from PDS
 ```
 
 ## Adding a project to the catalog
+
+> **Lexicon records are the primary way to publish funding info.** If a project has an AT Protocol account, it should publish `fund.at.*` records via the [setup page](https://at.fund/setup) or directly to its PDS. The catalog is a fallback for projects that can't or don't yet have AT Protocol accounts.
 
 Create a JSON file in `src/data/catalog/` named after the steward's hostname:
 

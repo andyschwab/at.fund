@@ -1,18 +1,23 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import Link from 'next/link'
 import type { ScanStreamEvent, ScanWarning, PdsHostFunding, EcosystemEntry } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
 import { EntryIndex } from '@/lib/steward-merge'
 import { pdslsRepoUrl } from '@/lib/pdsls'
+import { useSession } from '@/components/SessionContext'
 import {
   StewardCard,
   PdsHostSupportCard,
 } from '@/components/ProjectCards'
+import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
   AlertCircle,
+  ArrowRight,
   BadgeCheck,
   BadgePlus,
+  CheckCircle2,
   ExternalLink,
   Globe,
   PlusCircle,
@@ -69,9 +74,11 @@ function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
 }
 
 export function GiveClient() {
+  const { did: sessionDid, authFetch } = useSession()
   const [loading, setLoading] = useState(false)
   const [selfReport, setSelfReport] = useState('')
   const [err, setErr] = useState<string | null>(null)
+  const [hasOwnRecords, setHasOwnRecords] = useState<boolean | null>(null)
 
   // Streaming scan state
   const [meta, setMeta] = useState<{ did: string; handle?: string; pdsUrl?: string } | null>(null)
@@ -85,6 +92,23 @@ export function GiveClient() {
   const [scanStatus, setScanStatus] = useState<string>('')
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
   const entryIndexRef = useRef(new EntryIndex())
+
+  // Check whether the logged-in user has published fund.at records
+  useEffect(() => {
+    if (!sessionDid) return
+    let cancelled = false
+    fetch(`/api/entry?uri=${encodeURIComponent(sessionDid)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled) setHasOwnRecords(!!data?.contributeUrl || !!(data?.dependencies?.length))
+      })
+      .catch(() => {
+        if (!cancelled) setHasOwnRecords(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [sessionDid])
 
   const allEntriesForLookup = useMemo(
     () => [...entries, ...referencedEntries],
@@ -142,7 +166,7 @@ export function GiveClient() {
   const handleEndorse = useCallback(async (uri: string) => {
     setEndorsedUris((prev) => new Set([...prev, uri]))
     try {
-      const res = await fetch('/api/endorse', {
+      const res = await authFetch('/api/endorse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uri }),
@@ -164,24 +188,60 @@ export function GiveClient() {
   }, [])
 
   const handleUnendorse = useCallback(async (uri: string) => {
+    // Find the entry to remove all endorsed URI variants (handle, uri, did)
+    const entry = entryIndexRef.current.toArray().find(
+      (e) => e.uri === uri || e.did === uri,
+    )
+    const removeUris = new Set([uri])
+    if (entry?.uri) removeUris.add(entry.uri)
+    if (entry?.did) removeUris.add(entry.did)
+    if (entry?.handle) removeUris.add(entry.handle)
+
     setEndorsedUris((prev) => {
       const next = new Set(prev)
-      next.delete(uri)
+      for (const u of removeUris) next.delete(u)
       return next
     })
     try {
-      const res = await fetch('/api/endorse', {
+      const res = await authFetch('/api/endorse', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uri }),
       })
       if (!res.ok) {
-        setEndorsedUris((prev) => new Set([...prev, uri]))
+        setEndorsedUris((prev) => new Set([...prev, ...removeUris]))
       }
     } catch {
-      setEndorsedUris((prev) => new Set([...prev, uri]))
+      setEndorsedUris((prev) => new Set([...prev, ...removeUris]))
     }
   }, [])
+
+  /** Endorse a URI and fetch its full entry via /api/entry (no rescan). */
+  const endorseAndFetch = useCallback(async (uri: string) => {
+    // Optimistic endorse
+    handleEndorse(uri)
+    try {
+      const res = await fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
+      if (!res.ok) return
+      const data = await res.json() as { entry: StewardEntry; referenced: StewardEntry[] }
+      // Upsert the entry into the index so it appears in the list
+      entryIndexRef.current.upsert(data.entry)
+      setEntries(entryIndexRef.current.toArray())
+      // Also endorse by the canonical URI/DID the entry resolved to
+      if (data.entry.uri !== uri) {
+        setEndorsedUris((prev) => new Set([...prev, data.entry.uri]))
+      }
+      if (data.entry.did && data.entry.did !== uri) {
+        setEndorsedUris((prev) => new Set([...prev, data.entry.did!]))
+      }
+      // Add referenced deps for drill-down
+      if (data.referenced.length > 0) {
+        setReferencedEntries((prev) => [...prev, ...data.referenced])
+      }
+    } catch (e) {
+      console.warn('endorseAndFetch failed', e)
+    }
+  }, [handleEndorse])
 
   const runStreamingScan = useCallback(async (extra: string[]) => {
     _scanCache = null
@@ -202,7 +262,7 @@ export function GiveClient() {
     try {
       const params = new URLSearchParams()
       if (extra.length) params.set('extraStewards', extra.join(','))
-      const res = await fetch(`/api/lexicons/stream?${params}`)
+      const res = await authFetch(`/api/lexicons/stream?${params}`)
       if (!res.ok || !res.body) {
         let msg = 'Scan failed'
         try {
@@ -340,18 +400,36 @@ export function GiveClient() {
               <span>{scanStatus}</span>
             </div>
           )}
+          {!loading && hasOwnRecords === true && (
+            <Link
+              href="/setup"
+              className="ml-auto inline-flex items-center gap-1.5 text-xs text-emerald-600 transition-opacity hover:opacity-80 dark:text-emerald-400"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Your funding records look good
+            </Link>
+          )}
+          {!loading && hasOwnRecords === false && (
+            <Link
+              href="/setup"
+              className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-[var(--support)] transition-opacity hover:opacity-80"
+            >
+              Set up your funding records
+              <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            </Link>
+          )}
         </div>
 
         {/* ── My Stack ─────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-slate-200 bg-white/60 p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/40">
-          <div className="mb-4 flex items-center gap-2">
+        <section className="rounded-2xl border border-slate-200 bg-white/60 p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/40">
+          <div className="mb-3 flex items-center gap-2">
             <BadgeCheck className="h-5 w-5 text-[var(--support)]" aria-hidden />
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               My Stack
             </h2>
           </div>
           {!hasStackContent && !loading && (
-            <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
               Contribute to projects, then endorse the ones you value. Click{' '}
               <span className="inline-flex items-center gap-0.5 font-medium text-slate-600 dark:text-slate-300">
                 <BadgePlus className="inline h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
@@ -362,47 +440,58 @@ export function GiveClient() {
             </p>
           )}
 
-          <div className="flex flex-col gap-4">
-            {/* PDS host card */}
-            {pdsUrl && (
-              <PdsHostSupportCard
-                pdsHostname={new URL(pdsUrl).hostname}
-                funding={pdsHostFunding}
-              />
+          <div className="flex flex-col gap-3">
+            {/* PDS host + endorsed entries — single compact list */}
+            {(pdsUrl || endorsedEntries.length > 0) && (
+              <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+                {pdsUrl && (
+                  <PdsHostSupportCard
+                    pdsHostname={new URL(pdsUrl).hostname}
+                    funding={pdsHostFunding}
+                  />
+                )}
+                {endorsedEntries.map((entry) => (
+                  <StewardCard
+                    key={entry.uri}
+                    entry={entry}
+                    allEntries={allEntriesForLookup}
+                    endorsed
+                    endorsedSet={endorsedUris}
+                    onEndorse={handleEndorse}
+                    onUnendorse={handleUnendorse}
+                    compact
+                  />
+                ))}
+              </ul>
             )}
 
-            {/* Endorsed entries */}
-            {endorsedEntries.map((entry) => (
-              <StewardCard
-                key={entry.uri}
-                entry={entry}
-                allEntries={allEntriesForLookup}
-                endorsed
-                onUnendorse={handleUnendorse}
-              />
-            ))}
-
-            {/* Add by name input */}
+            {/* Endorse by handle */}
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/20">
               <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
-                Know a project not listed below? Add it by name, handle, or DID.
+                Endorse an account not listed below by searching for their handle.
               </p>
               <div className="flex max-w-xl flex-col gap-2 sm:flex-row">
-                <input
-                  type="text"
+                <HandleAutocomplete
                   value={selfReport}
-                  onChange={(e) => setSelfReport(e.target.value)}
-                  placeholder="e.g. whtwnd.com or did:plc:..."
-                  className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+                  onChange={setSelfReport}
+                  placeholder="Search by handle…"
+                  disabled={loading}
+                  inputClassName="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
                 />
                 <button
                   type="button"
-                  onClick={() => runStreamingScan(parseSelfReportInput())}
-                  disabled={loading}
+                  onClick={() => {
+                    const handle = selfReport.trim()
+                    if (handle) {
+                      endorseAndFetch(handle)
+                      setSelfReport('')
+                    }
+                  }}
+                  disabled={!selfReport.trim()}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
-                  <PlusCircle className="h-4 w-4" aria-hidden />
-                  Add
+                  <BadgePlus className="h-4 w-4" aria-hidden />
+                  Endorse
                 </button>
               </div>
             </div>
@@ -434,7 +523,7 @@ export function GiveClient() {
         )}
 
         {/* ── Discovered from your data ──────────────────────────── */}
-        <section className="space-y-4">
+        <section className="space-y-3">
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               Discovered from your data
@@ -485,35 +574,40 @@ export function GiveClient() {
                 </div>
               )}
 
-              {/* Flat entry list */}
-              <div className="flex flex-col gap-4">
-                {filteredEntries.map((entry) => (
-                  <StewardCard
-                    key={entry.uri}
-                    entry={entry}
-                    allEntries={allEntriesForLookup}
-                    onEndorse={handleEndorse}
-                  />
-                ))}
-                {filteredEntries.length === 0 && discoveredEntries.length === 0 && loading && (
-                  <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
-                    <span>{scanStatus || 'Scanning\u2026'}</span>
-                  </div>
-                )}
-                {filteredEntries.length === 0 && discoveredEntries.length > 0 && (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    No entries match this filter.
-                  </p>
-                )}
-              </div>
+              {/* Flat entry list — compact rows in a shared container */}
+              {filteredEntries.length > 0 && (
+                <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+                  {filteredEntries.map((entry) => (
+                    <StewardCard
+                      key={entry.uri}
+                      entry={entry}
+                      allEntries={allEntriesForLookup}
+                      endorsedSet={endorsedUris}
+                      onEndorse={handleEndorse}
+                      onUnendorse={handleUnendorse}
+                      compact
+                    />
+                  ))}
+                </ul>
+              )}
+              {filteredEntries.length === 0 && discoveredEntries.length === 0 && loading && (
+                <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
+                  <span>{scanStatus || 'Scanning\u2026'}</span>
+                </div>
+              )}
+              {filteredEntries.length === 0 && discoveredEntries.length > 0 && (
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  No entries match this filter.
+                </p>
+              )}
             </>
           )}
         </section>
 
         {/* ── Ecosystem ─────────────────────────────────────────── */}
         {visibleEcosystemEntries.length > 0 && (
-          <section className="space-y-4">
+          <section className="space-y-3">
             <div className="flex items-center gap-2">
               <Globe className="h-5 w-5 text-slate-400" aria-hidden />
               <div>
@@ -525,18 +619,20 @@ export function GiveClient() {
                 </p>
               </div>
             </div>
-            <div className="flex flex-col gap-4">
+            <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
               {visibleEcosystemEntries.map((entry) => (
                 <StewardCard
                   key={entry.uri}
                   entry={entry}
                   allEntries={allEntriesForLookup}
+                  endorsedSet={endorsedUris}
                   onEndorse={handleEndorse}
+                  compact
                   endorsementCount={entry.endorsementCount}
                   networkEndorsementCount={entry.networkEndorsementCount}
                 />
               ))}
-            </div>
+            </ul>
           </section>
         )}
 

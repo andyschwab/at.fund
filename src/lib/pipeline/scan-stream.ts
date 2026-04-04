@@ -1,5 +1,4 @@
 import type { OAuthSession } from '@atproto/oauth-client'
-import { Client } from '@atproto/lex'
 import type { StewardEntry } from '@/lib/steward-model'
 import type { PdsHostFunding } from '@/lib/atfund-steward'
 import { fetchFundingForUriLike } from '@/lib/atfund-uri'
@@ -76,7 +75,15 @@ export async function scanStreaming(
     session,
     gathered.accounts,
     gathered.unresolvedServices,
-    (entry) => emit({ type: 'entry', entry }),
+    (entry) => {
+      // Only emit entries that have an identity (tools, follows).
+      // Feed/labeler-only accounts are held until Phase 3 confirms their
+      // capabilities — a feed is always a capability of an account, never
+      // a standalone entry.
+      if (entry.tags.length > 0) {
+        emit({ type: 'entry', entry })
+      }
+    },
   )
 
   for (const w of enriched.warnings) {
@@ -97,7 +104,8 @@ export async function scanStreaming(
   }
 
   // ── Phase 4: Dependencies ──────────────────────────────────────────────
-  resolveDependencies(allEntries, (entry) => {
+  emit({ type: 'status', message: 'Resolving dependencies…' })
+  await resolveDependencies(allEntries, (entry) => {
     emit({ type: 'referenced', entry })
   })
 
@@ -130,8 +138,7 @@ export async function scanStreaming(
   // ── PDS host funding (parallel with nothing — runs last) ───────────────
   if (gathered.pdsUrl) {
     try {
-      const client = new Client(session)
-      const funding = await fetchFundingForUriLike(gathered.pdsUrl, client)
+      const funding = await fetchFundingForUriLike(gathered.pdsUrl)
       if (funding) emit({ type: 'pds-host', funding })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'

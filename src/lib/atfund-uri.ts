@@ -64,7 +64,6 @@ async function describeServerStewardFallback(hostname: string): Promise<{
  */
 export async function fetchFundingForUriLike(
   uriLike: string,
-  client?: Client,
 ): Promise<PdsHostFunding | null> {
   const hostname = hostnameFromUriLike(uriLike)
   if (!hostname) return null
@@ -87,7 +86,7 @@ export async function fetchFundingForUriLike(
     const hostFunding = await fetchPdsHostFunding(resolvedDid, hostname, {
       pdsStewardUri: resolvedUri,
       pdsStewardHandle: resolvedHandle ?? fallback.pdsStewardHandle,
-    }, client)
+    })
     if (hostFunding) return hostFunding
 
     return {
@@ -103,7 +102,7 @@ export async function fetchFundingForUriLike(
   const hostFunding = await fetchPdsHostFunding(did, hostname, {
     pdsStewardUri,
     pdsStewardHandle,
-  }, client)
+  })
   if (hostFunding) return hostFunding
 
   // Return steward identity even when no fund.at.disclosure is published.

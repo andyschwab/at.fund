@@ -79,6 +79,7 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
     displayName,
     description: preferred.description ?? other.description,
     landingPage: preferred.landingPage ?? other.landingPage,
+    avatar: preferred.avatar ?? other.avatar,
     contributeUrl,
     dependencies,
     capabilities,
