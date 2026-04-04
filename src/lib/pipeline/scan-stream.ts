@@ -200,6 +200,15 @@ export async function scanStreaming(
 
         // Attach endorsement counts and emit
         const allEcosystemEntries = [...ecosystemEnriched.entries, ...ecosystemEnriched.unresolvedEntries]
+
+        // Resolve dependencies for ecosystem entries (Phase 4 already ran
+        // for the main entries, so ecosystem deps need their own pass).
+        // Include the main allEntries so we don't re-resolve known deps.
+        const combinedForDepResolve = [...allEntries, ...allEcosystemEntries]
+        await resolveDependencies(combinedForDepResolve, (entry) => {
+          emit({ type: 'referenced', entry })
+        })
+
         const ecosystemEntries: EcosystemEntry[] = []
         for (const entry of allEcosystemEntries) {
           const counts = ecosystemUriCounts.get(entry.uri)

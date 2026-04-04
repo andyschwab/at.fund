@@ -305,9 +305,11 @@ export function StewardCard({
     const linkHref = type === 'tool' ? websiteUrl : (profileUrl ?? websiteUrl)
     const endorseHandler = isEndorsed ? onUnendorse : onEndorse
 
+    const isEcosystem = entry.tags.includes('ecosystem')
+
     return (
       <li className={`px-4 py-3.5 transition-all duration-100 ${
-        state === 'none'
+        state === 'none' && !isEcosystem
           ? 'opacity-60 hover:opacity-100 hover:bg-slate-100 dark:hover:bg-slate-800/50'
           : 'bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/50'
       }`}>
