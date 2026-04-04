@@ -44,7 +44,7 @@ When multiple records match, this app picks the **`fund.at.disclosure`** row wit
 
 ## This app
 
-After sign-in, the app resolves the user DID to a DID document, extracts the home PDS URL, resolves steward identity from hostname (DNS `_atproto` plus HTTPS well-known fallback), and shows a **Your host** section.
+After sign-in, the app resolves the user DID to a DID document, extracts the home PDS URL, then walks the catalog chain (physical hostname → entryway → operator) to identify the PDS operator. The operator appears as a pinned card in My Stack with a "personal data server" capability showing the entryway hostname (e.g. `bsky.social`).
 
 ## Acknowledgement signals for out-of-band contributions
 

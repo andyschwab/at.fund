@@ -5,6 +5,8 @@ export type PdsHostFunding = {
   stewardDid: string
   pdsStewardUri?: string
   pdsStewardHandle?: string
+  /** The user-visible entryway domain (e.g. 'bsky.social'), before resolving to the operator. */
+  pdsEntryway?: string
   contributeUrl?: string
   dependencies?: Array<{ uri: string; label?: string }>
 }
@@ -19,6 +21,7 @@ export async function fetchPdsHostFunding(
   opts?: {
     pdsStewardUri?: string
     pdsStewardHandle?: string
+    pdsEntryway?: string
   },
 ): Promise<PdsHostFunding | null> {
   const result = await fetchFundAtRecords(stewardDid)

@@ -131,11 +131,12 @@ Multiple feeds by the same creator become multiple capabilities on one card. Pha
 
 ```typescript
 type Capability = {
-  type: 'feed' | 'labeler'
+  type: 'feed' | 'labeler' | 'pds'
   name: string
   description?: string
-  uri?: string
+  uri?: string        // AT URI for feeds/labelers
   landingPage?: string
+  hostname?: string   // for type 'pds': the entryway domain (e.g. 'bsky.social')
 }
 ```
 
@@ -156,7 +157,7 @@ For entries with `dependencies[]`, looks up each dependency URI in the manual ca
 3. Phase 2 → `entry` events as each account is enriched (gated: only entries with tags)
 4. Phase 3 → updated `entry` events with capabilities attached (first emission for feed/labeler-only accounts)
 5. Phase 4 → `referenced` events for dependency entries
-6. PDS host funding → `pds-host` event
+6. PDS host → `entry` event with `tags: ['tool', 'pds-host']` and a `pds` capability for the entryway
 7. `done` event
 
 ### Client-side merging
@@ -220,25 +221,16 @@ There are two card types, determined by the `cardType()` function:
 
 Only the `tool` tag affects card type. Feeds, labelers, and follows all render as blue account cards — their feeds/labelers appear in the "Provides" capabilities section.
 
-### Card modes
-
-Cards render in two modes:
-
-- **Compact** (`<li>`) — used in the main give list. Shows ProfileAvatar, name, handle, tags, Fund/Endorse action buttons. Includes CapabilitiesSection and DependenciesSection below the row.
-- **Article** (`<article>`) — full card with CardIconSlot (avatar with droplet badge overlay), name, handle, tags, EndorseButton pill, description, capabilities, dependencies.
-
 ### Component structure
 
 ```
 card-primitives.tsx     Stateless building blocks
   ├── ProfileAvatar         Avatar image with initials fallback
-  ├── CardIconSlot          Avatar + droplet badge overlay (or plain droplet icon)
   ├── StewardNameHeading    Linked title with variant-colored hover
   ├── HandleBadge           @handle linking to DID profile
-  ├── TagBadges             Inline tag pills
-  ├── EndorseButton         Pill-style endorse/remove with hover state
-  ├── CapabilitiesSection   "Provides" list of feeds/labelers
-  └── helpers               heartState, depRowTier, websiteFallbackForUri, profileUrlFor
+  ├── TagBadges             Inline tag pills (tool, feed, labeler, follow, personal data server)
+  ├── CapabilitiesSection   "Provides" list of feeds, labelers, and PDS capabilities
+  └── helpers               heartState, websiteFallbackForUri, profileUrlFor
 
 card-dependencies.tsx   Drill-down modal system
   ├── DependencyRow         Clickable row with avatar + droplet badge
@@ -246,41 +238,31 @@ card-dependencies.tsx   Drill-down modal system
   └── DependenciesSection   Sorted dep rows + dialog modal
 
 ProjectCards.tsx        Card exports
-  ├── CardInner             Shared inner content for all card types (non-compact)
-  ├── StewardCard           Unified card: compact <li> or article via CardInner
-  └── PdsHostSupportCard    PDS host row with Fund button
+  └── StewardCard           Compact <li> row: avatar, name, tags, Fund/Endorse buttons,
+                            capabilities section, dependencies section
 ```
 
-### Card anatomy (compact mode)
+### Card anatomy
 
 ```
 [Avatar]  Title  @handle  tag  tag     [Fund] [Endorse]
           Description text
-          ┌ Provides ──────────────┐
-          │ 📰 Feed Name           │
-          │ 🏷️ Labeler Name        │
-          └────────────────────────┘
+          ┌ Provides ──────────────────────┐
+          │ 📰 Feed Name                   │
+          │ 🏷️ Labeler Name               │
+          │ 🖥️ Personal Data Server  host  │
+          └────────────────────────────────┘
           ┌ Depends on ────────────┐
           │ [avatar] dep-name    → │
           └────────────────────────┘
 ```
 
-### Card anatomy (article mode)
-
-```
-[CardIconSlot]  Title  @handle  tag  tag  [Endorse pill]
-                Description text
-                ┌ Provides ──────────────┐
-                │ 📰 Feed Name           │
-                └────────────────────────┘
-                ┌ Depends on ────────────┐
-                │ [avatar] dep-name    → │
-                └────────────────────────┘
-```
-
 ### My Stack
 
-Endorsed entries appear in the "My Stack" section at the top of the give page. Users can endorse entries from the main list or add new ones via the handle autocomplete. Endorsements are `fund.at.endorse` records — public, protocol-level signals of trust.
+The "My Stack" section sits at the top of the give page and contains two groups:
+
+1. **PDS host** — always shown; the operator account that runs the user's personal data server, with a `pds` capability displaying the entryway hostname (e.g. `bsky.social`). Resolved via the catalog chain: physical PDS hostname → entryway → operator.
+2. **Endorsed entries** — entries the user has explicitly endorsed. Endorsements are `fund.at.endorse` records — public, protocol-level signals of trust.
 
 The hover state on endorsed buttons swaps to "Remove" with a red color shift to indicate the action.
 
@@ -309,8 +291,8 @@ src/
 │       └── steward/route.ts              Thin steward lookup (legacy)
 ├── components/
 │   ├── GiveClient.tsx                    Client: streaming scan, endorsement, card layout
-│   ├── ProjectCards.tsx                  StewardCard, PdsHostSupportCard, CardInner
-│   ├── card-primitives.tsx               ProfileAvatar, CardIconSlot, EndorseButton, etc.
+│   ├── ProjectCards.tsx                  StewardCard (compact <li> row)
+│   ├── card-primitives.tsx               ProfileAvatar, TagBadges, CapabilitiesSection, etc.
 │   ├── card-dependencies.tsx             DependencyRow, ModalCardContent, DependenciesSection
 │   ├── HandleAutocomplete.tsx            Bluesky handle typeahead search
 │   ├── NavBar.tsx                        Global nav + login/logout modal

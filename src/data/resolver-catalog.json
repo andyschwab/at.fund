@@ -1,5 +1,7 @@
 {
   "overrides": [
+    { "matchSuffix": ".host.bsky.network", "stewardUri": "bsky.social" },
+    { "matchPrefix": "bsky.social", "stewardUri": "bsky.app" },
     { "matchPrefix": "chat.bsky.", "stewardUri": "bsky.app" },
     { "matchPrefix": "tools.ozone.", "stewardUri": "bsky.app" },
     { "matchPrefix": "fyi.unravel.frontpage.", "stewardUri": "frontpage.fyi" },

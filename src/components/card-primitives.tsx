@@ -2,11 +2,6 @@
 
 import { useState } from 'react'
 import type { StewardEntry, StewardTag, Capability } from '@/lib/steward-model'
-import {
-  BadgeCheck,
-  BadgePlus,
-  X,
-} from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
 
 // ---------------------------------------------------------------------------
@@ -15,12 +10,6 @@ import { DropletIcon } from '@/components/DropletIcon'
 
 export type NameLinkVariant = 'support' | 'discover' | 'sky' | 'network'
 export type DropletIconState = 'direct' | 'dependency' | 'none'
-
-/**
- * Visual variant for CardIconSlot. Maps 1:1 from our CardType:
- *   tool → 'support', account → 'network', discover → 'discover'
- */
-export type CardVariant = 'support' | 'network' | 'discover'
 
 // ---------------------------------------------------------------------------
 // Tag badges
@@ -31,6 +20,7 @@ const TAG_LABEL: Partial<Record<StewardTag, string>> = {
   labeler: 'labeler',
   feed: 'feed',
   follow: 'follow',
+  'pds-host': 'personal data server',
 }
 
 export function TagBadges({ tags }: { tags: StewardTag[] }) {
@@ -171,6 +161,18 @@ export function HandleBadge({ handle, did }: { handle?: string; did?: string }) 
 // CapabilitiesSection
 // ---------------------------------------------------------------------------
 
+const CAP_ICON: Record<Capability['type'], string> = {
+  feed: '📰',
+  labeler: '🏷️',
+  pds: '🖥️',
+}
+
+const CAP_LABEL: Record<Capability['type'], string> = {
+  feed: 'Feed',
+  labeler: 'Labeler',
+  pds: 'Personal Data Server',
+}
+
 export function CapabilitiesSection({ capabilities }: { capabilities: Capability[] }) {
   if (capabilities.length === 0) return null
   return (
@@ -179,79 +181,49 @@ export function CapabilitiesSection({ capabilities }: { capabilities: Capability
         Provides
       </p>
       <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-        {capabilities.map((cap) => {
-          const icon = cap.type === 'feed' ? '📰' : '🏷️'
-          return (
-            <div key={cap.uri ?? `${cap.type}:${cap.name}`} className="flex items-center gap-2 py-1.5">
-              <span className="shrink-0 text-sm" aria-hidden>{icon}</span>
-              <span className="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300">
-                {cap.landingPage ? (
-                  <a
-                    href={cap.landingPage}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-900 dark:decoration-slate-600 dark:hover:text-slate-100"
-                  >
-                    {cap.name}
-                  </a>
-                ) : (
-                  cap.name
-                )}
-              </span>
+        {capabilities.map((cap) => (
+          <div key={cap.uri ?? `${cap.type}:${cap.name}`} className="flex items-center gap-2 py-1.5">
+            <span className="shrink-0 text-sm" aria-hidden>{CAP_ICON[cap.type]}</span>
+            <div className="min-w-0 flex-1">
+              {cap.type === 'pds' ? (
+                <span className="flex flex-wrap items-baseline gap-x-1.5">
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {CAP_LABEL.pds}
+                  </span>
+                  {cap.landingPage ? (
+                    <a
+                      href={cap.landingPage}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="truncate text-xs text-slate-700 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-900 dark:text-slate-300 dark:decoration-slate-600 dark:hover:text-slate-100"
+                    >
+                      {cap.name}
+                    </a>
+                  ) : (
+                    <span className="truncate text-xs text-slate-700 dark:text-slate-300">{cap.name}</span>
+                  )}
+                </span>
+              ) : (
+                <span className="truncate text-xs text-slate-700 dark:text-slate-300">
+                  {cap.landingPage ? (
+                    <a
+                      href={cap.landingPage}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-900 dark:decoration-slate-600 dark:hover:text-slate-100"
+                    >
+                      {cap.name}
+                    </a>
+                  ) : (
+                    cap.name
+                  )}
+                </span>
+              )}
             </div>
-          )
-        })}
+          </div>
+        ))}
       </div>
     </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// EndorseButton (pill-style, used in non-compact article cards)
-// ---------------------------------------------------------------------------
-
-export function EndorseButton({
-  endorsed,
-  onEndorse,
-  onUnendorse,
-  uri,
-}: {
-  endorsed?: boolean
-  onEndorse?: (uri: string) => void
-  onUnendorse?: (uri: string) => void
-  uri: string
-}) {
-  if (!onEndorse && !onUnendorse) return null
-  const handler = endorsed ? onUnendorse : onEndorse
-  if (!handler) return null
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation()
-        handler(uri)
-      }}
-      title={endorsed ? 'Remove from My Stack' : 'Endorse and add to My Stack'}
-      className={`group ml-auto shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium cursor-pointer transition-colors ${
-        endorsed
-          ? 'text-[var(--support)] bg-[var(--support-muted)] hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-950/30'
-          : 'text-slate-400 hover:text-[var(--support)] hover:bg-[var(--support-muted)] dark:text-slate-500 dark:hover:text-[var(--support)]'
-      }`}
-    >
-      {endorsed ? (
-        <>
-          <BadgeCheck className="h-3.5 w-3.5 group-hover:hidden" strokeWidth={2} aria-hidden />
-          <X className="hidden h-3.5 w-3.5 group-hover:block" strokeWidth={2} aria-hidden />
-          <span className="group-hover:hidden">Endorsed</span>
-          <span className="hidden group-hover:inline">Remove</span>
-        </>
-      ) : (
-        <>
-          <BadgePlus className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
-          Endorse
-        </>
-      )}
-    </button>
   )
 }
 
@@ -303,112 +275,3 @@ export function ProfileAvatar({
   return <div className="shrink-0">{img}</div>
 }
 
-// ---------------------------------------------------------------------------
-// CardIconSlot — avatar image (with contribute badge) or plain droplet icon
-// ---------------------------------------------------------------------------
-
-export function CardIconSlot({
-  avatar,
-  state,
-  contributeUrl,
-  variant,
-  compact = false,
-}: {
-  avatar?: string
-  state: DropletIconState
-  contributeUrl?: string
-  variant: CardVariant
-  compact?: boolean
-}) {
-  const [avatarFailed, setAvatarFailed] = useState(false)
-  const slot = compact ? 'h-9 w-9' : 'h-12 w-12'
-  const icon = compact ? 'h-5 w-5' : 'h-7 w-7'
-  const badgeSlot = compact ? 'h-4 w-4' : 'h-5 w-5'
-  const badgeIcon = compact ? 'h-2.5 w-2.5' : 'h-3 w-3'
-
-  const supportBadge = 'bg-[var(--support)] text-[var(--support-foreground)]'
-  const networkBadge = 'bg-[var(--network)] text-white'
-
-  if (avatar && !avatarFailed) {
-    const badge =
-      state === 'direct' && contributeUrl ? (
-        <a
-          href={contributeUrl}
-          target="_blank"
-          rel="noreferrer"
-          title="Contribute"
-          className={`absolute -bottom-1 -right-1 flex ${badgeSlot} items-center justify-center rounded-full shadow-sm transition-opacity hover:opacity-90 ${variant === 'network' ? networkBadge : supportBadge}`}
-        >
-          <DropletIcon className={badgeIcon} strokeWidth={1.75} aria-hidden />
-          <span className="sr-only">Contribute</span>
-        </a>
-      ) : state === 'dependency' ? (
-        <span
-          className={`absolute -bottom-1 -right-1 flex ${badgeSlot} items-center justify-center rounded-full bg-amber-100 text-amber-500 shadow-sm dark:bg-amber-500/20 dark:text-amber-400`}
-        >
-          <DropletIcon className={badgeIcon} strokeWidth={1.75} aria-hidden />
-        </span>
-      ) : null
-
-    return (
-      <div className={`relative shrink-0 ${slot}`}>
-        <img
-          src={avatar}
-          alt=""
-          onError={() => setAvatarFailed(true)}
-          className={`${slot} rounded-xl object-cover transition-opacity ${state !== 'direct' ? 'grayscale opacity-50' : ''}`}
-        />
-        {badge}
-      </div>
-    )
-  }
-
-  // No avatar — plain droplet icon slot
-  if (variant === 'support' && state === 'direct' && contributeUrl) {
-    return (
-      <a
-        href={contributeUrl}
-        target="_blank"
-        rel="noreferrer"
-        title="Contribute"
-        className={`flex shrink-0 ${slot} items-center justify-center rounded-xl bg-[var(--support)] text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90`}
-      >
-        <DropletIcon className={icon} strokeWidth={1.75} aria-hidden />
-        <span className="sr-only">Contribute</span>
-      </a>
-    )
-  }
-  if (variant === 'support' && state === 'dependency') {
-    return (
-      <span
-        className={`flex shrink-0 ${slot} items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400`}
-        title="No contribution link — has sub-dependencies"
-      >
-        <DropletIcon className={icon} strokeWidth={1.75} aria-hidden />
-      </span>
-    )
-  }
-  if (variant === 'network' && contributeUrl) {
-    return (
-      <a
-        href={contributeUrl}
-        target="_blank"
-        rel="noreferrer"
-        title="Contribute"
-        className={`flex shrink-0 ${slot} items-center justify-center rounded-xl bg-[var(--network)] text-white shadow-sm transition-opacity hover:opacity-90`}
-      >
-        <DropletIcon className={icon} strokeWidth={1.75} aria-hidden />
-        <span className="sr-only">Contribute</span>
-      </a>
-    )
-  }
-  const emptyTitle = variant === 'discover' ? 'No contribution link yet' : 'No contribution link published'
-  return (
-    <span
-      className={`flex shrink-0 ${slot} items-center justify-center rounded-xl border border-slate-200/90 bg-white/60 text-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-600`}
-      title={emptyTitle}
-    >
-      <DropletIcon className={icon} strokeWidth={1.5} aria-hidden />
-    </span>
-  )
-}
