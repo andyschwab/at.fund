@@ -113,8 +113,8 @@ export function GiveClient() {
   }, [sessionDid])
 
   const allEntriesForLookup = useMemo(
-    () => [...entries, ...referencedEntries],
-    [entries, referencedEntries],
+    () => [...entries, ...referencedEntries, ...ecosystemEntries],
+    [entries, referencedEntries, ecosystemEntries],
   )
 
   // Inclusion rule: tools/labelers/feeds always; follows only if actionable
