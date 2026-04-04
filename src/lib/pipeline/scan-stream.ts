@@ -1,10 +1,9 @@
 import type { OAuthSession } from '@atproto/oauth-client'
 import type { StewardEntry, StewardTag } from '@/lib/steward-model'
-import type { PdsHostFunding } from '@/lib/atfund-steward'
 import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { fetchOwnEndorsements } from '@/lib/fund-at-records'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
-import { lookupManualStewardRecord } from '@/lib/catalog'
+import { resolveStewardUri, lookupManualStewardRecord } from '@/lib/catalog'
 import { collectNetworkEndorsementsCached, getCountsFromMap } from '@/lib/microcosm'
 import { gatherAccounts } from './account-gather'
 import type { ScanWarning } from './account-gather'
@@ -20,7 +19,6 @@ import { logger } from '@/lib/logger'
 // ---------------------------------------------------------------------------
 
 export type { ScanWarning }
-export type { PdsHostFunding }
 export type { EndorsementCounts }
 
 export type EcosystemEntry = StewardEntry & EndorsementCounts
@@ -31,7 +29,6 @@ export type ScanStreamEvent =
   | { type: 'endorsed'; uris: string[] }
   | { type: 'entry'; entry: StewardEntry }
   | { type: 'referenced'; entry: StewardEntry }
-  | { type: 'pds-host'; funding: PdsHostFunding }
   | { type: 'ecosystem'; entries: EcosystemEntry[] }
   | { type: 'endorsement-counts'; counts: Record<string, EndorsementCounts> }
   | { type: 'warning'; warning: ScanWarning }
@@ -206,11 +203,8 @@ export async function scanStreaming(
   }
 
   // ── Emit endorsement counts for ALL entries (from the single-pass map) ─
-  // The endorsement map contains every URI endorsed by any follow,
-  // so we can provide counts for any card — not just ecosystem.
   const allCounts: Record<string, EndorsementCounts> = {}
   for (const entry of allEntries) {
-    // Try uri, then did, then handle — endorsements may target any form
     let counts = getCountsFromMap(endorsementMap, entry.uri)
     if (counts.networkEndorsementCount === 0 && entry.did) {
       counts = getCountsFromMap(endorsementMap, entry.did)
@@ -226,7 +220,6 @@ export async function scanStreaming(
       }
     }
   }
-  // Include ecosystem counts too
   for (const [uri, c] of ecosystemUriCounts) {
     if (!allCounts[uri]) allCounts[uri] = c
   }
@@ -234,14 +227,44 @@ export async function scanStreaming(
     emit({ type: 'endorsement-counts', counts: allCounts })
   }
 
-  // ── PDS host funding ──────────────────────────────────────────────────
+  // ── PDS host ───────────────────────────────────────────────────────────
+  // Always emit a pds-host entry so the user sees their data server in My Stack.
+  // Funding details are optional — the entry shows regardless.
   if (gathered.pdsUrl) {
     try {
-      const funding = await fetchFundingForUriLike(gathered.pdsUrl)
-      if (funding) emit({ type: 'pds-host', funding })
+      const pdsHostname = new URL(gathered.pdsUrl).hostname
+
+      // Walk the catalog chain to resolve physical hostname → entryway → operator.
+      // Two-level example: lionsmane.us-east.host.bsky.network → bsky.social → bsky.app
+      // One-level example: bsky.social → bsky.app (pdsHostname IS already the entryway)
+      const step1 = resolveStewardUri(pdsHostname)
+      const step2 = step1 ? resolveStewardUri(step1) : null
+      const catalogEntryway = step2 ? step1 : (step1 ? pdsHostname : null)
+      const catalogOperator = step2 ?? step1
+
+      // Fetch funding against the catalog operator when known; otherwise try the physical URL
+      const funding = await fetchFundingForUriLike(catalogOperator ?? gathered.pdsUrl)
+
+      const entryway = catalogEntryway ?? funding?.pdsEntryway ?? pdsHostname
+      const operator = catalogOperator ?? funding?.pdsStewardUri ?? pdsHostname
+
+      const pdsEntry: StewardEntry = {
+        uri: operator,
+        did: funding?.stewardDid,
+        handle: funding?.pdsStewardHandle,
+        tags: ['tool', 'pds-host'],
+        displayName: operator,
+        contributeUrl: funding?.contributeUrl,
+        dependencies: funding?.dependencies?.map((d) => d.uri),
+        source: funding ? 'fund.at' : 'unknown',
+        capabilities: entryway !== operator
+          ? [{ type: 'pds', name: entryway, hostname: entryway, landingPage: `https://${entryway}` }]
+          : undefined,
+      }
+      emit({ type: 'entry', entry: pdsEntry })
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'PDS host funding lookup failed'
-      logger.warn('scan: PDS host funding failed', { error: msg })
+      const msg = e instanceof Error ? e.message : 'PDS host lookup failed'
+      logger.warn('scan: PDS host lookup failed', { error: msg })
       emit({ type: 'warning', warning: { stewardUri: gathered.pdsUrl, step: 'pds-host-funding', message: msg } })
     }
   }

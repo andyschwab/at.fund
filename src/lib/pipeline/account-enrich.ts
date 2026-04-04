@@ -222,3 +222,4 @@ function mergeDeps(
   const set = new Set([...(a ?? []), ...(b ?? [])])
   return set.size > 0 ? [...set].sort() : undefined
 }
+

@@ -7,17 +7,19 @@ export type StewardSource = 'fund.at' | 'manual' | 'unknown'
 export type StewardTag = 'tool' | 'labeler' | 'feed' | 'follow' | 'pds-host' | 'ecosystem'
 
 /**
- * A capability provided by an account — a feed it publishes or a labeler it runs.
+ * A capability provided by an account — a feed, labeler, or personal data server it operates.
  */
 export type Capability = {
-  type: 'feed' | 'labeler'
-  /** Human-readable name of the feed or labeler. */
+  type: 'feed' | 'labeler' | 'pds'
+  /** Human-readable name. */
   name: string
   description?: string
-  /** The AT URI of the record (e.g. at://did:plc:.../app.bsky.feed.generator/rkey). */
+  /** The AT URI of the record (feeds/labelers only). */
   uri?: string
-  /** Web link to the feed or labeler on bsky.app. */
+  /** Web link to the capability. */
   landingPage?: string
+  /** For type 'pds': the entryway hostname (e.g. 'bsky.social'). */
+  hostname?: string
 }
 
 /**

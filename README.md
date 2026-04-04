@@ -32,6 +32,7 @@ See **[docs/pipeline.md](docs/pipeline.md)** for the full pipeline architecture.
 | `/give` | Main card listing (requires auth) |
 | `/setup` | Publish your fund.at records |
 | `/lexicon` | Lexicon schema documentation |
+| `/dev` | API explorer — inline docs and test forms for all endpoints |
 
 ## API
 
@@ -55,8 +56,8 @@ src/
 │       └── steward/route.ts          Thin steward lookup (legacy)
 ├── components/
 │   ├── GiveClient.tsx                Streaming scan client + card layout + endorsement
-│   ├── ProjectCards.tsx              StewardCard, PdsHostSupportCard, CardInner
-│   ├── card-primitives.tsx           Shared building blocks (ProfileAvatar, CardIconSlot, etc.)
+│   ├── ProjectCards.tsx              StewardCard (compact <li> row)
+│   ├── card-primitives.tsx           Shared building blocks (ProfileAvatar, TagBadges, etc.)
 │   ├── card-dependencies.tsx         DependencyRow, ModalCardContent, DependenciesSection
 │   ├── HandleAutocomplete.tsx        Bluesky handle typeahead search
 │   ├── NavBar.tsx                    Global nav bar + login/logout modal

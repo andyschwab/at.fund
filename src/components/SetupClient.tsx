@@ -293,7 +293,7 @@ export function SetupClient({ did, handle, existing }: Props) {
             Preview — how you appear in others&apos; give lists
           </p>
           <ul className="pointer-events-none select-none divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-            <StewardCard entry={previewModel} allEntries={resolvedDeps} compact />
+            <StewardCard entry={previewModel} allEntries={resolvedDeps} />
           </ul>
         </section>
 
