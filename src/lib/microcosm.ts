@@ -3,36 +3,37 @@ import { normalizeStewardUri } from '@/lib/steward-uri'
 import { logger } from '@/lib/logger'
 
 // ---------------------------------------------------------------------------
-// Slingshot API — fast AT Protocol record proxy by Microcosm
+// Endorsement collection via PDS listRecords
 // ---------------------------------------------------------------------------
 //
-// Constellation doesn't index fund.at.endorse (custom lexicon).
-// Instead, we use Slingshot's getRecord to check each follow's repo
-// for endorsement records. Since rkey = endorsed URI, checking
-// "did X endorse URI Y?" is a single fast GET.
-//
-// Slingshot URL: https://slingshot.microcosm.blue
+// Single-pass approach: for each candidate DID (e.g. follows), query their
+// PDS for all fund.at.endorse records. This is O(DIDs), not O(DIDs × URIs).
+// We use Slingshot's resolveMiniDoc to get PDS URLs, then listRecords
+// directly from each PDS.
 // ---------------------------------------------------------------------------
 
 const SLINGSHOT_BASE = 'https://slingshot.microcosm.blue'
 const CACHE_TTL_SECONDS = 15 * 60 // 15 minutes
-const CACHE_PREFIX = 'endorse:slingshot:'
-const CONCURRENCY = 20 // Slingshot is a fast cache proxy
+const CACHE_KEY = 'endorse:networkmap'
+const CONCURRENCY = 20
 
-const HEADERS = { 'User-Agent': 'at.fund/1.0 (endorsement-check)' }
+const HEADERS = { 'User-Agent': 'at.fund/1.0 (endorsement-scan)' }
 
-// In-memory fallback when Redis is unavailable (local dev)
-const memoryCache = new Map<string, { data: EndorsementResult; fetchedAt: number }>()
+// In-memory fallback when Redis is unavailable
+const memoryCache = new Map<string, { data: unknown; fetchedAt: number }>()
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
+/** Map of endorsed URI → Set of endorser DIDs (from the scanned set). */
+export type EndorsementMap = Map<string, Set<string>>
+
 export type EndorsementResult = {
-  /** DIDs that endorsed this URI (from the checked set, e.g. follows). */
-  endorserDids: string[]
-  /** Count of endorsers found in the checked set. */
+  /** Network endorsement count (from checked DIDs). */
   networkEndorsementCount: number
+  /** DIDs that endorsed this URI. */
+  endorserDids: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -59,77 +60,168 @@ async function runWithConcurrency<T, R>(
 }
 
 // ---------------------------------------------------------------------------
-// Slingshot queries
+// PDS resolution via Slingshot
 // ---------------------------------------------------------------------------
 
+type MiniDoc = { did: string; pds: string }
+
 /**
- * Check if a single DID has endorsed a given URI via Slingshot.
- * Returns true if the record exists (200), false otherwise.
+ * Resolve DID → PDS URL via Slingshot's resolveMiniDoc.
+ * Returns null if resolution fails.
  */
-async function checkEndorsement(
-  did: string,
-  endorsedUri: string,
-): Promise<boolean> {
-  const params = new URLSearchParams({
-    repo: did,
-    collection: 'fund.at.endorse',
-    rkey: endorsedUri,
-  })
+async function resolvePds(did: string): Promise<string | null> {
   try {
+    const params = new URLSearchParams({ identifier: did })
     const res = await fetch(
-      `${SLINGSHOT_BASE}/xrpc/com.atproto.repo.getRecord?${params}`,
+      `${SLINGSHOT_BASE}/xrpc/blue.microcosm.identity.resolveMiniDoc?${params}`,
       { headers: HEADERS },
     )
-    return res.status === 200
+    if (!res.ok) return null
+    const data = (await res.json()) as MiniDoc
+    return data.pds || null
   } catch {
-    return false
+    return null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Single-pass endorsement collection
+// ---------------------------------------------------------------------------
+
+type ListRecordsResponse = {
+  records?: Array<{
+    uri?: string
+    value?: { uri?: string; [key: string]: unknown }
+  }>
+}
+
+/**
+ * Fetch all fund.at.endorse records for a single DID from its PDS.
+ * Returns the endorsed URIs (normalized).
+ */
+async function fetchEndorsementsForDid(
+  did: string,
+  pdsUrl: string,
+): Promise<string[]> {
+  try {
+    const params = new URLSearchParams({
+      repo: did,
+      collection: 'fund.at.endorse',
+      limit: '100',
+    })
+    const res = await fetch(
+      `${pdsUrl}/xrpc/com.atproto.repo.listRecords?${params}`,
+      { headers: HEADERS },
+    )
+    if (!res.ok) return []
+
+    const data = (await res.json()) as ListRecordsResponse
+    const uris: string[] = []
+    for (const record of data.records ?? []) {
+      const raw = record.value?.uri
+      if (typeof raw === 'string' && raw.trim()) {
+        const normalized = normalizeStewardUri(raw) ?? raw.trim()
+        uris.push(normalized)
+      }
+    }
+    return uris
+  } catch {
+    return []
   }
 }
 
 /**
- * Check which DIDs from a set have endorsed a given URI.
- * Queries Slingshot in parallel with concurrency control.
+ * Collect all endorsements from a set of candidate DIDs.
+ *
+ * Single-pass: resolves each DID's PDS, then fetches their fund.at.endorse
+ * records. Returns a map of endorsed URI → Set of endorser DIDs.
+ *
+ * O(candidateDids) — one PDS resolve + one listRecords per DID.
  */
-async function findEndorsersForUri(
-  targetUri: string,
+export async function collectNetworkEndorsements(
   candidateDids: string[],
-): Promise<string[]> {
-  const endorsers: string[] = []
+): Promise<EndorsementMap> {
+  const endorsementMap: EndorsementMap = new Map()
+  let resolvedCount = 0
+  let withRecords = 0
 
   await runWithConcurrency(candidateDids, CONCURRENCY, async (did) => {
-    const endorsed = await checkEndorsement(did, targetUri)
-    if (endorsed) endorsers.push(did)
-    return endorsed
+    // Step 1: Resolve PDS URL via Slingshot
+    const pdsUrl = await resolvePds(did)
+    if (!pdsUrl) return
+    resolvedCount++
+
+    // Step 2: List all fund.at.endorse records
+    const endorsedUris = await fetchEndorsementsForDid(did, pdsUrl)
+    if (endorsedUris.length === 0) return
+    withRecords++
+
+    // Step 3: Aggregate into the map
+    for (const uri of endorsedUris) {
+      let dids = endorsementMap.get(uri)
+      if (!dids) {
+        dids = new Set()
+        endorsementMap.set(uri, dids)
+      }
+      dids.add(did)
+    }
   })
 
-  return endorsers
+  logger.info('slingshot: endorsement collection complete', {
+    candidateDids: candidateDids.length,
+    pdsResolved: resolvedCount,
+    withEndorsements: withRecords,
+    uniqueEndorsedUris: endorsementMap.size,
+    totalEndorsements: [...endorsementMap.values()].reduce((s, dids) => s + dids.size, 0),
+  })
+
+  return endorsementMap
 }
 
 // ---------------------------------------------------------------------------
-// Caching layer — Redis with in-memory fallback
+// Caching layer
 // ---------------------------------------------------------------------------
 
-function cacheKey(uri: string, didsHash: string): string {
-  return `${CACHE_PREFIX}${uri}:${didsHash}`
+type CachedMap = Record<string, string[]>
+
+function serializeMap(map: EndorsementMap): CachedMap {
+  const out: CachedMap = {}
+  for (const [uri, dids] of map) {
+    out[uri] = [...dids]
+  }
+  return out
 }
 
-/** Simple hash of sorted DID list for cache keying. */
+function deserializeMap(data: CachedMap): EndorsementMap {
+  const map: EndorsementMap = new Map()
+  for (const [uri, dids] of Object.entries(data)) {
+    map.set(uri, new Set(dids))
+  }
+  return map
+}
+
+/** Lightweight fingerprint for cache keying. */
 function hashDids(dids: string[]): string {
-  // Use count + first/last DID as a lightweight fingerprint.
-  // Full hash would be better but this avoids crypto imports.
   if (dids.length === 0) return '0'
   const sorted = [...dids].sort()
   return `${dids.length}:${sorted[0]!.slice(-8)}:${sorted[sorted.length - 1]!.slice(-8)}`
 }
 
-async function getCached(uri: string, didsHash: string): Promise<EndorsementResult | null> {
-  const key = cacheKey(uri, didsHash)
+export async function collectNetworkEndorsementsCached(
+  candidateDids: string[],
+): Promise<EndorsementMap> {
+  const hash = hashDids(candidateDids)
+  const key = `${CACHE_KEY}:${hash}`
 
+  // Try Redis
   const redis = getRedisClient()
   if (redis) {
     try {
-      const cached = await redis.get<EndorsementResult>(key)
-      if (cached) return cached
+      const cached = await redis.get<CachedMap>(key)
+      if (cached) {
+        logger.info('slingshot: using cached endorsement map', { dids: candidateDids.length })
+        return deserializeMap(cached)
+      }
     } catch (e) {
       logger.warn('slingshot: redis get failed', {
         error: e instanceof Error ? e.message : String(e),
@@ -137,21 +229,21 @@ async function getCached(uri: string, didsHash: string): Promise<EndorsementResu
     }
   }
 
+  // Try in-memory
   const mem = memoryCache.get(key)
   if (mem && Date.now() - mem.fetchedAt < CACHE_TTL_SECONDS * 1000) {
-    return mem.data
+    logger.info('slingshot: using memory-cached endorsement map', { dids: candidateDids.length })
+    return deserializeMap(mem.data as CachedMap)
   }
 
-  return null
-}
+  // Fetch fresh
+  const map = await collectNetworkEndorsements(candidateDids)
+  const serialized = serializeMap(map)
 
-async function setCache(uri: string, didsHash: string, result: EndorsementResult): Promise<void> {
-  const key = cacheKey(uri, didsHash)
-
-  const redis = getRedisClient()
+  // Cache in Redis
   if (redis) {
     try {
-      await redis.set(key, result, { ex: CACHE_TTL_SECONDS })
+      await redis.set(key, serialized, { ex: CACHE_TTL_SECONDS })
     } catch (e) {
       logger.warn('slingshot: redis set failed', {
         error: e instanceof Error ? e.message : String(e),
@@ -159,62 +251,27 @@ async function setCache(uri: string, didsHash: string, result: EndorsementResult
     }
   }
 
-  memoryCache.set(key, { data: result, fetchedAt: Date.now() })
+  // Cache in memory
+  memoryCache.set(key, { data: serialized, fetchedAt: Date.now() })
+
+  return map
 }
 
 // ---------------------------------------------------------------------------
-// Public API
+// Query helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Check which DIDs from `candidateDids` have endorsed the given URI.
- * Uses Slingshot (fast record proxy) to check each DID's repo.
- * Results are cached by URI + DID set fingerprint.
+ * Look up endorsement counts for a specific URI from a pre-collected map.
  */
-export async function getNetworkEndorsements(
+export function getCountsFromMap(
+  map: EndorsementMap,
   uri: string,
-  candidateDids: string[],
-): Promise<EndorsementResult> {
+): EndorsementResult {
   const normalized = normalizeStewardUri(uri) ?? uri
-  const didsHash = hashDids(candidateDids)
-
-  const cached = await getCached(normalized, didsHash)
-  if (cached) return cached
-
-  const endorsers = await findEndorsersForUri(normalized, candidateDids)
-  const result: EndorsementResult = {
-    endorserDids: endorsers,
-    networkEndorsementCount: endorsers.length,
+  const dids = map.get(normalized)
+  return {
+    networkEndorsementCount: dids?.size ?? 0,
+    endorserDids: dids ? [...dids] : [],
   }
-
-  await setCache(normalized, didsHash, result)
-  return result
-}
-
-/**
- * Check endorsements for multiple URIs against the same set of candidate DIDs.
- * Runs URI checks sequentially (each URI fans out to CONCURRENCY DID checks).
- */
-export async function getNetworkEndorsementsForUris(
-  uris: string[],
-  candidateDids: string[],
-): Promise<Map<string, EndorsementResult>> {
-  const results = new Map<string, EndorsementResult>()
-  const normalized = uris.map((u) => normalizeStewardUri(u) ?? u)
-  const unique = [...new Set(normalized)]
-
-  // Process URIs sequentially — each one already fans out to many DID checks
-  for (const uri of unique) {
-    const result = await getNetworkEndorsements(uri, candidateDids)
-    results.set(uri, result)
-  }
-
-  logger.info('slingshot: endorsement check complete', {
-    urisChecked: unique.length,
-    didsPerUri: candidateDids.length,
-    totalQueries: unique.length * candidateDids.length,
-    endorsementsFound: [...results.values()].reduce((s, r) => s + r.networkEndorsementCount, 0),
-  })
-
-  return results
 }

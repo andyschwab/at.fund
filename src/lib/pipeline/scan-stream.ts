@@ -5,6 +5,7 @@ import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { fetchOwnEndorsements } from '@/lib/fund-at-records'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { lookupManualStewardRecord } from '@/lib/catalog'
+import { collectNetworkEndorsementsCached, getCountsFromMap } from '@/lib/microcosm'
 import { gatherAccounts } from './account-gather'
 import type { ScanWarning } from './account-gather'
 import { enrichAccounts } from './account-enrich'
@@ -72,17 +73,23 @@ export async function scanStreaming(
     emit({ type: 'warning', warning: w })
   }
 
-  // ── Ecosystem: discover + check endorsements via Slingshot ────────────
-  const ecosystemUriCounts = new Map<string, EndorsementCounts>()
-
-  const followDids = new Set<string>()
+  // ── Collect network endorsements (single pass over all follows) ────────
+  // O(follows): one PDS resolve + one listRecords per follow DID.
+  // Builds a map of endorsed URI → Set<endorser DIDs> that we reuse for
+  // ecosystem discovery AND per-card endorsement counts.
+  const followDids: string[] = []
   for (const [did, stub] of gathered.accounts) {
-    if (stub.tags.has('follow')) followDids.add(did)
+    if (stub.tags.has('follow')) followDids.push(did)
   }
 
+  emit({ type: 'status', message: `Scanning ${followDids.length} follows for endorsements…` })
+  const endorsementMap = await collectNetworkEndorsementsCached(followDids)
+
+  // ── Ecosystem discovery (fast lookup against pre-collected map) ────────
+  const ecosystemUriCounts = new Map<string, EndorsementCounts>()
+
   try {
-    emit({ type: 'status', message: 'Checking ecosystem endorsements…' })
-    const discovery = await discoverEcosystem(followDids)
+    const discovery = discoverEcosystem(endorsementMap)
 
     if (discovery.uris.size > 0) {
       // Build set of URIs already gathered (by DID or hostname)
@@ -196,15 +203,27 @@ export async function scanStreaming(
     if (ecosystemEntries.length > 0) {
       emit({ type: 'ecosystem', entries: ecosystemEntries })
     }
+  }
 
-    // Emit counts map so any card can display them
-    const counts: Record<string, EndorsementCounts> = {}
-    for (const [uri, c] of ecosystemUriCounts) {
-      counts[uri] = c
+  // ── Emit endorsement counts for ALL entries (from the single-pass map) ─
+  // The endorsement map contains every URI endorsed by any follow,
+  // so we can provide counts for any card — not just ecosystem.
+  const allCounts: Record<string, EndorsementCounts> = {}
+  for (const entry of allEntries) {
+    const counts = getCountsFromMap(endorsementMap, entry.uri)
+    if (counts.networkEndorsementCount > 0) {
+      allCounts[entry.uri] = {
+        endorsementCount: counts.networkEndorsementCount,
+        networkEndorsementCount: counts.networkEndorsementCount,
+      }
     }
-    if (Object.keys(counts).length > 0) {
-      emit({ type: 'endorsement-counts', counts })
-    }
+  }
+  // Include ecosystem counts too
+  for (const [uri, c] of ecosystemUriCounts) {
+    if (!allCounts[uri]) allCounts[uri] = c
+  }
+  if (Object.keys(allCounts).length > 0) {
+    emit({ type: 'endorsement-counts', counts: allCounts })
   }
 
   // ── PDS host funding ──────────────────────────────────────────────────
