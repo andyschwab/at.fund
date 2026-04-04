@@ -47,14 +47,21 @@ export async function scanStreaming(
   emit: (event: ScanStreamEvent) => void,
 ): Promise<void> {
   // ── Endorsements: fetch early so the client can mark entries ────────────
+  let endorsedUris: string[] = []
   try {
-    const endorsedUris = await fetchOwnEndorsements(session)
+    endorsedUris = await fetchOwnEndorsements(session)
+    logger.info('scan: own endorsements', { count: endorsedUris.length, uris: endorsedUris })
     if (endorsedUris.length > 0) {
       emit({ type: 'endorsed', uris: endorsedUris })
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to fetch endorsements'
     logger.warn('scan: endorsement fetch failed', { error: msg })
+  }
+
+  // ── Diagnostic: use first endorsed URI to test Constellation ───────────
+  if (endorsedUris.length > 0) {
+    runDiagnostic(endorsedUris[0]!).catch(() => {})
   }
 
   // ── Phase 1: Gather + start ecosystem discovery in parallel ───────────
