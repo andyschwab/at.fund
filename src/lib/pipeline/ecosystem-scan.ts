@@ -65,29 +65,3 @@ export async function discoverEcosystem(
   return { uris }
 }
 
-/**
- * Fetch endorsement counts for a set of arbitrary URIs (for display on any card).
- * Queries Constellation in parallel with caching.
- */
-export async function fetchEndorsementCounts(
-  uris: string[],
-  followDids: Set<string>,
-): Promise<Map<string, EndorsementCounts>> {
-  if (uris.length === 0) return new Map()
-
-  const backlinkResults = await getEndorsersForUris(uris)
-  const counts = new Map<string, EndorsementCounts>()
-
-  for (const [uri, backlinks] of backlinkResults) {
-    const networkCount = followDids.size > 0
-      ? backlinks.endorserDids.filter((did) => followDids.has(did)).length
-      : 0
-
-    counts.set(uri, {
-      endorsementCount: backlinks.totalCount,
-      networkEndorsementCount: networkCount,
-    })
-  }
-
-  return counts
-}

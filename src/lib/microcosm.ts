@@ -10,6 +10,7 @@ const CONSTELLATION_BASE = 'https://constellation.microcosm.blue'
 const CACHE_TTL_SECONDS = 15 * 60 // 15 minutes
 const CACHE_PREFIX = 'endorse:backlinks:'
 const MAX_PAGES = 20 // safety limit to avoid runaway pagination
+const CONCURRENCY = 5 // max parallel Constellation requests
 
 // The "source" param combines collection NSID and json-path to the link field.
 // For fund.at.endorse records, the endorsed URI lives at the `.uri` field.
@@ -32,8 +33,54 @@ export type BacklinkResult = {
 }
 
 // ---------------------------------------------------------------------------
+// Concurrency helper
+// ---------------------------------------------------------------------------
+
+async function runWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = []
+  let idx = 0
+  async function worker() {
+    while (idx < items.length) {
+      const i = idx++
+      results[i] = await fn(items[i]!)
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
+  )
+  return results
+}
+
+// ---------------------------------------------------------------------------
 // Constellation queries
 // ---------------------------------------------------------------------------
+
+/**
+ * Diagnostic: query /links/all for a target to discover what link types
+ * Constellation has indexed. Logs the result for debugging.
+ */
+async function diagnoseTarget(targetUri: string): Promise<void> {
+  try {
+    const params = new URLSearchParams({ target: targetUri })
+    const url = `${CONSTELLATION_BASE}/links/all?${params}`
+    const res = await fetch(url, { headers: HEADERS })
+    const body = await res.text()
+    logger.info('constellation: /links/all diagnostic', {
+      target: targetUri,
+      status: res.status,
+      body: body.slice(0, 500),
+    })
+  } catch (e) {
+    logger.warn('constellation: diagnostic failed', {
+      target: targetUri,
+      error: e instanceof Error ? e.message : String(e),
+    })
+  }
+}
 
 /**
  * Fetch distinct endorser DIDs for a target URI from Constellation.
@@ -47,7 +94,6 @@ async function fetchEndorserDids(
   let cursor: string | undefined
   let pagesQueried = 0
   let lastStatus: number | undefined
-  let lastResponseSample: unknown
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const params = new URLSearchParams({
@@ -69,15 +115,12 @@ async function fetchEndorserDids(
           logger.warn('constellation: getDistinct failed', {
             subject: targetUri,
             status: res.status,
-            url,
           })
         }
         break
       }
 
       const data = (await res.json()) as Record<string, unknown>
-      if (page === 0) lastResponseSample = data
-
       const responseDids = data.dids as string[] | undefined
       if (responseDids) dids.push(...responseDids)
 
@@ -86,47 +129,13 @@ async function fetchEndorserDids(
     } catch (e) {
       logger.warn('constellation: fetch error', {
         subject: targetUri,
-        url,
         error: e instanceof Error ? e.message : String(e),
       })
       break
     }
   }
 
-  logger.info('constellation: query complete', {
-    subject: targetUri,
-    pagesQueried,
-    lastStatus,
-    didsFound: dids.length,
-    ...(dids.length === 0 && lastResponseSample
-      ? { responseSample: JSON.stringify(lastResponseSample).slice(0, 300) }
-      : {}),
-  })
-
   return { endorserDids: dids, totalCount: dids.length }
-}
-
-/**
- * Fast count-only query via getBacklinksCount.
- */
-async function fetchCount(
-  targetUri: string,
-): Promise<number> {
-  try {
-    const params = new URLSearchParams({
-      subject: targetUri,
-      source: ENDORSE_SOURCE,
-    })
-    const res = await fetch(
-      `${CONSTELLATION_BASE}/xrpc/blue.microcosm.links.getBacklinksCount?${params}`,
-      { headers: HEADERS },
-    )
-    if (res.ok) {
-      const data = (await res.json()) as { count?: number }
-      if (typeof data.count === 'number') return data.count
-    }
-  } catch { /* fall through */ }
-  return -1 // signals caller to use full fetch
 }
 
 // ---------------------------------------------------------------------------
@@ -136,7 +145,6 @@ async function fetchCount(
 async function getCached(uri: string): Promise<BacklinkResult | null> {
   const key = `${CACHE_PREFIX}${uri}`
 
-  // Try Redis first
   const redis = getRedisClient()
   if (redis) {
     try {
@@ -149,7 +157,6 @@ async function getCached(uri: string): Promise<BacklinkResult | null> {
     }
   }
 
-  // In-memory fallback
   const mem = memoryCache.get(uri)
   if (mem && Date.now() - mem.fetchedAt < CACHE_TTL_SECONDS * 1000) {
     return mem.data
@@ -161,7 +168,6 @@ async function getCached(uri: string): Promise<BacklinkResult | null> {
 async function setCache(uri: string, result: BacklinkResult): Promise<void> {
   const key = `${CACHE_PREFIX}${uri}`
 
-  // Redis
   const redis = getRedisClient()
   if (redis) {
     try {
@@ -173,7 +179,6 @@ async function setCache(uri: string, result: BacklinkResult): Promise<void> {
     }
   }
 
-  // Always update in-memory too
   memoryCache.set(uri, { data: result, fetchedAt: Date.now() })
 }
 
@@ -198,7 +203,7 @@ export async function getEndorsersForUri(
 }
 
 /**
- * Get endorsement data for multiple URIs in parallel.
+ * Get endorsement data for multiple URIs with concurrency control.
  * Uses cache where available; fetches from Constellation for misses.
  */
 export async function getEndorsersForUris(
@@ -208,34 +213,19 @@ export async function getEndorsersForUris(
   const normalized = uris.map((u) => normalizeStewardUri(u) ?? u)
   const unique = [...new Set(normalized)]
 
-  await Promise.all(
-    unique.map(async (uri) => {
-      const result = await getEndorsersForUri(uri)
-      results.set(uri, result)
-    }),
-  )
+  await runWithConcurrency(unique, CONCURRENCY, async (uri) => {
+    const result = await getEndorsersForUri(uri)
+    results.set(uri, result)
+    return result
+  })
 
   return results
 }
 
 /**
- * Fast count-only query for a URI. Uses cache if available (extracts count
- * from cached backlink data), otherwise queries Constellation's count endpoint.
+ * Run a one-time diagnostic to check what Constellation has for known targets.
+ * Call this once per scan to verify the API is reachable and has our data.
  */
-export async function getEndorsementCountForUri(
-  uri: string,
-): Promise<number> {
-  const normalized = normalizeStewardUri(uri) ?? uri
-
-  // Check cache first
-  const cached = await getCached(normalized)
-  if (cached) return cached.totalCount
-
-  // Try fast count endpoint
-  const count = await fetchCount(normalized)
-  if (count >= 0) return count
-
-  // Fall back to full fetch (also caches it)
-  const result = await getEndorsersForUri(normalized)
-  return result.totalCount
+export async function runDiagnostic(sampleUri: string): Promise<void> {
+  await diagnoseTarget(sampleUri)
 }

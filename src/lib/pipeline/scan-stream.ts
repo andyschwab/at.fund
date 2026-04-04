@@ -10,8 +10,9 @@ import type { ScanWarning } from './account-gather'
 import { enrichAccounts } from './account-enrich'
 import { attachCapabilities } from './capability-scan'
 import { resolveDependencies } from './dep-resolve'
-import { discoverEcosystem, fetchEndorsementCounts } from './ecosystem-scan'
+import { discoverEcosystem } from './ecosystem-scan'
 import type { EndorsementCounts } from './ecosystem-scan'
+import { runDiagnostic } from '@/lib/microcosm'
 import { logger } from '@/lib/logger'
 
 // ---------------------------------------------------------------------------
@@ -213,34 +214,25 @@ export async function scanStreaming(
     }
   }
 
-  // ── Fetch endorsement counts for all non-ecosystem entries ─────────────
-  // Query Constellation for every entry URI so all cards can show counts.
-  try {
-    const nonEcosystemUris = allEntries
-      .filter((e) => !e.tags.includes('ecosystem'))
-      .map((e) => e.uri)
-
-    if (nonEcosystemUris.length > 0) {
-      emit({ type: 'status', message: 'Loading endorsement data…' })
-      const globalCounts = await fetchEndorsementCounts(nonEcosystemUris, followDids)
-
-      // Merge with ecosystem counts for a complete map
-      const allCounts: Record<string, EndorsementCounts> = {}
-      for (const [uri, c] of ecosystemUriCounts) {
-        allCounts[uri] = c
-      }
-      for (const [uri, c] of globalCounts) {
-        if (!allCounts[uri]) allCounts[uri] = c
-      }
-
-      if (Object.keys(allCounts).length > 0) {
-        emit({ type: 'endorsement-counts', counts: allCounts })
-      }
+  // ── Emit ecosystem endorsement counts ───────────────────────────────────
+  // For now, only ecosystem entries get Constellation-backed counts.
+  // Querying all entries would require 100+ API calls and rate-limits.
+  if (ecosystemUriCounts.size > 0) {
+    const counts: Record<string, EndorsementCounts> = {}
+    for (const [uri, c] of ecosystemUriCounts) {
+      counts[uri] = c
     }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Endorsement count fetch failed'
-    logger.warn('scan: endorsement counts failed', { error: msg })
+    emit({ type: 'endorsement-counts', counts })
   }
+
+  // ── Diagnostic: check what Constellation indexes for a known target ────
+  // Runs once per scan to help debug whether fund.at.endorse is indexed.
+  try {
+    const sampleEcosystemUri = [...ecosystemUriCounts.keys()][0]
+    if (sampleEcosystemUri) {
+      await runDiagnostic(sampleEcosystemUri)
+    }
+  } catch { /* diagnostic is best-effort */ }
 
   // ── PDS host funding ──────────────────────────────────────────────────
   if (gathered.pdsUrl) {
