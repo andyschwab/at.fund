@@ -3,6 +3,7 @@ import type { OAuthSession } from '@atproto/oauth-client'
 import { xrpcQuery } from '@/lib/xrpc'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { resolveStewardUri } from '@/lib/catalog'
+import { describeServerStewardUri } from '@/lib/atfund-uri'
 import {
   getBlueskyHandleFallback,
   handleFromDescribeRepo,
@@ -124,16 +125,17 @@ export async function gatherAccounts(
     } catch { /* ignore */ }
   }
 
-  // ── Resolve PDS operator via resolver chain ────────────────────────────
+  // ── Resolve PDS operator via ATProto + resolver chain ─────────────────
   // Chain: physical host (lionsmane.us-east.host.bsky.network)
-  //   → matchSuffix resolver → entryway (bsky.social)
-  //   → matchPrefix resolver → operator (bsky.app)
-  //   → DNS lookup → operator DID
+  //   → com.atproto.server.describeServer → entryway (bsky.social, from policy links)
+  //   → matchPrefix resolver               → operator (bsky.app)
+  //   → DNS lookup                         → operator DID
   if (pdsUrl) {
     try {
       const physicalHostname = new URL(pdsUrl).hostname
-      const entryway = resolveStewardUri(physicalHostname)
-      if (entryway && entryway !== physicalHostname) {
+      // Ask ATProto for the steward domain — it's in the policy link hostnames.
+      const entryway = await describeServerStewardUri(physicalHostname)
+      if (entryway) {
         const operator = resolveStewardUri(entryway) ?? entryway
         try {
           const operatorDid = await lookupAtprotoDid(operator)

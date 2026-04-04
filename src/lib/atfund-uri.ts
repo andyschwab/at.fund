@@ -33,6 +33,18 @@ function hostnameFromWebUrl(input: string | undefined): string | undefined {
   }
 }
 
+/**
+ * Call com.atproto.server.describeServer on a PDS hostname and extract the
+ * steward URI (the branding/entryway domain, e.g. 'bsky.social') from policy
+ * link hostnames or the server DID.
+ *
+ * Returns null when the server is unreachable or returns no useful identity.
+ */
+export async function describeServerStewardUri(hostname: string): Promise<string | null> {
+  const result = await describeServerStewardFallback(hostname)
+  return result.pdsStewardUri ?? null
+}
+
 async function describeServerStewardFallback(hostname: string): Promise<{
   pdsStewardUri?: string
   pdsStewardHandle?: string
