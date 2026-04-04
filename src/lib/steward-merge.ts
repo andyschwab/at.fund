@@ -1,5 +1,5 @@
 import type { StewardEntry, StewardSource, StewardTag, Capability } from '@/lib/steward-model'
-import type { FollowedAccountCard } from '@/lib/follow-scan'
+import { isHumanReadableName } from '@/lib/steward-model'
 
 // ---------------------------------------------------------------------------
 // Source priority — higher index wins when merging display data
@@ -13,24 +13,6 @@ const SOURCE_PRIORITY: Record<StewardSource, number> = {
 
 function betterSource(a: StewardSource, b: StewardSource): StewardSource {
   return SOURCE_PRIORITY[a] >= SOURCE_PRIORITY[b] ? a : b
-}
-
-// ---------------------------------------------------------------------------
-// Convert types to StewardEntry
-// ---------------------------------------------------------------------------
-
-export function followedAccountToEntry(account: FollowedAccountCard): StewardEntry {
-  return {
-    uri: account.handle ?? account.did,
-    did: account.did,
-    handle: account.handle,
-    tags: ['follow'],
-    displayName: account.displayName ?? account.handle ?? account.did,
-    description: account.description,
-    landingPage: account.landingPage,
-    contributeUrl: account.contributeUrl,
-    source: 'fund.at',
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -64,9 +46,9 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
 
   // Prefer a meaningful displayName over a DID-shaped one
   const displayName =
-    (preferred.displayName && !preferred.displayName.startsWith('did:'))
+    (isHumanReadableName(preferred.displayName))
       ? preferred.displayName
-      : (other.displayName && !other.displayName.startsWith('did:'))
+      : (isHumanReadableName(other.displayName))
         ? other.displayName
         : preferred.displayName ?? other.displayName
 
@@ -101,7 +83,7 @@ function deduplicateCapabilities(caps: Capability[]): Capability[] | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Public: merge stewards + follows + subscriptions into unified StewardEntry[]
+// Public: merge entry lists into unified StewardEntry[]
 // ---------------------------------------------------------------------------
 
 export class EntryIndex {
@@ -142,20 +124,15 @@ export class EntryIndex {
 }
 
 /**
- * Merges tool stewards, followed accounts, and any additional StewardEntry[]
- * arrays (e.g. labelers, feeds) into a single deduplicated list.
+ * Merges multiple StewardEntry lists into a single deduplicated list.
  * Dedup key: resolved DID. Entries sharing a DID have their tags unioned.
  */
 export function mergeIntoEntries(
-  stewards: StewardEntry[],
-  followedAccounts: FollowedAccountCard[],
-  ...extraEntryLists: StewardEntry[][]
+  ...entryLists: StewardEntry[][]
 ): StewardEntry[] {
   const index = new EntryIndex()
 
-  for (const s of stewards) index.upsert(s)
-  for (const f of followedAccounts) index.upsert(followedAccountToEntry(f))
-  for (const list of extraEntryLists) {
+  for (const list of entryLists) {
     for (const e of list) index.upsert(e)
   }
 

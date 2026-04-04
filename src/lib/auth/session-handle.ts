@@ -1,8 +1,7 @@
 import { Client } from '@atproto/lex'
 import type { OAuthSession } from '@atproto/oauth-client'
 import { xrpcQuery } from '@/lib/xrpc'
-
-const PUBLIC_API = 'https://public.api.bsky.app'
+import { PUBLIC_API } from '@/lib/constants'
 
 /** Handle from `com.atproto.repo.describeRepo` (home PDS; works for any ATProto host). */
 export function handleFromDescribeRepo(data: {

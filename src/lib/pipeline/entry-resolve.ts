@@ -1,14 +1,13 @@
 import { Client } from '@atproto/lex'
 import type { StewardEntry, Capability } from '@/lib/steward-model'
-import { lookupAtprotoDid } from '@/lib/atfund-dns'
-import { lookupManualStewardRecord } from '@/lib/catalog'
-import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
+import { resolveIdentity, resolveRefToDid } from '@/lib/identity'
+import { resolveFunding, lookupManualByIdentity } from '@/lib/funding'
 import { xrpcQuery } from '@/lib/xrpc'
 import { resolveDependencies } from '@/lib/pipeline/dep-resolve'
+import { createScanContext } from '@/lib/scan-context'
+import type { ScanContext } from '@/lib/scan-context'
 import { logger } from '@/lib/logger'
-
-const PUBLIC_API = 'https://public.api.bsky.app'
-const FEED_BATCH = 25
+import { PUBLIC_API, FEED_BATCH } from '@/lib/constants'
 
 // ---------------------------------------------------------------------------
 // Full vertical resolution for a single entry
@@ -31,134 +30,30 @@ type ResolveResult = {
  *
  * No authentication required — all data sources are public.
  */
-export async function resolveEntry(uri: string): Promise<ResolveResult> {
-  const publicClient = new Client(PUBLIC_API)
+export async function resolveEntry(uri: string, ctx?: ScanContext): Promise<ResolveResult> {
+  const scanCtx = ctx ?? createScanContext()
+  // Determine if this is a tool (has a manual catalog entry for hostname)
+  const manual = lookupManualByIdentity({ uri, displayName: uri })
+  const isTool = !uri.startsWith('did:') && !!manual
 
-  // ── 1. Resolve identity ────────────────────────────────────────────────
-  const isDid = uri.startsWith('did:')
-  let did: string | undefined
-  const hostname = isDid ? undefined : uri
+  // ── 1. Identity ────────────────────────────────────────────────────────
+  const identity = await resolveIdentity(uri, { isTool })
 
-  if (isDid) {
-    did = uri
-  } else {
-    // Could be a handle (e.g. jay.bsky.team) or a hostname (e.g. whtwnd.com)
-    // Try handle resolution first, then DNS
-    try {
-      const data = await xrpcQuery<{ did?: string }>(
-        publicClient,
-        'com.atproto.identity.resolveHandle',
-        { handle: uri },
-      )
-      if (data.did) did = data.did
-    } catch {
-      // Not a handle — try DNS for hostname
-      try {
-        const dnsDid = await lookupAtprotoDid(uri)
-        if (dnsDid) did = dnsDid
-      } catch {
-        logger.warn('entry-resolve: identity resolution failed', { uri })
-      }
-    }
-  }
+  // ── 2. Funding ─────────────────────────────────────────────────────────
+  const { funding } = await resolveFunding(identity, { ctx: scanCtx })
 
-  // Fetch profile
-  let handle: string | undefined
-  let displayName: string | undefined
-  let description: string | undefined
-  let avatar: string | undefined
+  const tags: StewardEntry['tags'] = isTool ? ['tool'] : []
 
-  if (did) {
-    try {
-      const data = await xrpcQuery<{
-        profiles?: Array<{
-          did: string
-          handle?: string
-          displayName?: string
-          description?: string
-          avatar?: string
-        }>
-      }>(publicClient, 'app.bsky.actor.getProfiles', { actors: [did] })
-      const profile = data.profiles?.[0]
-      if (profile) {
-        handle = profile.handle
-        displayName = profile.displayName
-        description = profile.description
-        avatar = profile.avatar
-      }
-    } catch { /* profile fetch is best-effort */ }
-  }
-
-  // Multi-key catalog lookup
-  const manual = lookupManualStewardRecord(uri)
-    ?? (did ? lookupManualStewardRecord(did) : null)
-    ?? (hostname ? lookupManualStewardRecord(hostname) : null)
-    ?? (handle ? lookupManualStewardRecord(handle) : null)
-
-  // Determine if this is a tool (has a hostname in catalog or a manual record)
-  const isTool = !!hostname && !!manual
-
-  const bestName = (displayName && !displayName.startsWith('did:'))
-    ? displayName
-    : hostname ?? handle ?? uri
-
-  const entryUri = hostname ?? handle ?? uri
-  const landingPage = !isTool && handle
-    ? `https://bsky.app/profile/${handle}`
-    : undefined
-
-  // ── 2. Funding & catalog ───────────────────────────────────────────────
-  let contributeUrl: string | undefined
-  let dependencies: string[] | undefined
-  let source: 'fund.at' | 'manual' | 'unknown' = 'unknown'
-
-  if (did) {
-    try {
-      const fundAt = await fetchFundAtForStewardDid(did)
-      if (fundAt) {
-        contributeUrl = fundAt.contributeUrl ?? manual?.contributeUrl
-        dependencies = mergeDeps(
-          fundAt.dependencies?.map((d) => d.uri),
-          manual?.dependencies,
-        )
-        source = 'fund.at'
-      }
-    } catch (e) {
-      logger.warn('entry-resolve: fund.at fetch failed', {
-        uri, did, error: e instanceof Error ? e.message : String(e),
-      })
-    }
-  }
-
-  if (source === 'unknown' && manual) {
-    contributeUrl = manual.contributeUrl
-    dependencies = manual.dependencies
-    source = 'manual'
-  }
-
-  const tags: string[] = isTool ? ['tool'] : []
-
-  const entry: StewardEntry = {
-    uri: entryUri,
-    did,
-    handle,
-    avatar,
-    tags: tags as StewardEntry['tags'],
-    displayName: bestName,
-    description,
-    landingPage,
-    contributeUrl,
-    dependencies,
-    source,
-  }
+  const entry: StewardEntry = { ...identity, ...funding, tags }
 
   // ── 3. Capabilities — discover feeds + labeler from the DID's repo ────
-  if (did) {
-    await discoverCapabilities(publicClient, did, entry)
+  if (identity.did) {
+    const publicClient = new Client(PUBLIC_API)
+    await discoverCapabilities(publicClient, identity.did, entry)
   }
 
   // ── 4. Dependencies — resolve transitive deps from catalog ────────────
-  const referenced = await resolveDependencies([entry])
+  const referenced = await resolveDependencies([entry], undefined, scanCtx)
 
   return { entry, referenced }
 }
@@ -284,17 +179,4 @@ async function fetchFeedDetails(
     }
   }
   return all
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function mergeDeps(
-  a: string[] | undefined,
-  b: string[] | undefined,
-): string[] | undefined {
-  if (!a && !b) return undefined
-  const set = new Set([...(a ?? []), ...(b ?? [])])
-  return set.size > 0 ? [...set].sort() : undefined
 }

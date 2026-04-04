@@ -41,9 +41,10 @@ See **[docs/pipeline.md](docs/pipeline.md)** for the full pipeline architecture.
 |----------|------|---------|
 | `GET /api/lexicons/stream?extraStewards=...` | Session cookie | Streaming NDJSON scan (primary) |
 | `GET /api/entry?uri=<handle-or-did>` | None | Full single-entry resolution (endorsement, dep modal) |
-| `GET /api/steward?uri=...` | None | Thin steward lookup (legacy) |
+| `POST /api/setup` `{ contributeUrl, dependencies, existing }` | Session cookie | Publish/delete fund.at records |
 | `POST /api/endorse` `{ uri }` | Session cookie | Create endorsement record |
 | `DELETE /api/endorse` `{ uri }` | Session cookie | Remove endorsement record |
+| `GET /api/steward?uri=...` | None | Thin steward lookup (legacy) |
 
 ## Project layout
 
@@ -51,33 +52,47 @@ See **[docs/pipeline.md](docs/pipeline.md)** for the full pipeline architecture.
 src/
 ├── app/                              Next.js pages and API routes
 │   └── api/
-│       ├── entry/route.ts            Full single-entry resolution endpoint
-│       ├── endorse/route.ts          Endorsement CRUD
+│       ├── entry/route.ts            Full single-entry resolution
+│       ├── setup/route.ts            Publish/delete fund.at records
+│       ├── endorse/route.ts          Endorsement create/delete
 │       ├── lexicons/stream/route.ts  Streaming scan endpoint
 │       └── steward/route.ts          Thin steward lookup (legacy)
 ├── components/
 │   ├── GiveClient.tsx                Streaming scan client + card layout + endorsement
+│   ├── SetupClient.tsx               Setup form: contribute URL, dependencies, live preview
 │   ├── ProjectCards.tsx              StewardCard (compact <li> row)
 │   ├── card-primitives.tsx           Shared building blocks (ProfileAvatar, TagBadges, etc.)
 │   ├── card-dependencies.tsx         DependencyRow, ModalCardContent, DependenciesSection
 │   ├── HandleAutocomplete.tsx        Bluesky handle typeahead search
+│   ├── HandleChipInput.tsx           Chip-based multi-value input for dependencies
+│   ├── SuggestionList.tsx            Shared typeahead dropdown
 │   ├── NavBar.tsx                    Global nav bar + login/logout modal
 │   └── SessionContext.tsx            Auth state context (useSession hook)
+├── hooks/
+│   ├── useTypeahead.ts               Debounced Bluesky handle typeahead
+│   ├── useScanStream.ts              NDJSON streaming fetch + EntryIndex
+│   └── useDebounce.ts                Generic debounce hook
 ├── data/
 │   ├── catalog/*.json                Manual funding data per steward (keyed by hostname)
 │   └── resolver-catalog.json         NSID prefix → steward URI overrides
 └── lib/
-    ├── pipeline/                     4-phase scan pipeline
-    │   ├── account-gather.ts         Phase 1: discover accounts
-    │   ├── account-enrich.ts         Phase 2: resolve funding info
-    │   ├── capability-scan.ts        Phase 3: attach feed/labeler details
-    │   ├── dep-resolve.ts            Phase 4: resolve dependency entries
+    ├── pipeline/                     6-phase scan pipeline
+    │   ├── account-gather.ts         Phase 1: discover accounts + fire prefetches
+    │   ├── account-enrich.ts         Phase 4: fund.at + catalog + profile resolution
+    │   ├── capability-scan.ts        Phase 5: feed/labeler capabilities
+    │   ├── dep-resolve.ts            Phase 6: dependency entry resolution
+    │   ├── ecosystem-scan.ts         Phase 3: ecosystem URI discovery
     │   ├── entry-resolve.ts          Full vertical resolution for a single entry
-    │   └── scan-stream.ts            Orchestrator
+    │   └── scan-stream.ts            Orchestrator: creates ScanContext, runs phases
+    ├── scan-context.ts               ScanContext — app-wide network orchestrator
+    ├── fund-at-prefetch.ts           Speculative fund.at prefetch with bounded concurrency
+    ├── steward-model.ts              Identity, Funding, StewardEntry, Capability types
+    ├── identity.ts                   buildIdentity, batchFetchProfiles, resolveRefToDid
+    ├── funding.ts                    resolveFunding, resolveFundingForDep
+    ├── entry-priority.ts             Unified entryPriority() ranking
     ├── catalog.ts                    Steward URI resolver + manual catalog lookup
-    ├── steward-model.ts              StewardEntry, Capability, StewardTag types
     ├── steward-merge.ts              Client-side entry dedup (EntryIndex)
-    └── steward-funding.ts            fund.at.* record fetching from PDS
+    └── fund-at-records.ts            Low-level fund.at record fetching (parallel PDS calls)
 ```
 
 ## Adding a project to the catalog

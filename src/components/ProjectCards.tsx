@@ -9,7 +9,6 @@ import {
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
 import {
-  type NameLinkVariant,
   heartState,
   websiteFallbackForUri,
   profileUrlFor,
@@ -20,24 +19,7 @@ import {
   ProfileAvatar,
 } from '@/components/card-primitives'
 import { DependenciesSection } from '@/components/card-dependencies'
-
-// ---------------------------------------------------------------------------
-// Card type: tool vs account vs discover (empty-state account)
-// ---------------------------------------------------------------------------
-
-type CardType = 'tool' | 'account' | 'discover'
-
-function cardType(entry: StewardEntry): CardType {
-  if (entry.tags.includes('tool')) return 'tool'
-  if (entry.source === 'unknown' && !entry.capabilities?.length) return 'discover'
-  return 'account'
-}
-
-const LINK_VARIANT: Record<CardType, NameLinkVariant> = {
-  tool: 'support',
-  account: 'network',
-  discover: 'discover',
-}
+import { cardType, LINK_VARIANT } from '@/components/card-utils'
 
 // ---------------------------------------------------------------------------
 // Card export

@@ -11,9 +11,8 @@ import {
 import { DropletIcon } from '@/components/DropletIcon'
 import {
   type DropletIconState,
-  type NameLinkVariant,
   heartState,
-  depRowTier,
+  entryPriority,
   ProfileAvatar,
   StewardNameHeading,
   HandleBadge,
@@ -22,24 +21,7 @@ import {
   websiteFallbackForUri,
   profileUrlFor,
 } from '@/components/card-primitives'
-
-// ---------------------------------------------------------------------------
-// Card type helpers (duplicated lightly to avoid circular dep with ProjectCards)
-// ---------------------------------------------------------------------------
-
-type CardType = 'tool' | 'account' | 'discover'
-
-function cardType(entry: StewardEntry): CardType {
-  if (entry.tags.includes('tool')) return 'tool'
-  if (entry.source === 'unknown' && !entry.capabilities?.length) return 'discover'
-  return 'account'
-}
-
-const LINK_VARIANT: Record<CardType, NameLinkVariant> = {
-  tool: 'support',
-  account: 'network',
-  discover: 'discover',
-}
+import { cardType, LINK_VARIANT } from '@/components/card-utils'
 
 // ---------------------------------------------------------------------------
 // DependencyRow — a single row in the "Depends on" section
@@ -271,7 +253,7 @@ export function DependenciesSection({
     return [...dependencies].sort((a, b) => {
       const ea = lookup(a)
       const eb = lookup(b)
-      const diff = depRowTier(ea, lookup) - depRowTier(eb, lookup)
+      const diff = entryPriority(ea, lookup) - entryPriority(eb, lookup)
       return diff !== 0 ? diff : a.localeCompare(b)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps

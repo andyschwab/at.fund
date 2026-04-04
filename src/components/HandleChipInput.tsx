@@ -1,18 +1,15 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { X } from 'lucide-react'
+import type { Actor } from '@/components/AvatarBadge'
+import { SuggestionList } from '@/components/SuggestionList'
+import { useTypeahead } from '@/hooks/useTypeahead'
+import { nextId } from '@/lib/next-id'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-type Actor = {
-  did: string
-  handle: string
-  displayName?: string
-  avatar?: string
-}
 
 export type ChipItem = { id: string; uri: string; label: string }
 
@@ -20,43 +17,6 @@ type Props = {
   chips: ChipItem[]
   onChange: (chips: ChipItem[]) => void
   disabled?: boolean
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function nextId() {
-  return Math.random().toString(36).slice(2)
-}
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(t)
-  }, [value, delay])
-  return debounced
-}
-
-function AvatarBadge({ actor }: { actor: Actor }) {
-  const [failed, setFailed] = useState(false)
-  const initials = (actor.displayName ?? actor.handle).slice(0, 2).toUpperCase()
-  if (actor.avatar && !failed) {
-    return (
-      <img
-        src={actor.avatar}
-        alt=""
-        onError={() => setFailed(true)}
-        className="h-6 w-6 shrink-0 rounded-full object-cover"
-      />
-    )
-  }
-  return (
-    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--support-muted)] text-[10px] font-semibold text-[var(--support)]">
-      {initials}
-    </span>
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -71,70 +31,20 @@ function AvatarBadge({ actor }: { actor: Actor }) {
  */
 export function HandleChipInput({ chips, onChange, disabled }: Props) {
   const [query, setQuery] = useState('')
-  const [suggestions, setSuggestions] = useState<Actor[]>([])
-  const [open, setOpen] = useState(false)
-  const [active, setActive] = useState(-1)
-  const [fetching, setFetching] = useState(false)
-  const debouncedQ = useDebounce(query, 200)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const { suggestions, open, setOpen, active, setActive, loading, containerRef, reset } =
+    useTypeahead(query)
   const inputRef = useRef<HTMLInputElement>(null)
-
-  // Fetch typeahead suggestions
-  useEffect(() => {
-    const q = debouncedQ.trim()
-    // Skip for DIDs (no typeahead for those), empty, or path-like strings
-    if (!q || q.startsWith('did:') || q.includes('/')) {
-      setSuggestions([])
-      setOpen(false)
-      return
-    }
-    let cancelled = false
-    setFetching(true)
-    fetch(
-      `https://public.api.bsky.app/xrpc/app.bsky.actor.searchActorsTypeahead?q=${encodeURIComponent(q)}&limit=8`,
-    )
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled) {
-          const actors: Actor[] = data.actors ?? []
-          setSuggestions(actors)
-          setOpen(actors.length > 0)
-          setActive(-1)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setSuggestions([])
-      })
-      .finally(() => {
-        if (!cancelled) setFetching(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [debouncedQ])
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
 
   function addChip(uri: string, label?: string) {
     const trimmed = uri.trim()
     if (!trimmed) return
-    // Silently skip duplicates
     if (chips.some((c) => c.uri === trimmed)) {
       setQuery('')
       return
     }
     onChange([...chips, { id: nextId(), uri: trimmed, label: label ?? '' }])
     setQuery('')
-    setSuggestions([])
-    setOpen(false)
-    setActive(-1)
+    reset()
   }
 
   function removeChip(id: string) {
@@ -232,7 +142,7 @@ export function HandleChipInput({ chips, onChange, disabled }: Props) {
             aria-activedescendant={active >= 0 ? `hci-suggestion-${active}` : undefined}
             className="min-w-[160px] flex-1 border-none bg-transparent px-1 py-0.5 text-sm text-slate-900 placeholder-slate-400 outline-none dark:text-slate-100 dark:placeholder-slate-500"
           />
-          {fetching && (
+          {loading && (
             <svg
               className="mr-1 h-3 w-3 shrink-0 animate-spin text-slate-400"
               viewBox="0 0 24 24"
@@ -259,47 +169,13 @@ export function HandleChipInput({ chips, onChange, disabled }: Props) {
 
       {/* Suggestions dropdown */}
       {open && (
-        <ul
-          role="listbox"
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
-        >
-          {suggestions.map((actor, i) => (
-            <li
-              key={actor.did}
-              id={`hci-suggestion-${i}`}
-              role="option"
-              aria-selected={i === active}
-              onMouseDown={(e) => {
-                e.preventDefault()
-                pick(actor)
-              }}
-              onMouseEnter={() => setActive(i)}
-              className={`flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm ${
-                i === active
-                  ? 'bg-[var(--support-muted)] text-slate-900 dark:text-slate-100'
-                  : 'text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
-              }`}
-            >
-              <AvatarBadge actor={actor} />
-              <span className="min-w-0 flex-1">
-                {actor.displayName && (
-                  <span className="block truncate font-medium text-slate-900 dark:text-slate-100">
-                    {actor.displayName}
-                  </span>
-                )}
-                <span
-                  className={`block truncate ${
-                    actor.displayName
-                      ? 'text-xs text-slate-500 dark:text-slate-400'
-                      : 'text-sm font-medium text-slate-900 dark:text-slate-100'
-                  }`}
-                >
-                  @{actor.handle}
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <SuggestionList
+          suggestions={suggestions}
+          active={active}
+          onPick={pick}
+          onHover={setActive}
+          idPrefix="hci"
+        />
       )}
     </div>
   )

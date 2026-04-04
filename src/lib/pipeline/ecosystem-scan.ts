@@ -1,16 +1,9 @@
-import type { EndorsementMap } from '@/lib/microcosm'
+import type { EndorsementMap, EndorsementCounts } from '@/lib/microcosm'
 import { getCountsFromMap } from '@/lib/microcosm'
 import { getEcosystemCatalogEntries } from '@/lib/catalog'
 import { logger } from '@/lib/logger'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type EndorsementCounts = {
-  endorsementCount: number
-  networkEndorsementCount: number
-}
+export type { EndorsementCounts }
 
 /** Raw discovery result — URIs that should appear in the ecosystem section. */
 export type EcosystemDiscovery = {
@@ -39,11 +32,7 @@ export function discoverEcosystem(
 
   // Always include catalog ecosystem entries
   for (const cat of catalogEntries) {
-    const result = getCountsFromMap(endorsementMap, cat.stewardUri)
-    uris.set(cat.stewardUri, {
-      endorsementCount: result.networkEndorsementCount,
-      networkEndorsementCount: result.networkEndorsementCount,
-    })
+    uris.set(cat.stewardUri, getCountsFromMap(endorsementMap, cat.stewardUri))
   }
 
   // Add network-discovered entries: any URI endorsed by 1+ follows
@@ -51,17 +40,14 @@ export function discoverEcosystem(
     if (uris.has(uri)) continue // already in catalog set
     if (endorserDids.size === 0) continue
 
-    uris.set(uri, {
-      endorsementCount: endorserDids.size,
-      networkEndorsementCount: endorserDids.size,
-    })
+    uris.set(uri, { networkEndorsementCount: endorserDids.size })
   }
 
   logger.info('ecosystem: discovery completed', {
     catalogCount: catalogEntries.length,
     networkDiscovered: uris.size - catalogEntries.length,
     totalUris: uris.size,
-    withEndorsements: [...uris.values()].filter((c) => c.endorsementCount > 0).length,
+    withEndorsements: [...uris.values()].filter((c) => c.networkEndorsementCount > 0).length,
   })
 
   return { uris }
