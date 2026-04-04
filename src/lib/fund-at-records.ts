@@ -13,6 +13,12 @@ export const FUND_ENDORSE = 'fund.at.endorse'
 const PUBLIC_IDENTITY = 'https://public.api.bsky.app'
 const publicClient = new Client(PUBLIC_IDENTITY)
 
+// Global-backed cache for DID documents so results survive hot reloads in dev.
+const gDid = global as typeof globalThis & {
+  __didDocCache?: Map<string, Record<string, unknown> | null>
+}
+const didDocCache = (gDid.__didDocCache ??= new Map())
+
 export type FundAtResult = {
   contributeUrl?: string
   dependencies?: Array<{ uri: string; label?: string }>
@@ -30,13 +36,16 @@ const PLC_DIRECTORY = 'https://plc.directory'
  * implemented on the public Bluesky API.
  */
 async function fetchDidDocument(did: string): Promise<Record<string, unknown> | null> {
+  if (didDocCache.has(did)) return didDocCache.get(did)!
+  let result: Record<string, unknown> | null = null
   try {
     const res = await fetch(`${PLC_DIRECTORY}/${encodeURIComponent(did)}`)
-    if (!res.ok) return null
-    return (await res.json()) as Record<string, unknown>
+    if (res.ok) result = (await res.json()) as Record<string, unknown>
   } catch {
-    return null
+    // leave result as null
   }
+  didDocCache.set(did, result)
+  return result
 }
 
 function handleFromAlsoKnownAs(didDoc: unknown): string | undefined {
