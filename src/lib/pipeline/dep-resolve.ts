@@ -98,7 +98,7 @@ async function resolveDepEntry(depUri: string): Promise<StewardEntry> {
         return {
           uri: depUri,
           did,
-          tags: ['tool'],
+          tags: ['dependency'],
           displayName: depUri,
           contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
           dependencies: deps,
@@ -116,7 +116,7 @@ async function resolveDepEntry(depUri: string): Promise<StewardEntry> {
   return {
     uri: depUri,
     did,
-    tags: ['tool'],
+    tags: ['dependency'],
     displayName: depUri,
     source: manual ? 'manual' : 'unknown',
     contributeUrl: manual?.contributeUrl,

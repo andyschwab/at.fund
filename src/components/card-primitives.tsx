@@ -20,6 +20,7 @@ const TAG_LABEL: Partial<Record<StewardTag, string>> = {
   labeler: 'labeler',
   feed: 'feed',
   follow: 'follow',
+  ecosystem: 'ecosystem',
   'pds-host': 'personal data server',
 }
 

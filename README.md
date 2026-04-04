@@ -13,9 +13,10 @@ See **[docs/pipeline.md](docs/pipeline.md)** for the full pipeline architecture.
 
 ## Docs
 
-- **[Pipeline overview](docs/pipeline.md)** — 4-phase scan architecture: gather, enrich, capabilities, dependencies
+- **[Pipeline overview](docs/pipeline.md)** — 6-phase scan architecture: gather, endorsements, ecosystem, enrich, capabilities, dependencies
 - **[Domain/DID discovery](docs/atfund-discovery.md)** — DNS `_atproto`, record scoping, resolution
 - **[Catalog review process](docs/catalog-review-process.md)** — criteria for manual catalog entries
+- **[Jetstream endorsement collector](docs/jetstream-endorsement-collector.md)** — future real-time endorsement indexer (concept)
 - **Lexicon schemas:** in-app at `/lexicon`, or see `src/lexicons/fund/at/`
 
 ## Local development

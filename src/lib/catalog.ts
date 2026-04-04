@@ -6,6 +6,9 @@ import { normalizeStewardUri } from '@/lib/steward-uri'
 type ManualRecord = {
   contributeUrl?: string
   dependencies?: string[]
+  tags?: string[]
+  /** AT Proto handle to use for identity resolution when the catalog key hostname differs. */
+  atprotoHandle?: string
   /** PDS entryway hostnames this operator provides (e.g. ["bsky.social"]). */
   pdsHostnames?: string[]
 }
@@ -106,6 +109,8 @@ export type ManualStewardRecord = {
   stewardUri: string
   contributeUrl?: string
   dependencies?: string[]
+  tags?: string[]
+  atprotoHandle?: string
   pdsHostnames?: string[]
 }
 
@@ -122,6 +127,7 @@ export function lookupManualStewardRecord(
   const hasContent =
     record.contributeUrl ||
     (record.dependencies && record.dependencies.length > 0) ||
+    (record.tags && record.tags.length > 0) ||
     (record.pdsHostnames && record.pdsHostnames.length > 0)
   if (!hasContent) return null
 
@@ -129,6 +135,25 @@ export function lookupManualStewardRecord(
     stewardUri: key,
     contributeUrl: record.contributeUrl,
     dependencies: record.dependencies,
+    tags: record.tags,
+    atprotoHandle: record.atprotoHandle,
     pdsHostnames: record.pdsHostnames,
   }
+}
+
+/** Returns catalog entries tagged with "ecosystem". */
+export function getEcosystemCatalogEntries(): ManualStewardRecord[] {
+  const results: ManualStewardRecord[] = []
+  for (const [uri, record] of Object.entries(manualCatalogRecords)) {
+    if (record.tags?.includes('ecosystem')) {
+      results.push({
+        stewardUri: uri,
+        contributeUrl: record.contributeUrl,
+        dependencies: record.dependencies,
+        tags: record.tags,
+        atprotoHandle: record.atprotoHandle,
+      })
+    }
+  }
+  return results
 }

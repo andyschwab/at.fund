@@ -256,11 +256,16 @@ export function DependenciesSection({
   const [modal, setModal] = useState<ModalState | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
 
-  const entryByUri = useMemo(
-    () => new Map(allEntries.map((e) => [e.uri, e])),
-    [allEntries],
-  )
-  const lookup = (uri: string) => entryByUri.get(uri)
+  const entryByKey = useMemo(() => {
+    const m = new Map<string, StewardEntry>()
+    for (const e of allEntries) {
+      m.set(e.uri, e)
+      if (e.did) m.set(e.did, e)
+      if (e.handle) m.set(e.handle, e)
+    }
+    return m
+  }, [allEntries])
+  const lookup = (uri: string) => entryByKey.get(uri)
 
   const sortedDeps = useMemo(() => {
     return [...dependencies].sort((a, b) => {

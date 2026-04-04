@@ -50,6 +50,7 @@ export function StewardCard({
   endorsedSet,
   onEndorse,
   onUnendorse,
+  networkEndorsementCount,
 }: {
   entry: StewardEntry
   allEntries?: StewardEntry[]
@@ -57,14 +58,20 @@ export function StewardCard({
   endorsedSet?: Set<string>
   onEndorse?: (uri: string) => void
   onUnendorse?: (uri: string) => void
+  networkEndorsementCount?: number
 }) {
   const type = cardType(entry)
 
-  const entryByUri = useMemo(
-    () => new Map(allEntries.map((e) => [e.uri, e])),
-    [allEntries],
-  )
-  const lookup = (uri: string) => entryByUri.get(uri)
+  const entryByKey = useMemo(() => {
+    const m = new Map<string, StewardEntry>()
+    for (const e of allEntries) {
+      m.set(e.uri, e)
+      if (e.did) m.set(e.did, e)
+      if (e.handle) m.set(e.handle, e)
+    }
+    return m
+  }, [allEntries])
+  const lookup = (uri: string) => entryByKey.get(uri)
 
   const isEndorsed = endorsed ?? (endorsedSet
     ? (endorsedSet.has(entry.uri) || endorsedSet.has(entry.did ?? ''))
@@ -100,6 +107,11 @@ export function StewardCard({
           {entry.description && (
             <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
               {entry.description}
+            </p>
+          )}
+          {networkEndorsementCount != null && networkEndorsementCount > 0 && (
+            <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+              {networkEndorsementCount} endorsement{networkEndorsementCount === 1 ? '' : 's'} from your network
             </p>
           )}
         </div>
