@@ -31,18 +31,16 @@ describe('resolveStewardUri', () => {
     expect(resolveStewardUri('fyi.unravel.frontpage.vote')).toBe('frontpage.fyi')
   })
 
-  it('resolves popfeed collections to popfeed.social', () => {
-    expect(resolveStewardUri('feed.popfeed.xyz')).toBe('popfeed.social')
-    expect(resolveStewardUri('actor.popfeed.xyz')).toBe('popfeed.social')
+  it('infers hostname from NSID-like popfeed collections', () => {
+    // Without a resolver override, NSID inference reverses the first two segments
+    expect(resolveStewardUri('feed.popfeed.xyz')).toBe('popfeed.feed')
+    expect(resolveStewardUri('actor.popfeed.xyz')).toBe('popfeed.actor')
   })
 
-it('resolves community.lexicon.* to lexicon.community', () => {
+  it('infers hostname from community.lexicon.* NSIDs', () => {
+    // community.lexicon.* naturally reverses to lexicon.community
     expect(resolveStewardUri('community.lexicon.calendar')).toBe('lexicon.community')
     expect(resolveStewardUri('community.lexicon.calendar.event')).toBe('lexicon.community')
-  })
-
-  it('resolves lexicon.community.* to lexicon.community', () => {
-    expect(resolveStewardUri('lexicon.community.something')).toBe('lexicon.community')
   })
 
   // NSID hostname inference (3+ segments, no override match)

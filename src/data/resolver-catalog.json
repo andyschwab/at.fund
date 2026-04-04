@@ -8,11 +8,6 @@
     { "matchPrefix": "com.shinolabs.pinksea.", "stewardUri": "pinksea.art" },
     { "matchPrefix": "blue.zio.atfile.", "stewardUri": "zio.sh" },
     { "matchPrefix": "im.flushing.right.now.", "stewardUri": "flushes.app" },
-    { "matchPrefix": "app.anisota.", "stewardUri": "anisota.net" },
-    { "matchSuffix": ".popfeed.xyz", "stewardUri": "popfeed.social" },
-    { "matchPrefix": "actor.popfeed.", "stewardUri": "popfeed.social" },
-    { "matchPrefix": "feed.popfeed.", "stewardUri": "popfeed.social" },
-    { "matchPrefix": "community.lexicon.", "stewardUri": "lexicon.community" },
-    { "matchPrefix": "lexicon.community.", "stewardUri": "lexicon.community" }
+    { "matchPrefix": "app.anisota.", "stewardUri": "anisota.net" }
   ]
 }

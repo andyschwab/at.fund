@@ -224,7 +224,6 @@ describe('scanRepo pipeline', () => {
 
     const bsky = result.entries.find((e) => e.uri === 'bsky.app')
     expect(bsky).toBeDefined()
-    // bsky.app has no manual catalog entry with contribute/deps, so it's unknown
     expect(bsky!.displayName).toBeTruthy()
   })
 
@@ -291,37 +290,29 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    // Noise collections resolve to bsky.app which has pdsHostnames in catalog
-    // Only PDS host entry should exist; no third-party tool entries
-    const toolEntries = result.entries.filter(
-      (e) => !e.tags.includes('pds-host') && !e.tags.includes('follow'),
-    )
-    // chat.bsky.convo resolves to bsky.app via resolver catalog
-    const nonBsky = toolEntries.filter((e) => e.uri !== 'bsky.app')
-    expect(nonBsky).toEqual([])
+    // All collections are filtered as noise (app.bsky.*, com.atproto.*, chat.bsky.*)
+    // so no third-party tool entries should be produced
+    const toolEntries = result.entries.filter((e) => !e.tags.includes('pds-host'))
+    expect(toolEntries).toEqual([])
   })
 
   it('deduplicates steward URIs from multiple collections', async () => {
-    // Two collections that both resolve to the same steward
+    // Two collections that both resolve to frontpage.fyi via resolver override
     describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
-          'feed.popfeed.xyz',
-          'actor.popfeed.settings',
+          'fyi.unravel.frontpage.post',
+          'fyi.unravel.frontpage.vote',
         ],
       }
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    // Both popfeed collections should resolve to popfeed.social (one entry)
-    const popfeedCards = result.entries.filter((e) => e.uri === 'popfeed.social')
-    expect(popfeedCards).toHaveLength(1)
-
-    // PDS host entry is separate and expected
-    const toolEntries = result.entries.filter((e) => !e.tags.includes('pds-host'))
-    expect(toolEntries.length).toBeGreaterThanOrEqual(1)
+    // Both frontpage collections should resolve to a single frontpage.fyi entry
+    const frontpageCards = result.entries.filter((e) => e.uri === 'frontpage.fyi')
+    expect(frontpageCards).toHaveLength(1)
   })
 
   it('captures warnings when DNS lookup throws', async () => {
