@@ -30,11 +30,9 @@ const memoryCache = new Map<string, { data: unknown; fetchedAt: number }>()
 /** Map of endorsed URI → Set of endorser DIDs (from the scanned set). */
 export type EndorsementMap = Map<string, Set<string>>
 
-export type EndorsementResult = {
-  /** Network endorsement count (from checked DIDs). */
+/** Endorsement count for a single URI, derived from the endorsement map. */
+export type EndorsementCounts = {
   networkEndorsementCount: number
-  /** DIDs that endorsed this URI. */
-  endorserDids: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -245,11 +243,8 @@ export async function collectNetworkEndorsementsCached(
 export function getCountsFromMap(
   map: EndorsementMap,
   uri: string,
-): EndorsementResult {
+): EndorsementCounts {
   const normalized = normalizeStewardUri(uri) ?? uri
   const dids = map.get(normalized)
-  return {
-    networkEndorsementCount: dids?.size ?? 0,
-    endorserDids: dids ? [...dids] : [],
-  }
+  return { networkEndorsementCount: dids?.size ?? 0 }
 }

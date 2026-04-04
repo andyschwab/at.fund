@@ -53,7 +53,7 @@ type GatherResult = {
   did: string
   handle?: string
   pdsUrl?: string
-  accounts: Map<string, AccountStub>      // DID → stub with tags + hostnames
+  accounts: Map<string, GatheredAccount>      // DID → stub with tags + hostnames
   unresolvedServices: UnresolvedService[]  // hostnames that didn't resolve to a DID
   warnings: ScanWarning[]
   feedUris: string[]                       // AT URIs for Phase 5
@@ -61,7 +61,7 @@ type GatherResult = {
 }
 ```
 
-An `AccountStub` accumulates tags from multiple sources. If the same DID appears as a tool AND a follow AND a feed creator, it gets all three tags on one stub.
+An `GatheredAccount` accumulates tags from multiple sources. If the same DID appears as a tool AND a follow AND a feed creator, it gets all three tags on one stub.
 
 ### Unresolved services
 
@@ -117,7 +117,7 @@ For each account, resolves funding info by trying **every key type**. This is wh
 
 ### Resolution order
 
-For each `AccountStub`:
+For each `GatheredAccount`:
 
 1. **Batch profile resolution** — `app.bsky.actor.getProfiles` for all DIDs (batches of 25). Returns handle, displayName, description, avatar.
 2. **fund.at records** — `fetchFundAtForStewardDid(did)` from the steward's PDS

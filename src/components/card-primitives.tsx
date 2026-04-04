@@ -76,20 +76,8 @@ export function heartState(
   return 'none'
 }
 
-export function depRowTier(
-  e: StewardEntry | undefined,
-  lookup?: (uri: string) => StewardEntry | undefined,
-): number {
-  if (!e) return 2
-  if (e.contributeUrl) return 0
-  if (
-    e.dependencies?.length &&
-    lookup &&
-    e.dependencies.some((uri) => !!(lookup(uri)?.contributeUrl))
-  )
-    return 1
-  return 2
-}
+// Re-export entryPriority so card-dependencies can import from this module.
+export { entryPriority } from '@/lib/entry-priority'
 
 // ---------------------------------------------------------------------------
 // StewardNameHeading

@@ -187,10 +187,7 @@ export async function scanStreaming(
     }
 
     if (counts.networkEndorsementCount > 0) {
-      allCounts[entry.uri] = {
-        endorsementCount: counts.networkEndorsementCount,
-        networkEndorsementCount: counts.networkEndorsementCount,
-      }
+      allCounts[entry.uri] = counts
     }
   }
   for (const [uri, c] of ecosystemUriCounts) {

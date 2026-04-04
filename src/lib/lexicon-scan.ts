@@ -7,6 +7,7 @@ import { resolveStewardUri, lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { fetchOwnFundAtRecords, resolvePdsUrl } from '@/lib/fund-at-records'
 import type { StewardEntry } from '@/lib/steward-model'
+import { entryPriority } from '@/lib/entry-priority'
 import { scanFollows } from '@/lib/follow-scan'
 import { mergeIntoEntries, referencedStewardsToEntries } from '@/lib/steward-merge'
 import { scanSubscriptions } from '@/lib/subscriptions-scan'
@@ -194,14 +195,8 @@ export async function scanRepo(
   const { resolveDependencies } = await import('@/lib/pipeline/dep-resolve')
   const referencedStewards = await resolveDependencies(stewards)
 
-  function stewardTier(s: StewardEntry): number {
-    if (s.source === 'unknown') return 3
-    if (s.contributeUrl) return 0
-    if (s.dependencies && s.dependencies.length > 0) return 1
-    return 2
-  }
   stewards.sort((a, b) => {
-    const diff = stewardTier(a) - stewardTier(b)
+    const diff = entryPriority(a) - entryPriority(b)
     if (diff !== 0) return diff
     return a.uri.localeCompare(b.uri)
   })

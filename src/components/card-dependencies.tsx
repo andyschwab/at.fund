@@ -12,7 +12,7 @@ import { DropletIcon } from '@/components/DropletIcon'
 import {
   type DropletIconState,
   heartState,
-  depRowTier,
+  entryPriority,
   ProfileAvatar,
   StewardNameHeading,
   HandleBadge,
@@ -253,7 +253,7 @@ export function DependenciesSection({
     return [...dependencies].sort((a, b) => {
       const ea = lookup(a)
       const eb = lookup(b)
-      const diff = depRowTier(ea, lookup) - depRowTier(eb, lookup)
+      const diff = entryPriority(ea, lookup) - entryPriority(eb, lookup)
       return diff !== 0 ? diff : a.localeCompare(b)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -21,12 +21,18 @@ import { PUBLIC_API } from '@/lib/constants'
 // Types
 // ---------------------------------------------------------------------------
 
-export type AccountStub = {
+/**
+ * Pre-resolution account data collected during Phase 1.
+ * Fields overlap with Identity — these are the raw inputs that
+ * `buildIdentity()` processes in Phase 2 (enrichment).
+ */
+export type GatheredAccount = {
   did: string
   handle?: string
   displayName?: string
   description?: string
   avatar?: string
+  /** Discovery paths that found this account. Multi-valued accumulator. */
   tags: Set<StewardTag>
   /** Tool hostnames associated with this DID (for catalog lookup). */
   hostnames: Set<string>
@@ -47,7 +53,7 @@ export type GatherResult = {
   did: string
   handle?: string
   pdsUrl?: string
-  accounts: Map<string, AccountStub>
+  accounts: Map<string, GatheredAccount>
   unresolvedServices: UnresolvedService[]
   warnings: ScanWarning[]
   /** Feed AT URIs from user prefs (for Phase 3). */
@@ -61,7 +67,7 @@ export type GatherResult = {
 // ---------------------------------------------------------------------------
 
 function addToAccount(
-  accounts: Map<string, AccountStub>,
+  accounts: Map<string, GatheredAccount>,
   did: string,
   tag: StewardTag,
   extra?: { handle?: string; displayName?: string; description?: string; hostname?: string },
@@ -83,7 +89,7 @@ function addToAccount(
  * Used for feed creators and labelers whose tags are derived from confirmed
  * capability data in Phase 3 (capability-scan), not from the discovery source.
  */
-function ensureAccount(accounts: Map<string, AccountStub>, did: string) {
+function ensureAccount(accounts: Map<string, GatheredAccount>, did: string) {
   if (!accounts.has(did)) {
     accounts.set(did, { did, tags: new Set(), hostnames: new Set() })
   }
@@ -100,7 +106,7 @@ export async function gatherAccounts(
 ): Promise<GatherResult> {
   const client = new Client(session)
   const publicClient = new Client(PUBLIC_API)
-  const accounts = new Map<string, AccountStub>()
+  const accounts = new Map<string, GatheredAccount>()
   const unresolvedServices: UnresolvedService[] = []
   const warnings: ScanWarning[] = []
 

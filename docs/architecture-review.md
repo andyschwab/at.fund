@@ -75,37 +75,72 @@ representing "an AT Protocol identity."
 | `subscriptions-scan.ts` | Uses `buildIdentity` + `resolveFunding` + `batchFetchProfiles` | **done** |
 | `steward-merge.ts` | Uses `isHumanReadableName`, simplified `mergeIntoEntries(...lists)` | **done** |
 
-## 3. Remaining Opportunities
+## 3. Shared Hooks & Unified Functions
 
-### Migrate lexicon-scan.ts to pipeline
+### useTypeahead hook
+
+`HandleAutocomplete` and `HandleChipInput` shared ~90% of their logic
+(debounced fetch, outside-click, arrow navigation, dropdown rendering).
+Extracted:
+
+| Module | Purpose | Status |
+|--------|---------|--------|
+| `hooks/useTypeahead.ts` | Debounced fetch, outside-click, state management | **done** |
+| `components/SuggestionList.tsx` | Shared dropdown rendering with AvatarBadge | **done** |
+| `HandleAutocomplete.tsx` | Now ~120 lines (was ~215) | **done** |
+| `HandleChipInput.tsx` | Now ~185 lines (was ~265) | **done** |
+
+### Unified entry priority
+
+Three separate tiering functions (`stewardTier`, `entryTier`, `depRowTier`)
+all answered "how fundable is this entry?" with different scales. Unified into
+a single `entryPriority(entry, lookup?)` in `lib/entry-priority.ts`.
+
+| Old Function | Location | Status |
+|-------------|----------|--------|
+| `stewardTier()` | `lexicon-scan.ts` | Replaced by `entryPriority` — **done** |
+| `entryTier()` | `GiveClient.tsx` | Replaced by `entryPriority` — **done** |
+| `depRowTier()` | `card-primitives.tsx` | Replaced by `entryPriority` — **done** |
+
+Note: `SOURCE_PRIORITY` in steward-merge.ts is a different concern (merge
+conflict resolution, not display ordering) and remains separate.
+
+### AccountStub → GatheredAccount
+
+Renamed `AccountStub` to `GatheredAccount` with documentation connecting it to
+the Identity type lifecycle. The gather phase collects raw pre-resolution data;
+the enrich phase calls `buildIdentity()` to produce proper Identity objects.
+
+### Endorsement type consolidation
+
+Three overlapping types collapsed into two:
+
+| Old Type | New | Status |
+|----------|-----|--------|
+| `EndorsementCounts` (ecosystem-scan) | Moved to `microcosm.ts`, single `networkEndorsementCount` field | **done** |
+| `EndorsementResult` (microcosm) | Eliminated — `getCountsFromMap` returns `EndorsementCounts` directly | **done** |
+| `EndorsementMap` (microcosm) | Unchanged — core data structure | — |
+
+The vestigial `endorsementCount` field (always equal to `networkEndorsementCount`)
+and unused `endorserDids` return value were removed.
+
+## 4. Remaining Opportunities
+
+### Migrate lexicon-scan.ts to resolution layer
 
 `lexicon-scan.ts` still has its own inline resolution chain (fund.at → manual →
 unknown) in both `scanRepo()` and `scanRepoStreaming()`. These should be
-migrated to use the resolution layer. This is blocked on the GiveClient
-decomposition (Phase 3) which would replace the streaming scan with the
-pipeline phases.
+migrated to use `buildIdentity` + `resolveFunding`.
 
-### Component Architecture
+### Decompose GiveClient.tsx
+
+695 lines, 8+ responsibilities. Extract `useScanStream()` hook and focused
+sub-components (StewardSection, EcosystemSection, etc.).
+
+### Other
 
 | Issue | Location | Severity |
 |-------|----------|----------|
-| `GiveClient.tsx` (695 lines, 8+ responsibilities) | `src/components/` | High |
-| HandleAutocomplete + HandleChipInput ~90% shared | `src/components/` | Medium |
 | Three independent avatar implementations | `src/components/` | Low |
 | Card actions duplicated in StewardCard + ModalCardContent | `src/components/` | Low |
-
-### Type Consolidation
-
-| Redundant types | Location |
-|-----------------|----------|
-| `AccountStub` still used in gather phase | Could adopt `Identity` with tag/hostname metadata |
-| `Actor` in AvatarBadge | Small UI-specific type (handle required); acceptable |
-| Multiple endorsement representations | `EndorsementCounts`, `EndorsementResult`, `EndorsementMap` |
-
-### Recommended Next Steps
-
-1. **Migrate lexicon-scan.ts** inline resolution to use `buildIdentity` + `resolveFunding`
-2. **Decompose GiveClient** into `useScanStream` hook + focused sub-components
-3. **Extract shared `useTypeahead`** hook from autocomplete components
-4. **Unify tiering/priority systems** (`SOURCE_PRIORITY`, `stewardTier`, `entryTier`, `depRowTier`)
-5. **Replace `AccountStub`** with `Identity` + gather metadata wrapper
+| `Actor` in AvatarBadge | Small UI-specific type (handle required); acceptable | — |

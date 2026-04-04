@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { ScanStreamEvent, ScanWarning, EndorsementCounts } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
 import { EntryIndex } from '@/lib/steward-merge'
+import { entryPriority } from '@/lib/entry-priority'
 import { pdslsRepoUrl } from '@/lib/pdsls'
 import { useSession } from '@/components/SessionContext'
 import { StewardCard } from '@/components/ProjectCards'
@@ -42,25 +43,6 @@ const TAG_FILTER_LABELS: { tag: TagFilter; label: string }[] = [
   { tag: 'follow', label: 'Network' },
 ]
 
-function entryTier(
-  e: StewardEntry,
-  lookup?: (uri: string) => StewardEntry | undefined,
-): number {
-  if (e.contributeUrl) return 0
-  if (e.dependencies?.length && lookup) {
-    if (e.dependencies.some((uri) => !!(lookup(uri)?.contributeUrl))) return 1
-    if (
-      e.dependencies.some((uri) => {
-        const dep = lookup(uri)
-        return dep?.dependencies?.some((dUri) => !!(lookup(dUri)?.contributeUrl))
-      })
-    )
-      return 2
-    return 3
-  }
-  if (e.dependencies?.length) return 3
-  return 4
-}
 
 function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
   return uris.has(e.uri) || uris.has(e.did ?? '')
@@ -126,7 +108,7 @@ export function GiveClient() {
           (e.tags.includes('follow') && !!e.contributeUrl)),
     )
     return included.sort((a, b) => {
-      const diff = entryTier(a, lookup) - entryTier(b, lookup)
+      const diff = entryPriority(a, lookup) - entryPriority(b, lookup)
       return diff !== 0 ? diff : a.uri.localeCompare(b.uri)
     })
   }, [entries, allEntriesForLookup])

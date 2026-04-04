@@ -4,7 +4,7 @@ import { buildIdentity, batchFetchProfiles } from '@/lib/identity'
 import { resolveFunding } from '@/lib/funding'
 import { logger } from '@/lib/logger'
 import { runWithConcurrency } from '@/lib/concurrency'
-import type { AccountStub, UnresolvedService, ScanWarning } from './account-gather'
+import type { GatheredAccount, UnresolvedService, ScanWarning } from './account-gather'
 
 const CONCURRENCY = 10
 
@@ -20,7 +20,7 @@ export type EnrichResult = {
 
 export async function enrichAccounts(
   session: OAuthSession,
-  accounts: Map<string, AccountStub>,
+  accounts: Map<string, GatheredAccount>,
   unresolvedServices: UnresolvedService[],
   onEntry?: (entry: StewardEntry) => void,
 ): Promise<EnrichResult> {
