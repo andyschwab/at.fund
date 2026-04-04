@@ -2,6 +2,7 @@ import type { OAuthSession } from '@atproto/oauth-client'
 import type { StewardEntry } from '@/lib/steward-model'
 import { fetchFundingForUriLike } from '@/lib/atfund-uri'
 import { fetchOwnEndorsements } from '@/lib/fund-at-records'
+import { resolveStewardUri } from '@/lib/catalog'
 import { gatherAccounts } from './account-gather'
 import type { ScanWarning } from './account-gather'
 import { enrichAccounts } from './account-enrich'
@@ -107,19 +108,33 @@ export async function scanStreaming(
   if (gathered.pdsUrl) {
     try {
       const pdsHostname = new URL(gathered.pdsUrl).hostname
-      const funding = await fetchFundingForUriLike(gathered.pdsUrl)
-      // entryway: the user-visible PDS domain (e.g. 'bsky.social')
-      const entryway = funding?.pdsEntryway ?? pdsHostname
+
+      // Walk the catalog chain to resolve physical hostname → entryway → operator.
+      // Two-level example: lionsmane.us-east.host.bsky.network → bsky.social → bsky.app
+      // One-level example: bsky.social → bsky.app (pdsHostname IS already the entryway)
+      const step1 = resolveStewardUri(pdsHostname)
+      const step2 = step1 ? resolveStewardUri(step1) : null
+      const catalogEntryway = step2 ? step1 : (step1 ? pdsHostname : null)
+      const catalogOperator = step2 ?? step1
+
+      // Fetch funding against the catalog operator when known; otherwise try the physical URL
+      const funding = await fetchFundingForUriLike(catalogOperator ?? gathered.pdsUrl)
+
+      const entryway = catalogEntryway ?? funding?.pdsEntryway ?? pdsHostname
+      const operator = catalogOperator ?? funding?.pdsStewardUri ?? pdsHostname
+
       const pdsEntry: StewardEntry = {
-        uri: funding?.pdsStewardUri ?? entryway,
+        uri: operator,
         did: funding?.stewardDid,
         handle: funding?.pdsStewardHandle,
         tags: ['tool', 'pds-host'],
-        displayName: funding?.pdsStewardUri ?? entryway,
+        displayName: operator,
         contributeUrl: funding?.contributeUrl,
         dependencies: funding?.dependencies?.map((d) => d.uri),
         source: funding ? 'fund.at' : 'unknown',
-        capabilities: [{ type: 'pds', name: entryway, hostname: entryway, landingPage: `https://${entryway}` }],
+        capabilities: entryway !== operator
+          ? [{ type: 'pds', name: entryway, hostname: entryway, landingPage: `https://${entryway}` }]
+          : undefined,
       }
       emit({ type: 'entry', entry: pdsEntry })
     } catch (e) {
