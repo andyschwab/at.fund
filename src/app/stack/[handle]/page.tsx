@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { Client } from '@atproto/lex'
 import { Share2 } from 'lucide-react'
 import { fetchPublicEndorsements } from '@/lib/pipeline/fetch-public-endorsements'
@@ -48,7 +49,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function StackPage({ params }: Props) {
   const { handle } = await params
 
-  const [endorsedUris, did, profile] = await Promise.all([
+  const [endorsedUris, , profile] = await Promise.all([
     fetchPublicEndorsements(handle),
     resolveDidFromIdentifier(handle),
     fetchBlueskyProfile(handle),
@@ -84,7 +85,6 @@ export default async function StackPage({ params }: Props) {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-4">
             {avatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={avatar}
                 alt={displayName}
@@ -131,9 +131,9 @@ export default async function StackPage({ params }: Props) {
         {/* Footer */}
         <p className="text-center text-xs text-slate-400 dark:text-slate-600">
           Endorsements are public ATProto records.{' '}
-          <a href="/" className="underline hover:text-slate-600 dark:hover:text-slate-400">
+          <Link href="/" className="underline hover:text-slate-600 dark:hover:text-slate-400">
             Discover your own stack at at.fund
-          </a>
+          </Link>
         </p>
 
       </div>

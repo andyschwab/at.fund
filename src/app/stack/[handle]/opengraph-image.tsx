@@ -80,7 +80,6 @@ export default async function Image({ params }: Props) {
           }}
         >
           {avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={avatar}
               width={96}
