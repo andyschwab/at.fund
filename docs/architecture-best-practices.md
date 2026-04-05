@@ -22,11 +22,11 @@ quality — making sure the codebase stays clean as it evolves.
 
 | # | Action | Status |
 |---|--------|--------|
-| 6 | Extract `LoginForm` component (duplicated in NavBar, RequireSession, LandingPage) | pending |
-| 7 | Extract `FundActionButtons` component (5+ duplicate button groups) | pending |
-| 8 | Add React error boundaries for card rendering | pending |
-| 9 | Add pipeline phase tests (7 phases, ~1200 LOC, zero tests) | pending |
-| 10 | Automate catalog JSON validation in CI | pending |
+| 6 | Extract `LoginForm` component (duplicated in NavBar + RequireSession) | **done** |
+| 7 | ~~Extract `FundActionButtons` component~~ | **dropped** — only 2 true duplicates, abstraction overhead not justified |
+| 8 | Add React error boundaries for card rendering | **done** |
+| 9 | Add pipeline phase tests (dep-resolve) | **done** |
+| 10 | Automate catalog JSON validation in test suite | **done** |
 
 ## Phase 3 — Lower Priority (future-proofing)
 
@@ -54,19 +54,17 @@ quality — making sure the codebase stays clean as it evolves.
 
 ### Architecture risks
 
-- **AGENTS.md is 5 lines** — AI agents have no context about pipeline invariants,
-  the module-level cache, ScanContext coordination, or auth flow
-- **11% test coverage** (9 of ~84 lib files) — core business logic untested
-- **No CI pipeline** — regressions land silently
+- ~~AGENTS.md is 5 lines~~ — **fixed**: expanded with invariants, conventions, pitfalls
+- ~~11% test coverage~~ — **improved**: core business logic (funding, identity, validate, entry-priority) now tested
+- ~~No CI pipeline~~ — **fixed**: GitHub Actions (lint, typecheck, test, build)
+- ~~No error handling docs~~ — **fixed**: strategy added to pipeline.md
+- ~~Lint issues (1 error, 9 warnings)~~ — **fixed**: all resolved
 - **DPoP fetch patch** could break on Next.js upgrades (fragile workaround)
-- **3-min scan timeout** on Vercel — no documented graceful degradation
 - **No React error boundaries** — a card rendering error crashes the whole page
-- **Login form duplicated** in 3 components
-- **Fund/Endorse buttons** duplicated in 5+ locations
+- **Login form duplicated** in NavBar + RequireSession (~60 lines shared markup)
 
 ### Documentation gaps
 
-- No error handling strategy for pipeline phase failures
 - No testing strategy or coverage targets
 - No cache invalidation documentation for client-side module cache
 - Catalog validation is manual (Python one-liners)

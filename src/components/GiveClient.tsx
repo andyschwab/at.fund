@@ -9,6 +9,7 @@ import { pdslsRepoUrl } from '@/lib/pdsls'
 import { useSession } from '@/components/SessionContext'
 import { useScanStream } from '@/hooks/useScanStream'
 import { StewardCard } from '@/components/ProjectCards'
+import { CardErrorBoundary } from '@/components/CardErrorBoundary'
 import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
   AlertCircle,
@@ -299,25 +300,27 @@ export function GiveClient() {
             {(pdsEntries.length > 0 || endorsedEntries.length > 0) && (
               <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
                 {pdsEntries.map((entry) => (
-                  <StewardCard
-                    key={entry.uri}
-                    entry={entry}
-                    allEntries={entries}
-                  />
+                  <CardErrorBoundary key={entry.uri} uri={entry.uri}>
+                    <StewardCard
+                      entry={entry}
+                      allEntries={entries}
+                    />
+                  </CardErrorBoundary>
                 ))}
                 {endorsedEntries.map((entry) => {
                   const counts = lookupCounts(entry)
                   return (
-                    <StewardCard
-                      key={entry.uri}
-                      entry={entry}
-                      allEntries={entries}
-                      endorsed
-                      endorsedSet={endorsedUris}
-                      onEndorse={handleEndorse}
-                      onUnendorse={handleUnendorse}
-                      networkEndorsementCount={counts?.networkEndorsementCount}
-                    />
+                    <CardErrorBoundary key={entry.uri} uri={entry.uri}>
+                      <StewardCard
+                        entry={entry}
+                        allEntries={entries}
+                        endorsed
+                        endorsedSet={endorsedUris}
+                        onEndorse={handleEndorse}
+                        onUnendorse={handleUnendorse}
+                        networkEndorsementCount={counts?.networkEndorsementCount}
+                      />
+                    </CardErrorBoundary>
                   )
                 })}
               </ul>
@@ -465,15 +468,16 @@ export function GiveClient() {
                       {filteredEntries.map((entry) => {
                         const counts = lookupCounts(entry)
                         return (
-                          <StewardCard
-                            key={entry.uri}
-                            entry={entry}
-                            allEntries={entries}
-                            endorsedSet={endorsedUris}
-                            onEndorse={handleEndorse}
-                            onUnendorse={handleUnendorse}
-                            networkEndorsementCount={counts?.networkEndorsementCount}
-                          />
+                          <CardErrorBoundary key={entry.uri} uri={entry.uri}>
+                            <StewardCard
+                              entry={entry}
+                              allEntries={entries}
+                              endorsedSet={endorsedUris}
+                              onEndorse={handleEndorse}
+                              onUnendorse={handleUnendorse}
+                              networkEndorsementCount={counts?.networkEndorsementCount}
+                            />
+                          </CardErrorBoundary>
                         )
                       })}
                     </ul>
@@ -510,15 +514,16 @@ export function GiveClient() {
                   {visibleEcosystemEntries.map((entry) => {
                     const counts = lookupCounts(entry)
                     return (
-                      <StewardCard
-                        key={entry.uri}
-                        entry={entry}
-                        allEntries={entries}
-                        endorsedSet={endorsedUris}
-                        onEndorse={handleEndorse}
-                        onUnendorse={handleUnendorse}
-                        networkEndorsementCount={counts?.networkEndorsementCount}
-                      />
+                      <CardErrorBoundary key={entry.uri} uri={entry.uri}>
+                        <StewardCard
+                          entry={entry}
+                          allEntries={entries}
+                          endorsedSet={endorsedUris}
+                          onEndorse={handleEndorse}
+                          onUnendorse={handleUnendorse}
+                          networkEndorsementCount={counts?.networkEndorsementCount}
+                        />
+                      </CardErrorBoundary>
                     )
                   })}
                 </ul>
