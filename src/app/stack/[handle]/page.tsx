@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { cookies } from 'next/headers'
 import { Client } from '@atproto/lex'
 import { Share2 } from 'lucide-react'
 import { xrpcQuery } from '@/lib/xrpc'
+import { fetchPublicEndorsements } from '@/lib/pipeline/fetch-public-endorsements'
 import { StackStream } from './StackStream'
 
 const PUBLIC_API = 'https://public.api.bsky.app'
@@ -12,6 +14,7 @@ type Props = {
 }
 
 type BlueskyProfile = {
+  did?: string
   handle?: string
   displayName?: string
   avatar?: string
@@ -47,14 +50,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function StackPage({ params }: Props) {
   const { handle } = await params
-  const profile = await fetchBlueskyProfile(handle)
+
+  const cookieStore = await cookies()
+  const sessionDid = cookieStore.get('did')?.value
+
+  const [profile, endorsedUris] = await Promise.all([
+    fetchBlueskyProfile(handle),
+    fetchPublicEndorsements(handle),
+  ])
 
   const displayHandle = profile?.handle ?? handle
   const displayName = profile?.displayName ?? `@${displayHandle}`
   const avatar = profile?.avatar
+  const count = endorsedUris.length
+  const isSelf = !!(sessionDid && profile?.did && sessionDid === profile.did)
 
   const stackUrl = `https://at.fund/stack/${handle}`
-  const shareText = `Check out @${displayHandle}'s stack on @at.fund ❤️\n${stackUrl}`
+  const countPhrase = count > 0
+    ? `${count} project${count === 1 ? '' : 's'} endorsed`
+    : 'stack'
+  const shareText = isSelf
+    ? `Check out my stack on @at.fund — ${countPhrase} ❤️\n${stackUrl}`
+    : `Check out @${displayHandle}'s stack on @at.fund — ${countPhrase} ❤️\n${stackUrl}`
   const bskyShareUrl = `https://bsky.app/intent/compose?text=${encodeURIComponent(shareText)}`
 
   return (
