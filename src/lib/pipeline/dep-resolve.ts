@@ -2,7 +2,6 @@ import type { StewardEntry } from '@/lib/steward-model'
 import { buildIdentity, batchFetchProfiles, resolveRefToDid } from '@/lib/identity'
 import { resolveFundingForDep } from '@/lib/funding'
 import type { ScanContext } from '@/lib/scan-context'
-import { logger } from '@/lib/logger'
 
 // ---------------------------------------------------------------------------
 // Phase 4: Resolve referenced dependency entries (multi-level)

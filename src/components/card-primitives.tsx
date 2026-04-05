@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import type { StewardEntry, StewardTag, Capability } from '@/lib/steward-model'
-import { DropletIcon } from '@/components/DropletIcon'
 
 // ---------------------------------------------------------------------------
 // Types
