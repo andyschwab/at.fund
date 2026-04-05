@@ -13,6 +13,12 @@ export const FUND_ENDORSE = 'fund.at.endorse'
 const PUBLIC_IDENTITY = 'https://public.api.bsky.app'
 const publicClient = new Client(PUBLIC_IDENTITY)
 
+// Global-backed cache for DID documents so results survive hot reloads in dev.
+const gDid = global as typeof globalThis & {
+  __didDocCache?: Map<string, Record<string, unknown> | null>
+}
+const didDocCache = (gDid.__didDocCache ??= new Map())
+
 export type FundAtResult = {
   contributeUrl?: string
   dependencies?: Array<{ uri: string; label?: string }>
@@ -30,13 +36,16 @@ const PLC_DIRECTORY = 'https://plc.directory'
  * implemented on the public Bluesky API.
  */
 async function fetchDidDocument(did: string): Promise<Record<string, unknown> | null> {
+  if (didDocCache.has(did)) return didDocCache.get(did)!
+  let result: Record<string, unknown> | null = null
   try {
     const res = await fetch(`${PLC_DIRECTORY}/${encodeURIComponent(did)}`)
-    if (!res.ok) return null
-    return (await res.json()) as Record<string, unknown>
+    if (res.ok) result = (await res.json()) as Record<string, unknown>
   } catch {
-    return null
+    // leave result as null
   }
+  didDocCache.set(did, result)
+  return result
 }
 
 function handleFromAlsoKnownAs(didDoc: unknown): string | undefined {
@@ -111,37 +120,50 @@ async function getClientForDid(
 /**
  * Fetches fund.at.* records for a DID from its PDS.
  * Returns null when no records exist.
+ *
+ * When `pdsUrl` is provided, skips the DID document fetch (saves one round-trip).
+ * The two PDS calls (contribute + dependency) run in parallel.
  */
 export async function fetchFundAtRecords(
   stewardDid: string,
+  pdsUrl?: string,
 ): Promise<FundAtResult | null> {
-  const readClient = await getClientForDid(stewardDid)
+  let readClient: Client | null
+  if (pdsUrl) {
+    readClient = new Client(pdsUrl)
+  } else {
+    readClient = await getClientForDid(stewardDid)
+  }
   if (!readClient) return null
 
   const repo = stewardDid as AtIdentifierString
 
-  let contributeUrl: string | undefined
-  try {
-    const res = await readClient.get(fund.at.contribute, { repo })
-    if (res.value.url) contributeUrl = res.value.url
-  } catch {
-    // optional — record may not exist
-  }
-
-  let dependencies: Array<{ uri: string; label?: string }> | undefined
-  try {
-    const res = await readClient.list(fund.at.dependency, { repo, limit: 100 })
-    const deps: Array<{ uri: string; label?: string }> = []
-    for (const r of res.records) {
-      const uri = r.value.uri?.trim()
-      if (!uri) continue
-      const label = r.value.label?.trim() || undefined
-      deps.push({ uri, label })
-    }
-    if (deps.length > 0) dependencies = deps
-  } catch {
-    // optional
-  }
+  // Run contribute + dependency fetches in parallel
+  const [contributeUrl, dependencies] = await Promise.all([
+    (async (): Promise<string | undefined> => {
+      try {
+        const res = await readClient.get(fund.at.contribute, { repo })
+        return res.value.url || undefined
+      } catch {
+        return undefined
+      }
+    })(),
+    (async (): Promise<Array<{ uri: string; label?: string }> | undefined> => {
+      try {
+        const res = await readClient.list(fund.at.dependency, { repo, limit: 100 })
+        const deps: Array<{ uri: string; label?: string }> = []
+        for (const r of res.records) {
+          const uri = r.value.uri?.trim()
+          if (!uri) continue
+          const label = r.value.label?.trim() || undefined
+          deps.push({ uri, label })
+        }
+        return deps.length > 0 ? deps : undefined
+      } catch {
+        return undefined
+      }
+    })(),
+  ])
 
   if (!contributeUrl && !dependencies) return null
   return { contributeUrl, dependencies }

@@ -16,6 +16,7 @@ import type { StewardEntry } from '@/lib/steward-model'
 import type { FundAtResult } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
 import { useSession } from '@/components/SessionContext'
+import { nextId } from '@/lib/next-id'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,14 +33,6 @@ type Props = {
   did: string
   handle?: string
   existing: FundAtResult | null
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function nextId() {
-  return Math.random().toString(36).slice(2)
 }
 
 function initialFormState(existing: FundAtResult | null): FormState {
@@ -168,9 +161,7 @@ export function SetupClient({ did, handle, existing }: Props) {
     [form.contributeUrl],
   )
 
-  const hasErrors =
-    !!contributeUrlError ||
-    (!form.contributeUrl.trim() && form.dependencies.filter((d) => d.uri.trim()).length === 0)
+  const hasErrors = !!contributeUrlError
 
   // Fetch enriched profile for the user's own entry (avatar, description, etc.)
   const [enriched, setEnriched] = useState<StewardEntry | null>(null)
@@ -265,6 +256,10 @@ export function SetupClient({ did, handle, existing }: Props) {
               uri: d.uri.trim(),
               ...(d.label.trim() && { label: d.label.trim() }),
             })),
+          existing: existing ? {
+            contributeUrl: existing.contributeUrl || undefined,
+            dependencies: existing.dependencies?.map((d) => ({ uri: d.uri })),
+          } : undefined,
         }),
       })
       const data = await res.json()
@@ -293,7 +288,7 @@ export function SetupClient({ did, handle, existing }: Props) {
             Preview — how you appear in others&apos; give lists
           </p>
           <ul className="pointer-events-none select-none divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-            <StewardCard entry={previewModel} allEntries={resolvedDeps} compact />
+            <StewardCard entry={previewModel} allEntries={resolvedDeps} />
           </ul>
         </section>
 

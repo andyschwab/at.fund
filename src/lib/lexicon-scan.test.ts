@@ -70,6 +70,7 @@ vi.mock('@/lib/fund-at-records', () => ({
 }))
 
 import { scanRepo } from './lexicon-scan'
+import { clearXrpcCache } from '@/lib/xrpc'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import type { StewardFundAt } from '@/lib/steward-funding'
@@ -83,7 +84,8 @@ function makeMockSession(did = 'did:plc:testuser123'): OAuthSession {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
+  clearXrpcCache()
 
   // Reset describeRepo default
   describeRepoResponse = {
@@ -111,8 +113,15 @@ beforeEach(() => {
     if (path.includes('app.bsky.graph.getFollows')) {
       return new Response(JSON.stringify({ follows: [] }), { status: 200 })
     }
+    if (path.includes('app.bsky.actor.getPreferences')) {
+      return new Response(JSON.stringify({ preferences: [] }), { status: 200 })
+    }
     return new Response(JSON.stringify({}), { status: 200 })
   })
+
+  // Restore default mock behaviors from module-level vi.mock calls
+  vi.mocked(lookupAtprotoDid).mockResolvedValue(null)
+  vi.mocked(fetchFundAtForStewardDid).mockResolvedValue(null)
 
   // Default: no records in any collection
   mockListRecords.mockResolvedValue({ body: { records: [] } })
@@ -215,7 +224,6 @@ describe('scanRepo pipeline', () => {
 
     const bsky = result.entries.find((e) => e.uri === 'bsky.app')
     expect(bsky).toBeDefined()
-    // bsky.app has no manual catalog entry with contribute/deps, so it's unknown
     expect(bsky!.displayName).toBeTruthy()
   })
 
@@ -262,7 +270,9 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    expect(result.entries).toEqual([])
+    // No tool entries from repo collections; only PDS host entry from session PDS URL
+    const toolEntries = result.entries.filter((e) => !e.tags.includes('pds-host'))
+    expect(toolEntries).toEqual([])
     expect(result.did).toBe('did:plc:testuser123')
   })
 
@@ -280,26 +290,29 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    expect(result.entries).toEqual([])
+    // All collections are filtered as noise (app.bsky.*, com.atproto.*, chat.bsky.*)
+    // so no third-party tool entries should be produced
+    const toolEntries = result.entries.filter((e) => !e.tags.includes('pds-host'))
+    expect(toolEntries).toEqual([])
   })
 
   it('deduplicates steward URIs from multiple collections', async () => {
-    // Two collections that both resolve to the same steward
+    // Two collections that both resolve to frontpage.fyi via resolver override
     describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
-          'feed.popfeed.xyz',
-          'actor.popfeed.settings',
+          'fyi.unravel.frontpage.post',
+          'fyi.unravel.frontpage.vote',
         ],
       }
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    // Both popfeed collections should resolve to popfeed.social (one entry)
-    const popfeedCards = result.entries.filter((e) => e.uri === 'popfeed.social')
-    expect(popfeedCards).toHaveLength(1)
+    // Both frontpage collections should resolve to a single frontpage.fyi entry
+    const frontpageCards = result.entries.filter((e) => e.uri === 'frontpage.fyi')
+    expect(frontpageCards).toHaveLength(1)
   })
 
   it('captures warnings when DNS lookup throws', async () => {

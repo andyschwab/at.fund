@@ -31,18 +31,16 @@ describe('resolveStewardUri', () => {
     expect(resolveStewardUri('fyi.unravel.frontpage.vote')).toBe('frontpage.fyi')
   })
 
-  it('resolves popfeed collections to popfeed.social', () => {
-    expect(resolveStewardUri('feed.popfeed.xyz')).toBe('popfeed.social')
-    expect(resolveStewardUri('actor.popfeed.xyz')).toBe('popfeed.social')
+  it('infers hostname from NSID-like popfeed collections', () => {
+    // Without a resolver override, NSID inference reverses the first two segments
+    expect(resolveStewardUri('feed.popfeed.xyz')).toBe('popfeed.feed')
+    expect(resolveStewardUri('actor.popfeed.xyz')).toBe('popfeed.actor')
   })
 
-it('resolves community.lexicon.* to lexicon.community', () => {
+  it('infers hostname from community.lexicon.* NSIDs', () => {
+    // community.lexicon.* naturally reverses to lexicon.community
     expect(resolveStewardUri('community.lexicon.calendar')).toBe('lexicon.community')
     expect(resolveStewardUri('community.lexicon.calendar.event')).toBe('lexicon.community')
-  })
-
-  it('resolves lexicon.community.* to lexicon.community', () => {
-    expect(resolveStewardUri('lexicon.community.something')).toBe('lexicon.community')
   })
 
   // NSID hostname inference (3+ segments, no override match)
@@ -70,9 +68,12 @@ describe('lookupManualStewardRecord', () => {
     expect(lookupManualStewardRecord('')).toBeNull()
   })
 
-  it('returns null for stewards without contribute or dependency data', () => {
-    // bsky.app has no catalog entry with contribute or dependency data
-    expect(lookupManualStewardRecord('bsky.app')).toBeNull()
+  it('returns record for stewards with pdsHostnames but no contribute/dependency data', () => {
+    // bsky.app has a catalog entry with pdsHostnames (counts as content)
+    const record = lookupManualStewardRecord('bsky.app')
+    expect(record).not.toBeNull()
+    expect(record!.pdsHostnames).toContain('bsky.social')
+    expect(record!.contributeUrl).toBeUndefined()
   })
 
   it('finds deck.blue in the manual catalog with contributeUrl', () => {

@@ -1,16 +1,14 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import Link from 'next/link'
-import type { ScanStreamEvent, ScanWarning, PdsHostFunding } from '@/lib/pipeline/scan-stream'
+import type { EndorsementCounts } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
-import { EntryIndex } from '@/lib/steward-merge'
+import { entryPriority } from '@/lib/entry-priority'
 import { pdslsRepoUrl } from '@/lib/pdsls'
 import { useSession } from '@/components/SessionContext'
-import {
-  StewardCard,
-  PdsHostSupportCard,
-} from '@/components/ProjectCards'
+import { useScanStream } from '@/hooks/useScanStream'
+import { StewardCard } from '@/components/ProjectCards'
 import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
   AlertCircle,
@@ -19,24 +17,12 @@ import {
   BadgePlus,
   CheckCircle2,
   ExternalLink,
-  PlusCircle,
   RefreshCw,
 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
-// Module-level scan cache — survives in-app navigation, cleared on Refresh
+// Helpers
 // ---------------------------------------------------------------------------
-
-type ScanCache = {
-  meta: { did: string; handle?: string; pdsUrl?: string } | null
-  entries: StewardEntry[]
-  referencedEntries: StewardEntry[]
-  warnings: ScanWarning[]
-  pdsHostFunding: PdsHostFunding | undefined
-  endorsedUris: Set<string>
-}
-
-let _scanCache: ScanCache | null = null
 
 type TagFilter = 'all' | 'tool' | 'labeler' | 'feed' | 'follow'
 
@@ -47,86 +33,63 @@ const TAG_FILTER_LABELS: { tag: TagFilter; label: string }[] = [
   { tag: 'follow', label: 'Network' },
 ]
 
-function entryTier(
-  e: StewardEntry,
-  lookup?: (uri: string) => StewardEntry | undefined,
-): number {
-  if (e.contributeUrl) return 0
-  if (e.dependencies?.length && lookup) {
-    if (e.dependencies.some((uri) => !!(lookup(uri)?.contributeUrl))) return 1
-    if (
-      e.dependencies.some((uri) => {
-        const dep = lookup(uri)
-        return dep?.dependencies?.some((dUri) => !!(lookup(dUri)?.contributeUrl))
-      })
-    )
-      return 2
-    return 3
-  }
-  if (e.dependencies?.length) return 3
-  return 4
-}
-
 function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
   return uris.has(e.uri) || uris.has(e.did ?? '')
 }
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export function GiveClient() {
   const { did: sessionDid, authFetch } = useSession()
-  const [loading, setLoading] = useState(false)
-  const [selfReport, setSelfReport] = useState('')
-  const [err, setErr] = useState<string | null>(null)
-  const [hasOwnRecords, setHasOwnRecords] = useState<boolean | null>(null)
 
-  // Streaming scan state
-  const [meta, setMeta] = useState<{ did: string; handle?: string; pdsUrl?: string } | null>(null)
-  const [entries, setEntries] = useState<StewardEntry[]>([])
-  const [referencedEntries, setReferencedEntries] = useState<StewardEntry[]>([])
-  const [warnings, setWarnings] = useState<ScanWarning[]>([])
-  const [pdsHostFunding, setPdsHostFunding] = useState<PdsHostFunding | undefined>()
-  const [endorsedUris, setEndorsedUris] = useState<Set<string>>(new Set())
-  const [scanDone, setScanDone] = useState(false)
-  const [scanStatus, setScanStatus] = useState<string>('')
+  const {
+    meta, entries, warnings, endorsedUris, endorsementCounts,
+    loading, scanDone, scanStatus, error,
+    entryIndexRef, setEntries, setEndorsedUris,
+    runScan,
+  } = useScanStream()
+
+  const [selfReport, setSelfReport] = useState('')
+  const [hasOwnRecords, setHasOwnRecords] = useState<boolean | null>(null)
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
-  const entryIndexRef = useRef(new EntryIndex())
+  const [activeTab, setActiveTab] = useState<'discover' | 'ecosystem'>('discover')
 
   // Check whether the logged-in user has published fund.at records
-  useEffect(() => {
+  useState(() => {
     if (!sessionDid) return
-    let cancelled = false
     fetch(`/api/entry?uri=${encodeURIComponent(sessionDid)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!cancelled) setHasOwnRecords(!!data?.contributeUrl || !!(data?.dependencies?.length))
-      })
-      .catch(() => {
-        if (!cancelled) setHasOwnRecords(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [sessionDid])
+      .then((data) => setHasOwnRecords(!!data?.contributeUrl || !!(data?.dependencies?.length)))
+      .catch(() => setHasOwnRecords(false))
+  })
 
-  const allEntriesForLookup = useMemo(
-    () => [...entries, ...referencedEntries],
-    [entries, referencedEntries],
+  // ── Derived state ─────────────────────────────────────────────────────
+
+  const pdsEntries = useMemo(
+    () => entries.filter((e) => e.tags.includes('pds-host')),
+    [entries],
   )
 
-  // Inclusion rule: tools/labelers/feeds always; follows only if actionable
+  const isEcosystemOnly = (e: StewardEntry) =>
+    e.tags.includes('ecosystem') && !e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed' || t === 'follow')
+
   const visibleEntries = useMemo(() => {
-    const lookup = (uri: string) => allEntriesForLookup.find((e) => e.uri === uri)
+    const lookup = (uri: string) => entries.find((e) => e.uri === uri)
     const included = entries.filter(
       (e) =>
-        e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') ||
-        (e.tags.includes('follow') && !!e.contributeUrl),
+        !e.tags.includes('pds-host') &&
+        !isEcosystemOnly(e) &&
+        (e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') ||
+          (e.tags.includes('follow') && !!e.contributeUrl)),
     )
     return included.sort((a, b) => {
-      const diff = entryTier(a, lookup) - entryTier(b, lookup)
+      const diff = entryPriority(a, lookup) - entryPriority(b, lookup)
       return diff !== 0 ? diff : a.uri.localeCompare(b.uri)
     })
-  }, [entries, allEntriesForLookup])
+  }, [entries])
 
-  // Split into endorsed (My Stack) and discovered (main list)
   const endorsedEntries = useMemo(
     () => visibleEntries.filter((e) => isEndorsed(e, endorsedUris)),
     [visibleEntries, endorsedUris],
@@ -153,7 +116,25 @@ export function GiveClient() {
     return counts
   }, [discoveredEntries])
 
-  // Endorse / unendorse handlers
+  const lookupCounts = useCallback((entry: StewardEntry): EndorsementCounts | undefined => {
+    return endorsementCounts[entry.uri]
+      ?? (entry.did ? endorsementCounts[entry.did] : undefined)
+      ?? (entry.handle ? endorsementCounts[entry.handle] : undefined)
+  }, [endorsementCounts])
+
+  const visibleEcosystemEntries = useMemo(() => {
+    const discoverUris = new Set(visibleEntries.map((e) => e.uri))
+    return entries
+      .filter((e) => isEcosystemOnly(e) && !discoverUris.has(e.uri))
+      .sort((a, b) => {
+        const ca = lookupCounts(a)?.networkEndorsementCount ?? 0
+        const cb = lookupCounts(b)?.networkEndorsementCount ?? 0
+        return cb - ca || a.uri.localeCompare(b.uri)
+      })
+  }, [entries, visibleEntries, lookupCounts])
+
+  // ── Endorsement handlers ──────────────────────────────────────────────
+
   const handleEndorse = useCallback(async (uri: string) => {
     setEndorsedUris((prev) => new Set([...prev, uri]))
     try {
@@ -163,23 +144,14 @@ export function GiveClient() {
         body: JSON.stringify({ uri }),
       })
       if (!res.ok) {
-        setEndorsedUris((prev) => {
-          const next = new Set(prev)
-          next.delete(uri)
-          return next
-        })
+        setEndorsedUris((prev) => { const next = new Set(prev); next.delete(uri); return next })
       }
     } catch {
-      setEndorsedUris((prev) => {
-        const next = new Set(prev)
-        next.delete(uri)
-        return next
-      })
+      setEndorsedUris((prev) => { const next = new Set(prev); next.delete(uri); return next })
     }
-  }, [])
+  }, [authFetch, setEndorsedUris])
 
   const handleUnendorse = useCallback(async (uri: string) => {
-    // Find the entry to remove all endorsed URI variants (handle, uri, did)
     const entry = entryIndexRef.current.toArray().find(
       (e) => e.uri === uri || e.did === uri,
     )
@@ -205,146 +177,37 @@ export function GiveClient() {
     } catch {
       setEndorsedUris((prev) => new Set([...prev, ...removeUris]))
     }
-  }, [])
+  }, [authFetch, entryIndexRef, setEndorsedUris])
 
-  /** Endorse a URI and fetch its full entry via /api/entry (no rescan). */
   const endorseAndFetch = useCallback(async (uri: string) => {
-    // Optimistic endorse
     handleEndorse(uri)
     try {
       const res = await fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
       if (!res.ok) return
       const data = await res.json() as { entry: StewardEntry; referenced: StewardEntry[] }
-      // Upsert the entry into the index so it appears in the list
       entryIndexRef.current.upsert(data.entry)
       setEntries(entryIndexRef.current.toArray())
-      // Also endorse by the canonical URI/DID the entry resolved to
       if (data.entry.uri !== uri) {
         setEndorsedUris((prev) => new Set([...prev, data.entry.uri]))
       }
       if (data.entry.did && data.entry.did !== uri) {
         setEndorsedUris((prev) => new Set([...prev, data.entry.did!]))
       }
-      // Add referenced deps for drill-down
+      for (const ref of data.referenced) {
+        entryIndexRef.current.upsert(ref)
+      }
       if (data.referenced.length > 0) {
-        setReferencedEntries((prev) => [...prev, ...data.referenced])
+        setEntries(entryIndexRef.current.toArray())
       }
     } catch (e) {
       console.warn('endorseAndFetch failed', e)
     }
-  }, [handleEndorse])
+  }, [handleEndorse, entryIndexRef, setEntries, setEndorsedUris])
 
-  const runStreamingScan = useCallback(async (extra: string[]) => {
-    _scanCache = null
-    setLoading(true)
-    setScanDone(false)
-    setScanStatus('')
-    setMeta(null)
-    setEntries([])
-    setReferencedEntries([])
-    setWarnings([])
-    setPdsHostFunding(undefined)
-    setEndorsedUris(new Set())
-    setErr(null)
-    setActiveTag('all')
-    entryIndexRef.current = new EntryIndex()
-
-    try {
-      const params = new URLSearchParams()
-      if (extra.length) params.set('extraStewards', extra.join(','))
-      const res = await authFetch(`/api/lexicons/stream?${params}`)
-      if (!res.ok || !res.body) {
-        let msg = 'Scan failed'
-        try {
-          const data = await res.json() as { detail?: string; error?: string }
-          msg = data.detail ?? data.error ?? msg
-        } catch { /* empty body */ }
-        throw new Error(msg)
-      }
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop()!
-
-        for (const line of lines) {
-          if (!line.trim()) continue
-          let event: ScanStreamEvent
-          try {
-            event = JSON.parse(line) as ScanStreamEvent
-          } catch {
-            continue
-          }
-
-          if (event.type === 'meta') {
-            setMeta({ did: event.did, handle: event.handle, pdsUrl: event.pdsUrl })
-          } else if (event.type === 'status') {
-            setScanStatus(event.message)
-          } else if (event.type === 'endorsed') {
-            setEndorsedUris(new Set(event.uris))
-          } else if (event.type === 'entry') {
-            entryIndexRef.current.upsert(event.entry)
-            setEntries(entryIndexRef.current.toArray())
-          } else if (event.type === 'referenced') {
-            setReferencedEntries((prev) => [...prev, event.entry])
-          } else if (event.type === 'pds-host') {
-            setPdsHostFunding(event.funding)
-          } else if (event.type === 'warning') {
-            setWarnings((prev) => [...prev, event.warning])
-          } else if (event.type === 'done') {
-            setScanDone(true)
-            setScanStatus('')
-          }
-        }
-      }
-    } catch (x) {
-      setErr(
-        x instanceof Error
-          ? x.message === 'Scan failed'
-            ? 'Could not load your account data. Try again.'
-            : x.message
-          : 'Could not load your account data. Try again.',
-      )
-    } finally {
-      setLoading(false)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Save completed scan to cache
-  useEffect(() => {
-    if (!scanDone) return
-    _scanCache = { meta, entries, referencedEntries, warnings, pdsHostFunding, endorsedUris }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scanDone])
-
-  // On mount: restore from cache or start scan
-  useEffect(() => {
-    if (_scanCache) {
-      setMeta(_scanCache.meta)
-      setEntries(_scanCache.entries)
-      setReferencedEntries(_scanCache.referencedEntries)
-      setWarnings(_scanCache.warnings)
-      setPdsHostFunding(_scanCache.pdsHostFunding)
-      setEndorsedUris(_scanCache.endorsedUris)
-      setScanDone(true)
-      return
-    }
-    void runStreamingScan([])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // ── Render helpers ────────────────────────────────────────────────────
 
   function parseSelfReportInput(): string[] {
-    return selfReport
-      .split(/[\s,]+/)
-      .map((s) => s.trim())
-      .filter(Boolean)
+    return selfReport.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
   }
 
   const pdsUrl = meta?.pdsUrl
@@ -360,6 +223,8 @@ export function GiveClient() {
     [fundableEntries, endorsedUris],
   )
 
+  // ── Render ────────────────────────────────────────────────────────────
+
   return (
     <div className="page-wash min-h-full">
       <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8">
@@ -368,7 +233,10 @@ export function GiveClient() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => runStreamingScan(parseSelfReportInput())}
+            onClick={() => {
+              setActiveTag('all')
+              runScan(parseSelfReportInput())
+            }}
             disabled={loading}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
@@ -448,27 +316,30 @@ export function GiveClient() {
           )}
 
           <div className="flex flex-col gap-3">
-            {/* PDS host + endorsed entries — single compact list */}
-            {(pdsUrl || endorsedEntries.length > 0) && (
+            {(pdsEntries.length > 0 || endorsedEntries.length > 0) && (
               <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-                {pdsUrl && (
-                  <PdsHostSupportCard
-                    pdsHostname={new URL(pdsUrl).hostname}
-                    funding={pdsHostFunding}
-                  />
-                )}
-                {endorsedEntries.map((entry) => (
+                {pdsEntries.map((entry) => (
                   <StewardCard
                     key={entry.uri}
                     entry={entry}
-                    allEntries={allEntriesForLookup}
-                    endorsed
-                    endorsedSet={endorsedUris}
-                    onEndorse={handleEndorse}
-                    onUnendorse={handleUnendorse}
-                    compact
+                    allEntries={entries}
                   />
                 ))}
+                {endorsedEntries.map((entry) => {
+                  const counts = lookupCounts(entry)
+                  return (
+                    <StewardCard
+                      key={entry.uri}
+                      entry={entry}
+                      allEntries={entries}
+                      endorsed
+                      endorsedSet={endorsedUris}
+                      onEndorse={handleEndorse}
+                      onUnendorse={handleUnendorse}
+                      networkEndorsementCount={counts?.networkEndorsementCount}
+                    />
+                  )
+                })}
               </ul>
             )}
 
@@ -514,12 +385,13 @@ export function GiveClient() {
                 <span>
                   <strong className="font-semibold text-slate-800 dark:text-slate-200">{fundableEntries.length} project{fundableEntries.length === 1 ? '' : 's'}</strong> in your stack have funding links.
                 </span>
-                <a
-                  href="#discovered"
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('discover')}
                   className="shrink-0 text-emerald-600 hover:underline dark:text-emerald-400"
                 >
                   Start endorsing →
-                </a>
+                </button>
               </div>
             )
           }
@@ -542,10 +414,10 @@ export function GiveClient() {
           )
         })()}
 
-        {err && (
+        {error && (
           <p className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            {err}
+            {error}
           </p>
         )}
 
@@ -566,85 +438,158 @@ export function GiveClient() {
           </details>
         )}
 
-        {/* ── Discovered from your data ──────────────────────────── */}
-        <section id="discovered" className="space-y-3">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Discovered from your data
-            </h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              These projects were found in your Bluesky account data. Click the funding link to contribute, then endorse to add to My Stack.
-            </p>
+        {/* ── Tabbed: My Fundable Services / Endorsed by My Network ── */}
+        <section className="space-y-3">
+          <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => setActiveTab('discover')}
+              className={`relative px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'discover'
+                  ? 'text-slate-900 dark:text-slate-100'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+              }`}
+            >
+              My Fundable Services{discoveredEntries.length > 0 ? ` (${discoveredEntries.length})` : ''}
+              {activeTab === 'discover' && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--support)]" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('ecosystem')}
+              className={`relative px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'ecosystem'
+                  ? 'text-slate-900 dark:text-slate-100'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+              }`}
+            >
+              Endorsed by My Network{visibleEcosystemEntries.length > 0 ? ` (${visibleEcosystemEntries.length})` : ''}
+              {activeTab === 'ecosystem' && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--support)]" />
+              )}
+            </button>
           </div>
-          {discoveredEntries.length === 0 && scanDone ? (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              No additional tools found in your saved data yet. Add more
-              above if you know them.
-            </p>
-          ) : (
+
+          {/* ── My Fundable Services tab ─────────────────────────── */}
+          {activeTab === 'discover' && (
             <>
-              {/* Filter pills */}
-              {filterableTagCount > 1 && (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTag('all')}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                      activeTag === 'all'
-                        ? 'bg-[var(--support)] text-[var(--support-foreground)]'
-                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    All ({discoveredEntries.length})
-                  </button>
-                  {TAG_FILTER_LABELS.map(({ tag, label }) => {
-                    const count = tagCounts[tag] ?? 0
-                    if (count === 0) return null
-                    return (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                These projects were found in your Bluesky account data. Click the funding link to contribute, then endorse to add to My Stack.
+              </p>
+              {discoveredEntries.length === 0 && scanDone ? (
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  No additional tools found in your saved data yet. Add more
+                  above if you know them.
+                </p>
+              ) : (
+                <>
+                  {filterableTagCount > 1 && (
+                    <div className="flex flex-wrap gap-2">
                       <button
-                        key={tag}
                         type="button"
-                        onClick={() => setActiveTag(tag)}
+                        onClick={() => setActiveTag('all')}
                         className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                          activeTag === tag
+                          activeTag === 'all'
                             ? 'bg-[var(--support)] text-[var(--support-foreground)]'
                             : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
                         }`}
                       >
-                        {label} ({count})
+                        All ({discoveredEntries.length})
                       </button>
+                      {TAG_FILTER_LABELS.map(({ tag, label }) => {
+                        const count = tagCounts[tag] ?? 0
+                        if (count === 0) return null
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => setActiveTag(tag)}
+                            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                              activeTag === tag
+                                ? 'bg-[var(--support)] text-[var(--support-foreground)]'
+                                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            {label} ({count})
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {filteredEntries.length > 0 && (
+                    <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+                      {filteredEntries.map((entry) => {
+                        const counts = lookupCounts(entry)
+                        return (
+                          <StewardCard
+                            key={entry.uri}
+                            entry={entry}
+                            allEntries={entries}
+                            endorsedSet={endorsedUris}
+                            onEndorse={handleEndorse}
+                            onUnendorse={handleUnendorse}
+                            networkEndorsementCount={counts?.networkEndorsementCount}
+                          />
+                        )
+                      })}
+                    </ul>
+                  )}
+                  {filteredEntries.length === 0 && discoveredEntries.length === 0 && loading && (
+                    <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
+                      <span>{scanStatus || 'Scanning\u2026'}</span>
+                    </div>
+                  )}
+                  {filteredEntries.length === 0 && discoveredEntries.length > 0 && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      No entries match this filter.
+                    </p>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {/* ── Endorsed by My Network tab ────────────────────────── */}
+          {activeTab === 'ecosystem' && (
+            <>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Projects and services endorsed by people you follow that aren&apos;t already in your fundable services.
+              </p>
+              {meta?.endorsementsCapped && (
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  Endorsement scanning is available for the first 2,500 of your {meta.followCount?.toLocaleString()} follows.
+                </p>
+              )}
+              {visibleEcosystemEntries.length > 0 ? (
+                <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+                  {visibleEcosystemEntries.map((entry) => {
+                    const counts = lookupCounts(entry)
+                    return (
+                      <StewardCard
+                        key={entry.uri}
+                        entry={entry}
+                        allEntries={entries}
+                        endorsedSet={endorsedUris}
+                        onEndorse={handleEndorse}
+                        onUnendorse={handleUnendorse}
+                        networkEndorsementCount={counts?.networkEndorsementCount}
+                      />
                     )
                   })}
-                </div>
-              )}
-
-              {/* Flat entry list — compact rows in a shared container */}
-              {filteredEntries.length > 0 && (
-                <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-                  {filteredEntries.map((entry) => (
-                    <StewardCard
-                      key={entry.uri}
-                      entry={entry}
-                      allEntries={allEntriesForLookup}
-                      endorsedSet={endorsedUris}
-                      onEndorse={handleEndorse}
-                      onUnendorse={handleUnendorse}
-                      compact
-                    />
-                  ))}
                 </ul>
-              )}
-              {filteredEntries.length === 0 && discoveredEntries.length === 0 && loading && (
+              ) : scanDone ? (
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  No network endorsements found yet. As more people in your network use at.fund, endorsed projects will appear here.
+                </p>
+              ) : loading ? (
                 <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
                   <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
                   <span>{scanStatus || 'Scanning\u2026'}</span>
                 </div>
-              )}
-              {filteredEntries.length === 0 && discoveredEntries.length > 0 && (
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  No entries match this filter.
-                </p>
-              )}
+              ) : null}
             </>
           )}
         </section>

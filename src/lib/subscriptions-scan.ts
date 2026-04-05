@@ -1,46 +1,20 @@
 import { Client } from '@atproto/lex'
 import type { OAuthSession } from '@atproto/oauth-client'
 import type { StewardEntry, StewardTag, Capability } from '@/lib/steward-model'
-import { lookupManualStewardRecord } from '@/lib/catalog'
-import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
+import { buildIdentity, batchFetchProfiles } from '@/lib/identity'
+import { resolveFunding } from '@/lib/funding'
 import { xrpcQuery } from '@/lib/xrpc'
+import { createScanContext } from '@/lib/scan-context'
+import type { ScanContext } from '@/lib/scan-context'
 import { logger } from '@/lib/logger'
+import { PUBLIC_API } from '@/lib/constants'
+import { runWithConcurrency } from '@/lib/concurrency'
 
 const CONCURRENCY = 8
-const PUBLIC_API = 'https://public.api.bsky.app'
-
-async function runWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = []
-  let idx = 0
-  async function worker() {
-    while (idx < items.length) {
-      const i = idx++
-      results[i] = await fn(items[i]!)
-    }
-  }
-  const workers = Array.from(
-    { length: Math.min(concurrency, items.length) },
-    () => worker(),
-  )
-  await Promise.all(workers)
-  return results
-}
 
 // ---------------------------------------------------------------------------
 // Display-info helpers
 // ---------------------------------------------------------------------------
-
-type DisplayInfo = {
-  did: string
-  displayName: string
-  description?: string
-  handle?: string
-  landingPage?: string
-}
 
 type FeedInfo = {
   feedUri: string
@@ -61,8 +35,8 @@ type LabelerInfo = {
 async function fetchLabelerDisplayInfo(
   publicClient: Client,
   dids: string[],
-): Promise<{ displayInfo: Map<string, DisplayInfo>; labelerCaps: LabelerInfo[] }> {
-  const displayInfo = new Map<string, DisplayInfo>()
+): Promise<{ displayInfo: Map<string, { did: string; displayName: string; description?: string; handle?: string }>; labelerCaps: LabelerInfo[] }> {
+  const displayInfo = new Map<string, { did: string; displayName: string; description?: string; handle?: string }>()
   const labelerCaps: LabelerInfo[] = []
   if (dids.length === 0) return { displayInfo, labelerCaps }
   try {
@@ -140,88 +114,27 @@ async function fetchFeedDisplayInfo(
 }
 
 // ---------------------------------------------------------------------------
-// Handle backfill
+// Per-DID resolution using the resolution layer
 // ---------------------------------------------------------------------------
 
-/**
- * Batch-resolve handles for DIDs missing them via app.bsky.actor.getProfiles.
- * Returns a map of DID → handle for all resolved profiles.
- */
-async function resolveHandles(
-  publicClient: Client,
-  dids: string[],
-): Promise<Map<string, string>> {
-  const resolved = new Map<string, string>()
-  if (dids.length === 0) return resolved
-
-  const BATCH = 25
-  for (let i = 0; i < dids.length; i += BATCH) {
-    const batch = dids.slice(i, i + BATCH)
-    try {
-      const data = await xrpcQuery<{
-        profiles?: Array<{ did: string; handle?: string; displayName?: string }>
-      }>(publicClient, 'app.bsky.actor.getProfiles', { actors: batch })
-      for (const profile of data.profiles ?? []) {
-        if (profile.handle) resolved.set(profile.did, profile.handle)
-      }
-    } catch (e) {
-      logger.warn('subscriptions-scan: handle resolve failed', {
-        error: e instanceof Error ? e.message : String(e),
-      })
-    }
-  }
-  return resolved
-}
-
-// ---------------------------------------------------------------------------
-// Per-DID resolution: fund.at → manual catalog → fallback
-// ---------------------------------------------------------------------------
-
-async function resolveEntry(
+async function resolveSubscriptionEntry(
   did: string,
   tag: StewardTag,
-  fallback: DisplayInfo | undefined,
-  capabilities?: Capability[],
+  fallback: { handle?: string; displayName?: string; description?: string } | undefined,
+  capabilities: Capability[] | undefined,
+  ctx: ScanContext,
 ): Promise<StewardEntry> {
-  const base = {
-    uri: did,
+  const identity = buildIdentity({
+    ref: fallback?.handle ?? did,
     did,
     handle: fallback?.handle,
-    tags: [tag] as StewardTag[],
-    displayName: fallback?.displayName ?? did,
+    displayName: fallback?.displayName,
     description: fallback?.description,
-    landingPage: fallback?.landingPage,
-    capabilities,
-  }
+  })
 
-  // Try fund.at records first
-  try {
-    const fundAt = await fetchFundAtForStewardDid(did)
-    if (fundAt) {
-      return {
-        ...base,
-        contributeUrl: fundAt.contributeUrl,
-        dependencies: fundAt.dependencies?.map((d) => d.uri),
-        source: 'fund.at',
-      }
-    }
-  } catch {
-    // fall through
-  }
+  const { funding } = await resolveFunding(identity, { ctx })
 
-  // Try manual catalog by DID
-  const manual = lookupManualStewardRecord(did)
-  if (manual) {
-    return {
-      ...base,
-      contributeUrl: manual.contributeUrl,
-      dependencies: manual.dependencies,
-      source: 'manual',
-    }
-  }
-
-  // Fall back to Bluesky profile data
-  return { ...base, source: 'unknown' }
+  return { ...identity, ...funding, tags: [tag], capabilities }
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +149,9 @@ export type SubscriptionScanResult = {
 
 export async function scanSubscriptions(
   session: OAuthSession,
+  ctx?: ScanContext,
 ): Promise<SubscriptionScanResult> {
+  const scanCtx = ctx ?? createScanContext()
   const authClient = new Client(session, {
     service: 'did:web:api.bsky.app#bsky_appview',
   })
@@ -285,10 +200,10 @@ export async function scanSubscriptions(
     fetchFeedDisplayInfo(publicClient, feedUris),
   ])
 
-  // Collect all unique DIDs that need handle resolution
+  // Collect all unique DIDs and fire prefetches
   const allDids = new Set<string>()
-  for (const did of labelerDids) allDids.add(did)
-  for (const f of feedInfoList) allDids.add(f.creatorDid)
+  for (const did of labelerDids) { allDids.add(did); scanCtx.prefetch(did) }
+  for (const f of feedInfoList) { allDids.add(f.creatorDid); scanCtx.prefetch(f.creatorDid) }
 
   const needsHandle = [...allDids].filter((did) => {
     const labelerHandle = labelerDisplayInfo.get(did)?.handle
@@ -296,21 +211,20 @@ export async function scanSubscriptions(
     return !labelerHandle && !feedHandle
   })
 
-  const handleMap = await resolveHandles(publicClient, needsHandle)
+  const handleMap = await batchFetchProfiles(needsHandle, publicClient)
 
   // Apply resolved handles back to display info
-  for (const [did, handle] of handleMap) {
+  for (const [did, profile] of handleMap) {
     const info = labelerDisplayInfo.get(did)
-    if (info && !info.handle) info.handle = handle
+    if (info && !info.handle && profile.handle) info.handle = profile.handle
   }
 
   // ── Build labeler entries with capabilities ──
 
-  // Build labeler capabilities per DID
   const labelerCapsByDid = new Map<string, Capability[]>()
   for (const cap of labelerCaps) {
     const existing = labelerCapsByDid.get(cap.did) ?? []
-    const handle = cap.creatorHandle ?? handleMap.get(cap.did)
+    const handle = cap.creatorHandle ?? handleMap.get(cap.did)?.handle
     existing.push({
       type: 'labeler',
       name: cap.name,
@@ -323,12 +237,11 @@ export async function scanSubscriptions(
   }
 
   const labelerEntries = await runWithConcurrency(labelerDids, CONCURRENCY, (did) =>
-    resolveEntry(did, 'labeler', labelerDisplayInfo.get(did), labelerCapsByDid.get(did)),
+    resolveSubscriptionEntry(did, 'labeler', labelerDisplayInfo.get(did), labelerCapsByDid.get(did), scanCtx),
   )
 
   // ── Build feed entries grouped by creator DID ──
 
-  // Group feeds by creator DID
   const feedsByCreator = new Map<string, FeedInfo[]>()
   for (const feed of feedInfoList) {
     const list = feedsByCreator.get(feed.creatorDid) ?? []
@@ -340,9 +253,8 @@ export async function scanSubscriptions(
 
   const feedEntries = await runWithConcurrency(feedCreatorDids, CONCURRENCY, (did) => {
     const feeds = feedsByCreator.get(did)!
-    const handle = feeds[0]?.creatorHandle ?? handleMap.get(did)
+    const handle = feeds[0]?.creatorHandle ?? handleMap.get(did)?.handle
 
-    // Build capabilities for each feed
     const caps: Capability[] = feeds.map((f) => ({
       type: 'feed' as const,
       name: f.name,
@@ -353,14 +265,12 @@ export async function scanSubscriptions(
         : `https://bsky.app/profile/${f.creatorDid}/feed/${f.rkey}`,
     }))
 
-    // Use the first feed's creator handle as fallback display info
-    const fallback: DisplayInfo = {
-      did,
+    const fallback = {
       displayName: did,
       handle: handle ?? feeds[0]?.creatorHandle,
     }
 
-    return resolveEntry(did, 'feed', fallback, caps)
+    return resolveSubscriptionEntry(did, 'feed', fallback, caps, scanCtx)
   })
 
   const entries = [...labelerEntries, ...feedEntries]
