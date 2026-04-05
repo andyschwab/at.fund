@@ -66,13 +66,12 @@ export default async function StackPage({ params }: Props) {
   const isSelf = !!(sessionDid && profile?.did && sessionDid === profile.did)
 
   const stackUrl = `https://at.fund/stack/${handle}`
-  const countPhrase = count > 0
-    ? `${count} project${count === 1 ? '' : 's'} endorsed`
-    : 'stack'
   const shareText = isSelf
-    ? `Check out my stack on @at.fund — ${countPhrase} ❤️\n${stackUrl}`
-    : `Check out @${displayHandle}'s stack on @at.fund — ${countPhrase} ❤️\n${stackUrl}`
-  const bskyShareUrl = `https://bsky.app/intent/compose?text=${encodeURIComponent(shareText)}`
+    ? `I've endorsed ${count} projects building the Atmosphere ❤️\n${stackUrl}`
+    : `@${displayHandle} has endorsed ${count} projects building the Atmosphere ❤️\n${stackUrl}`
+  const bskyShareUrl = count > 0
+    ? `https://bsky.app/intent/compose?text=${encodeURIComponent(shareText)}`
+    : null
 
   return (
     <div className="page-wash min-h-full">
@@ -98,15 +97,17 @@ export default async function StackPage({ params }: Props) {
             </div>
           </div>
 
-          <a
-            href={bskyShareUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#0085ff] px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
-          >
-            <Share2 className="h-4 w-4 shrink-0" aria-hidden />
-            Share on Bluesky
-          </a>
+          {bskyShareUrl && (
+            <a
+              href={bskyShareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#0085ff] px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+            >
+              <Share2 className="h-4 w-4 shrink-0" aria-hidden />
+              Share on Bluesky
+            </a>
+          )}
         </div>
 
         {/* Entry list — streams entries client-side after fast initial render */}
