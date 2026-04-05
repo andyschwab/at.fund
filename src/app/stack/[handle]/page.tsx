@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { cookies } from 'next/headers'
 import { Client } from '@atproto/lex'
 import { Share2 } from 'lucide-react'
 import { xrpcQuery } from '@/lib/xrpc'
+import { fetchPublicEndorsements } from '@/lib/pipeline/fetch-public-endorsements'
 import { StackStream } from './StackStream'
 
 const PUBLIC_API = 'https://public.api.bsky.app'
@@ -12,6 +14,7 @@ type Props = {
 }
 
 type BlueskyProfile = {
+  did?: string
   handle?: string
   displayName?: string
   avatar?: string
@@ -47,15 +50,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function StackPage({ params }: Props) {
   const { handle } = await params
-  const profile = await fetchBlueskyProfile(handle)
+
+  const cookieStore = await cookies()
+  const sessionDid = cookieStore.get('did')?.value
+
+  const [profile, endorsedUris] = await Promise.all([
+    fetchBlueskyProfile(handle),
+    fetchPublicEndorsements(handle),
+  ])
 
   const displayHandle = profile?.handle ?? handle
   const displayName = profile?.displayName ?? `@${displayHandle}`
   const avatar = profile?.avatar
+  const count = endorsedUris.length
+  const isSelf = !!(sessionDid && profile?.did && sessionDid === profile.did)
 
   const stackUrl = `https://at.fund/stack/${handle}`
-  const shareText = `Check out @${displayHandle}'s stack on @at.fund ❤️\n${stackUrl}`
-  const bskyShareUrl = `https://bsky.app/intent/compose?text=${encodeURIComponent(shareText)}`
+  const shareText = isSelf
+    ? `I've endorsed ${count} projects building the Atmosphere ❤️\n${stackUrl}`
+    : `@${displayHandle} has endorsed ${count} projects building the Atmosphere ❤️\n${stackUrl}`
+  const bskyShareUrl = count > 0
+    ? `https://bsky.app/intent/compose?text=${encodeURIComponent(shareText)}`
+    : null
 
   return (
     <div className="page-wash min-h-full">
@@ -81,15 +97,17 @@ export default async function StackPage({ params }: Props) {
             </div>
           </div>
 
-          <a
-            href={bskyShareUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#0085ff] px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
-          >
-            <Share2 className="h-4 w-4 shrink-0" aria-hidden />
-            Share on Bluesky
-          </a>
+          {bskyShareUrl && (
+            <a
+              href={bskyShareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#0085ff] px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+            >
+              <Share2 className="h-4 w-4 shrink-0" aria-hidden />
+              Share on Bluesky
+            </a>
+          )}
         </div>
 
         {/* Entry list — streams entries client-side after fast initial render */}
