@@ -259,7 +259,7 @@ function frequencyLabel(freq: FundingPlan['frequency']): string {
 }
 
 export function FundingChannelsSection({ channels, plans }: { channels?: FundingChannel[]; plans?: FundingPlan[] }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const activePlans = (plans ?? []).filter((p) => p.status === 'active' && p.amount > 0)
 
   // Only linkable channels (URLs)

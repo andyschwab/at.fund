@@ -248,7 +248,13 @@ export async function POST(request: NextRequest) {
           amount: Math.round(p.amount * 100), // store as cents
           currency: p.currency,
           frequency: p.frequency,
-          ...(p.channels && { channels: p.channels.map(c => l.asStringFormat(c, 'at-uri')) }),
+          ...(p.channels && p.channels.length > 0 && {
+            channels: p.channels.map(c =>
+              c.startsWith('at://')
+                ? l.asStringFormat(c, 'at-uri')
+                : l.asStringFormat(`at://${session.did}/fund.at.funding.channel/${c}`, 'at-uri')
+            ),
+          }),
           createdAt,
         }, { rkey: p.id })
       }
