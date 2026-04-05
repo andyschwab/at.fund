@@ -67,4 +67,20 @@ quality — making sure the codebase stays clean as it evolves.
 
 - No testing strategy or coverage targets
 - No cache invalidation documentation for client-side module cache
-- Catalog validation is manual (Python one-liners)
+- ~~Catalog validation is manual (Python one-liners)~~ — **fixed**: automated in test suite
+
+### Admin data vs constants (resolved)
+
+All files in `src/data/` are admin-managed data (catalog entries, resolver
+overrides, admin handles). Tests validate **structure and behavior**, not
+specific entries. You can freely add, remove, or edit entries without changing
+any test file:
+
+- `src/data/catalog/*.json` — validated structurally by `catalog.test.ts`
+- `src/data/resolver-catalog.json` — validated structurally; every override is
+  tested dynamically in `catalog.test.ts`
+- `src/data/admins.json` — consumed by `lib/admins.ts`, no entry-specific tests
+- `src/lib/catalog.test.ts` — tests resolution **algorithm** with data-driven
+  sweeps, not hardcoded entry names
+- `src/lib/lexicon-scan.test.ts` — mocks the catalog module with synthetic
+  fixtures so pipeline tests don't break when catalog data changes
