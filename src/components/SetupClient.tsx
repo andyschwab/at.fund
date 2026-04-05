@@ -17,6 +17,7 @@ import { HandleChipInput } from '@/components/HandleChipInput'
 import type { ChipItem } from '@/components/HandleChipInput'
 import type { StewardEntry } from '@/lib/steward-model'
 import type { FundingChannel, FundingPlan } from '@/lib/funding-manifest'
+import { detectPlatform, PLATFORM_LABELS } from '@/lib/funding-manifest'
 import type { FundAtResult } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
 import { useSession } from '@/components/SessionContext'
@@ -30,21 +31,53 @@ type DependencyRow = ChipItem
 
 type ChannelRow = {
   id: string
-  slug: string
-  type: string
   uri: string
   description: string
 }
 
 type PlanRow = {
   id: string
-  slug: string
   name: string
   description: string
   amount: string
   currency: string
   frequency: string
-  channels: string[]  // references channel slugs
+  channels: string[]  // slugs of selected channels (empty = all)
+}
+
+// ---------------------------------------------------------------------------
+// Auto-derive channel slug and type from URL
+// ---------------------------------------------------------------------------
+
+function deriveChannelSlug(uri: string): string {
+  const trimmed = uri.trim()
+  if (!trimmed) return ''
+  const platform = detectPlatform(trimmed)
+  if (platform) return platform
+  try {
+    return new URL(trimmed).hostname.replace(/^www\./, '').replace(/\./g, '-')
+  } catch {
+    return ''
+  }
+}
+
+function deriveChannelType(uri: string): string {
+  const trimmed = uri.trim()
+  if (!trimmed) return 'other'
+  if (detectPlatform(trimmed)) return 'payment-provider'
+  return 'payment-provider'
+}
+
+function deriveChannelLabel(uri: string): string {
+  const trimmed = uri.trim()
+  if (!trimmed) return ''
+  const platform = detectPlatform(trimmed)
+  if (platform) return PLATFORM_LABELS[platform]
+  try {
+    return new URL(trimmed).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
 }
 
 type FormState = {
@@ -71,8 +104,6 @@ function initialFormState(existing: FundAtResult | null): FormState {
   const channels: ChannelRow[] =
     existing?.channels?.map((ch) => ({
       id: nextId(),
-      slug: ch.guid,
-      type: ch.type,
       uri: ch.address,
       description: ch.description ?? '',
     })) ?? []
@@ -80,7 +111,6 @@ function initialFormState(existing: FundAtResult | null): FormState {
   const plans: PlanRow[] =
     existing?.plans?.map((p) => ({
       id: nextId(),
-      slug: p.guid,
       name: p.name,
       description: p.description ?? '',
       amount: p.amount > 0 ? String(p.amount) : '',
@@ -211,7 +241,7 @@ export function SetupClient({ did, handle, existing }: Props) {
     [form.contributeUrl],
   )
 
-  const validChannels = form.channels.filter((ch) => ch.slug.trim() && ch.uri.trim())
+  const validChannels = form.channels.filter((ch) => ch.uri.trim() && deriveChannelSlug(ch.uri))
 
   const hasErrors = !!contributeUrlError
 
@@ -233,18 +263,18 @@ export function SetupClient({ did, handle, existing }: Props) {
   const previewChannels: FundingChannel[] | undefined = useMemo(() => {
     if (validChannels.length === 0) return undefined
     return validChannels.map((ch) => ({
-      guid: ch.slug.trim(),
-      type: (ch.type || 'other') as 'payment-provider' | 'bank' | 'other',
+      guid: deriveChannelSlug(ch.uri),
+      type: deriveChannelType(ch.uri) as 'payment-provider' | 'bank' | 'other',
       address: ch.uri.trim(),
       description: ch.description.trim() || undefined,
     }))
   }, [validChannels])
 
   const previewPlans: FundingPlan[] | undefined = useMemo(() => {
-    const valid = form.plans.filter((p) => p.slug.trim() && p.name.trim())
+    const valid = form.plans.filter((p) => p.name.trim())
     if (valid.length === 0) return undefined
     return valid.map((p) => ({
-      guid: p.slug.trim(),
+      guid: p.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, ''),
       status: 'active' as const,
       name: p.name.trim(),
       description: p.description.trim() || undefined,
@@ -342,17 +372,17 @@ export function SetupClient({ did, handle, existing }: Props) {
     try {
       const channelsPayload = validChannels.length > 0
         ? validChannels.map((ch) => ({
-            id: ch.slug.trim(),
-            type: ch.type || 'other',
+            id: deriveChannelSlug(ch.uri),
+            type: deriveChannelType(ch.uri),
             uri: ch.uri.trim(),
             ...(ch.description.trim() && { description: ch.description.trim() }),
           }))
         : undefined
 
-      const plansPayload = form.plans.filter((p) => p.slug.trim() && p.name.trim())
-      const plansList = plansPayload.length > 0
-        ? plansPayload.map((p) => ({
-            id: p.slug.trim(),
+      const validPlans = form.plans.filter((p) => p.name.trim())
+      const plansList = validPlans.length > 0
+        ? validPlans.map((p) => ({
+            id: p.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, ''),
             name: p.name.trim(),
             ...(p.description.trim() && { description: p.description.trim() }),
             amount: parseFloat(p.amount) || 0,
@@ -475,182 +505,183 @@ export function SetupClient({ did, handle, existing }: Props) {
               </div>
             </div>
 
-            {/* Funding channels & plans */}
+            {/* Payment channels */}
             <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/60">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                 <Wallet className="h-4 w-4 text-[var(--support)]" aria-hidden />
                 Payment channels
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Where people can send you money — GitHub Sponsors, Open Collective,
-                Ko-fi, PayPal, or any payment URL. Each channel and plan is published as an
-                individual record on your PDS with DID-signed provenance.
-                Also compatible with the{' '}
-                <a href="https://fundingjson.org/" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-slate-700 dark:hover:text-slate-200">
-                  funding.json
-                </a>{' '}
-                open standard.
+                Add your payment links — GitHub Sponsors, Open Collective, Ko-fi,
+                PayPal, or any URL. We&apos;ll detect the platform automatically.
               </p>
 
-              {form.channels.map((ch, i) => (
-                <div key={ch.id} className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/30">
-                  <div className="flex items-center gap-2">
+              {form.channels.map((ch, i) => {
+                const label = deriveChannelLabel(ch.uri)
+                return (
+                  <div key={ch.id} className="flex items-center gap-2">
+                    {label && (
+                      <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        {label}
+                      </span>
+                    )}
                     <input
-                      value={ch.slug}
+                      value={ch.uri}
                       onChange={(e) => {
                         const updated = [...form.channels]
-                        updated[i] = { ...ch, slug: e.target.value }
+                        updated[i] = { ...ch, uri: e.target.value }
                         set('channels', updated)
                       }}
-                      placeholder="github-sponsors"
+                      placeholder="https://github.com/sponsors/you"
                       disabled={saving}
-                      className="w-36 rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-xs text-slate-700 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                      className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
                     />
-                    <select
-                      value={ch.type}
-                      onChange={(e) => {
-                        const updated = [...form.channels]
-                        updated[i] = { ...ch, type: e.target.value }
-                        set('channels', updated)
-                      }}
-                      disabled={saving}
-                      className="rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                    >
-                      <option value="payment-provider">Payment provider</option>
-                      <option value="bank">Bank</option>
-                      <option value="other">Other</option>
-                    </select>
                     <button
                       type="button"
                       onClick={() => set('channels', form.channels.filter((_, j) => j !== i))}
                       disabled={saving}
-                      className="ml-auto text-slate-400 hover:text-red-500 disabled:opacity-50"
+                      className="shrink-0 text-slate-400 hover:text-red-500 disabled:opacity-50"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <input
-                    value={ch.uri}
-                    onChange={(e) => {
-                      const updated = [...form.channels]
-                      updated[i] = { ...ch, uri: e.target.value }
-                      set('channels', updated)
-                    }}
-                    placeholder="https://github.com/sponsors/you"
-                    disabled={saving}
-                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                  />
-                </div>
-              ))}
+                )
+              })}
 
               <button
                 type="button"
-                onClick={() => set('channels', [...form.channels, { id: nextId(), slug: '', type: 'payment-provider', uri: '', description: '' }])}
+                onClick={() => set('channels', [...form.channels, { id: nextId(), uri: '', description: '' }])}
                 disabled={saving}
                 className="flex items-center gap-1.5 text-xs font-medium text-[var(--support)] hover:opacity-80 disabled:opacity-50"
               >
                 <Plus className="h-3.5 w-3.5" /> Add channel
               </button>
+            </div>
 
-              {/* Plans — only show if there are channels */}
-              {form.channels.length > 0 && (
-                <>
-                  <div className="mt-2 border-t border-slate-100 pt-3 dark:border-slate-800">
-                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                      Plans <span className="font-normal text-slate-400">(optional)</span>
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
-                      Suggested tiers — supporters choose which fits them.
-                    </p>
+            {/* Funding plans */}
+            <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/60">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <Wallet className="h-4 w-4 text-[var(--support)]" aria-hidden />
+                Plans <span className="text-sm font-normal text-slate-400">(optional)</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Suggested contribution tiers — supporters choose what fits them.
+              </p>
+
+              {form.plans.map((plan, i) => (
+                <div key={plan.id} className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/30">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={plan.name}
+                      onChange={(e) => {
+                        const updated = [...form.plans]
+                        updated[i] = { ...plan, name: e.target.value }
+                        set('plans', updated)
+                      }}
+                      placeholder="Plan name, e.g. Supporter"
+                      disabled={saving}
+                      className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => set('plans', form.plans.filter((_, j) => j !== i))}
+                      disabled={saving}
+                      className="shrink-0 text-slate-400 hover:text-red-500 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-
-                  {form.plans.map((plan, i) => (
-                    <div key={plan.id} className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/30">
-                      <div className="flex items-center gap-2">
-                        <input
-                          value={plan.slug}
-                          onChange={(e) => {
-                            const updated = [...form.plans]
-                            updated[i] = { ...plan, slug: e.target.value }
-                            set('plans', updated)
-                          }}
-                          placeholder="supporter"
-                          disabled={saving}
-                          className="w-28 rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-xs text-slate-700 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                        />
-                        <input
-                          value={plan.name}
-                          onChange={(e) => {
-                            const updated = [...form.plans]
-                            updated[i] = { ...plan, name: e.target.value }
-                            set('plans', updated)
-                          }}
-                          placeholder="Supporter"
-                          disabled={saving}
-                          className="flex-1 rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => set('plans', form.plans.filter((_, j) => j !== i))}
-                          disabled={saving}
-                          className="text-slate-400 hover:text-red-500 disabled:opacity-50"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          value={plan.amount}
-                          onChange={(e) => {
-                            const updated = [...form.plans]
-                            updated[i] = { ...plan, amount: e.target.value }
-                            set('plans', updated)
-                          }}
-                          placeholder="5"
-                          disabled={saving}
-                          className="w-20 rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                        />
-                        <input
-                          value={plan.currency}
-                          onChange={(e) => {
-                            const updated = [...form.plans]
-                            updated[i] = { ...plan, currency: e.target.value.toUpperCase() }
-                            set('plans', updated)
-                          }}
-                          placeholder="USD"
-                          maxLength={3}
-                          disabled={saving}
-                          className="w-16 rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                        />
-                        <select
-                          value={plan.frequency}
-                          onChange={(e) => {
-                            const updated = [...form.plans]
-                            updated[i] = { ...plan, frequency: e.target.value }
-                            set('plans', updated)
-                          }}
-                          disabled={saving}
-                          className="rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                        >
-                          <option value="monthly">Monthly</option>
-                          <option value="yearly">Yearly</option>
-                          <option value="one-time">One-time</option>
-                          <option value="other">Other</option>
-                        </select>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={plan.amount}
+                      onChange={(e) => {
+                        const updated = [...form.plans]
+                        updated[i] = { ...plan, amount: e.target.value }
+                        set('plans', updated)
+                      }}
+                      placeholder="5"
+                      disabled={saving}
+                      className="w-20 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                    <input
+                      value={plan.currency}
+                      onChange={(e) => {
+                        const updated = [...form.plans]
+                        updated[i] = { ...plan, currency: e.target.value.toUpperCase() }
+                        set('plans', updated)
+                      }}
+                      placeholder="USD"
+                      maxLength={3}
+                      disabled={saving}
+                      className="w-16 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                    <select
+                      value={plan.frequency}
+                      onChange={(e) => {
+                        const updated = [...form.plans]
+                        updated[i] = { ...plan, frequency: e.target.value }
+                        set('plans', updated)
+                      }}
+                      disabled={saving}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="yearly">Yearly</option>
+                      <option value="one-time">One-time</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  {/* Channel picker — only when 2+ channels */}
+                  {validChannels.length >= 2 && (
+                    <div className="mt-1">
+                      <p className="mb-1 text-[11px] text-slate-400 dark:text-slate-500">
+                        Channels for this plan (leave empty for all)
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {validChannels.map((ch) => {
+                          const slug = deriveChannelSlug(ch.uri)
+                          const chLabel = deriveChannelLabel(ch.uri)
+                          const selected = plan.channels.includes(slug)
+                          return (
+                            <button
+                              key={ch.id}
+                              type="button"
+                              onClick={() => {
+                                const updated = [...form.plans]
+                                updated[i] = {
+                                  ...plan,
+                                  channels: selected
+                                    ? plan.channels.filter((c) => c !== slug)
+                                    : [...plan.channels, slug],
+                                }
+                                set('plans', updated)
+                              }}
+                              disabled={saving}
+                              className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                                selected
+                                  ? 'border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)]'
+                                  : 'border-slate-200 text-slate-500 hover:border-slate-300 dark:border-slate-700 dark:text-slate-400'
+                              }`}
+                            >
+                              {chLabel || slug}
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
-                  ))}
+                  )}
+                </div>
+              ))}
 
-                  <button
-                    type="button"
-                    onClick={() => set('plans', [...form.plans, { id: nextId(), slug: '', name: '', description: '', amount: '', currency: 'USD', frequency: 'monthly', channels: [] }])}
-                    disabled={saving}
-                    className="flex items-center gap-1.5 text-xs font-medium text-[var(--support)] hover:opacity-80 disabled:opacity-50"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add plan
-                  </button>
-                </>
-              )}
+              <button
+                type="button"
+                onClick={() => set('plans', [...form.plans, { id: nextId(), name: '', description: '', amount: '', currency: 'USD', frequency: 'monthly', channels: [] }])}
+                disabled={saving}
+                className="flex items-center gap-1.5 text-xs font-medium text-[var(--support)] hover:opacity-80 disabled:opacity-50"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add plan
+              </button>
             </div>
 
             {/* Dependencies */}
