@@ -88,7 +88,7 @@ export default async function StackPage({ params }: Props) {
             className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#0085ff] px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
           >
             <Share2 className="h-4 w-4 shrink-0" aria-hidden />
-            Share on Atmosphere
+            Share on Bluesky
           </a>
         </div>
 

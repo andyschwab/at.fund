@@ -398,21 +398,21 @@ export function GiveClient() {
               </div>
             )
           }
-          const shareText = `I've endorsed ${count} project${count === 1 ? '' : 's'} that fund the Atmosphere on @at.fund ❤️${meta?.handle ? `\nhttps://at.fund/stack/${meta.handle}` : ''}`
-          const bskyUrl = `https://bsky.app/intent/compose?text=${encodeURIComponent(shareText)}`
           return (
             <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800 shadow-sm dark:border-emerald-800/50 dark:bg-emerald-950/20 dark:text-emerald-300">
               <span>
                 You&rsquo;ve endorsed <strong className="font-semibold">{count} project{count === 1 ? '' : 's'}</strong> that accept funding.
               </span>
-              <a
-                href={bskyUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 font-medium hover:underline"
-              >
-                Share on Atmosphere →
-              </a>
+              {meta?.handle && (
+                <a
+                  href={`/stack/${meta.handle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 font-medium hover:underline"
+                >
+                  Share on Atmosphere →
+                </a>
+              )}
             </div>
           )
         })()}
