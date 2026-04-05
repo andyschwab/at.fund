@@ -3,7 +3,7 @@
  */
 
 import { l } from '@atproto/lex'
-import * as FundingDefs from './defs.defs.js'
+import * as FundingDefs from './defs.defs'
 
 const $nsid = 'fund.at.funding.manifest'
 
