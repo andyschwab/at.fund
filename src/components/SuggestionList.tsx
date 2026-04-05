@@ -13,6 +13,7 @@ type Props = {
 export function SuggestionList({ suggestions, active, onPick, onHover, idPrefix }: Props) {
   return (
     <ul
+      id={`${idPrefix}-listbox`}
       role="listbox"
       className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
     >
