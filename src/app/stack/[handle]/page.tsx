@@ -35,10 +35,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { handle } = await params
   return {
     title: `${handle}'s stack — at.fund`,
-    description: `Open source projects endorsed by @${handle} on at.fund`,
+    description: `Projects endorsed by @${handle} on at.fund`,
     openGraph: {
       title: `${handle}'s stack — at.fund`,
-      description: `Open source projects endorsed by @${handle} on at.fund`,
+      description: `Projects endorsed by @${handle} on at.fund`,
       images: [{ url: `/stack/${handle}/opengraph-image`, width: 1200, height: 630 }],
     },
     twitter: { card: 'summary_large_image' },
@@ -88,7 +88,7 @@ export default async function StackPage({ params }: Props) {
             className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#0085ff] px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
           >
             <Share2 className="h-4 w-4 shrink-0" aria-hidden />
-            Share on Bluesky
+            Share on Atmosphere
           </a>
         </div>
 

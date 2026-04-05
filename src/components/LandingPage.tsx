@@ -126,7 +126,7 @@ export function LandingPage() {
                 Pay the builders you rely on
               </h2>
               <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                Sign in to scan your Bluesky data — the tools, feeds, and
+                Sign in to scan your Atmosphere data — the tools, feeds, and
                 labelers you use — and see every funding option each builder
                 has published. Contribute directly, then endorse the projects
                 you value to signal trust across the network.

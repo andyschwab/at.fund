@@ -411,7 +411,7 @@ export function GiveClient() {
                 rel="noopener noreferrer"
                 className="shrink-0 font-medium hover:underline"
               >
-                Share on Bluesky →
+                Share on Atmosphere →
               </a>
             </div>
           )
@@ -478,7 +478,7 @@ export function GiveClient() {
           {activeTab === 'discover' && (
             <>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                These projects were found in your Bluesky account data. Click the funding link to contribute, then endorse to add to My Stack.
+                These projects were found in your Atmosphere account data. Click the funding link to contribute, then endorse to add to My Stack.
               </p>
               {discoveredEntries.length === 0 && scanDone ? (
                 <p className="text-sm text-slate-600 dark:text-slate-400">
