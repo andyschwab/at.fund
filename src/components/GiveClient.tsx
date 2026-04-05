@@ -219,10 +219,6 @@ export function GiveClient() {
     () => visibleEntries.filter((e) => !!e.contributeUrl),
     [visibleEntries],
   )
-  const endorsedFundable = useMemo(
-    () => fundableEntries.filter((e) => isEndorsed(e, endorsedUris)),
-    [fundableEntries, endorsedUris],
-  )
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -381,7 +377,7 @@ export function GiveClient() {
 
         {/* ── Stats bar ────────────────────────────────────────── */}
         {scanDone && fundableEntries.length > 0 && (() => {
-          const count = endorsedFundable.length
+          const count = endorsedEntries.length
           if (count === 0) {
             return (
               <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white/60 px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-400">
@@ -401,7 +397,7 @@ export function GiveClient() {
           return (
             <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800 shadow-sm dark:border-emerald-800/50 dark:bg-emerald-950/20 dark:text-emerald-300">
               <span>
-                You&rsquo;ve endorsed <strong className="font-semibold">{count} project{count === 1 ? '' : 's'}</strong> that accept funding.
+                You&rsquo;ve endorsed <strong className="font-semibold">{count} project{count === 1 ? '' : 's'}</strong>.
               </span>
               {meta?.handle && (
                 <a

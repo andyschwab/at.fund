@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { Client } from '@atproto/lex'
 import { xrpcQuery } from '@/lib/xrpc'
+import { fetchPublicEndorsements } from '@/lib/pipeline/fetch-public-endorsements'
 
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
@@ -16,21 +17,27 @@ type Props = {
 export default async function Image({ params }: Props) {
   const { handle } = await params
 
-  // Single API call: profile only (avatar + displayName)
+  // Run profile fetch and endorsement count lookup in parallel
   let displayName = `@${handle}`
   let avatar: string | undefined
+  let count = 0
 
-  try {
-    const publicClient = new Client(PUBLIC_API)
-    const data = await xrpcQuery<{
+  const [profileResult, endorsedUris] = await Promise.allSettled([
+    xrpcQuery<{
       profiles?: Array<{ handle?: string; displayName?: string; avatar?: string }>
-    }>(publicClient, 'app.bsky.actor.getProfiles', { actors: [handle] })
-    const profile = data.profiles?.[0]
-    if (profile) {
-      if (profile.displayName) displayName = profile.displayName
-      if (profile.avatar) avatar = profile.avatar
-    }
-  } catch { /* best-effort — fall back to handle */ }
+    }>(new Client(PUBLIC_API), 'app.bsky.actor.getProfiles', { actors: [handle] }),
+    fetchPublicEndorsements(handle),
+  ])
+
+  if (profileResult.status === 'fulfilled') {
+    const profile = profileResult.value.profiles?.[0]
+    if (profile?.displayName) displayName = profile.displayName
+    if (profile?.avatar) avatar = profile.avatar
+  }
+
+  if (endorsedUris.status === 'fulfilled') {
+    count = endorsedUris.value.length
+  }
 
   return new ImageResponse(
     (
@@ -124,16 +131,18 @@ export default async function Image({ params }: Props) {
           </div>
         </div>
 
-        {/* Tagline */}
+        {/* Endorsement count */}
         <div
           style={{
-            fontSize: 32,
-            fontWeight: 500,
-            color: 'rgba(255,255,255,0.85)',
+            fontSize: 40,
+            fontWeight: 600,
+            color: 'rgba(255,255,255,0.9)',
             letterSpacing: '-0.01em',
           }}
         >
-          stack — at.fund
+          {count === 0
+            ? 'No endorsed projects yet'
+            : `${count} project${count === 1 ? '' : 's'} endorsed`}
         </div>
       </div>
     ),
