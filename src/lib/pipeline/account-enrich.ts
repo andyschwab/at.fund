@@ -137,7 +137,10 @@ export async function enrichAccounts(
       ? fetchFundingManifest(hostname).catch(() => null)
       : Promise.resolve(null)
 
-    const [fundAt, manifest] = await Promise.all([fundAtPromise, manifestPromise])
+    const [fundAt, webManifest] = await Promise.all([fundAtPromise, manifestPromise])
+
+    // ATProto manifest wins over web funding.json
+    const fundingManifest = fundAt?.manifest ?? webManifest ?? undefined
 
     if (fundAt) {
       // Also check manual catalog for extra deps
@@ -150,7 +153,7 @@ export async function enrichAccounts(
           manual?.dependencies,
         ),
         source: 'fund.at',
-        fundingManifest: manifest ?? undefined,
+        fundingManifest,
       }
       onEntry?.(entry)
       return entry
@@ -164,7 +167,7 @@ export async function enrichAccounts(
         contributeUrl: manual.contributeUrl,
         dependencies: manual.dependencies,
         source: 'manual',
-        fundingManifest: manifest ?? undefined,
+        fundingManifest,
       }
       onEntry?.(entry)
       return entry
@@ -174,7 +177,7 @@ export async function enrichAccounts(
     const entry: StewardEntry = {
       ...base,
       source: 'unknown',
-      fundingManifest: manifest ?? undefined,
+      fundingManifest,
     }
     onEntry?.(entry)
     return entry

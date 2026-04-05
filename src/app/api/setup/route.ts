@@ -5,15 +5,83 @@ import * as fund from '@/lexicons/fund'
 import { validateUrl } from '@/lib/validate'
 import { logger } from '@/lib/logger'
 
+export type ManifestChannel = {
+  id: string
+  type?: string
+  uri: string
+  description?: string
+}
+
+export type ManifestPlan = {
+  id: string
+  name: string
+  description?: string
+  amount: number        // whole currency units (e.g. 5 for $5)
+  currency: string
+  frequency: string
+  channels?: string[]
+}
+
 export type SetupPayload = {
   contributeUrl?: string
   dependencies?: Array<{ uri: string; label?: string }>
+  manifest?: {
+    channels: ManifestChannel[]
+    plans?: ManifestPlan[]
+  }
 }
 
 function str(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined
   const t = v.trim()
   return t || undefined
+}
+
+function parseManifest(raw: unknown): SetupPayload['manifest'] | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const m = raw as Record<string, unknown>
+
+  const channels: ManifestChannel[] = []
+  if (Array.isArray(m.channels)) {
+    for (const item of m.channels) {
+      if (!item || typeof item !== 'object') continue
+      const ch = item as Record<string, unknown>
+      const id = str(ch.id)
+      const uri = str(ch.uri)
+      if (!id || !uri) continue
+      channels.push({
+        id,
+        type: str(ch.type),
+        uri,
+        description: str(ch.description),
+      })
+    }
+  }
+  if (channels.length === 0) return undefined
+
+  const plans: ManifestPlan[] = []
+  if (Array.isArray(m.plans)) {
+    for (const item of m.plans) {
+      if (!item || typeof item !== 'object') continue
+      const p = item as Record<string, unknown>
+      const id = str(p.id)
+      const name = str(p.name)
+      if (!id || !name) continue
+      plans.push({
+        id,
+        name,
+        description: str(p.description),
+        amount: typeof p.amount === 'number' ? p.amount : 0,
+        currency: str(p.currency) ?? 'USD',
+        frequency: str(p.frequency) ?? 'other',
+        channels: Array.isArray(p.channels)
+          ? p.channels.filter((c): c is string => typeof c === 'string')
+          : undefined,
+      })
+    }
+  }
+
+  return { channels, plans: plans.length > 0 ? plans : undefined }
 }
 
 function parsePayload(body: unknown): SetupPayload | null {
@@ -32,9 +100,15 @@ function parsePayload(body: unknown): SetupPayload | null {
     }
   }
 
-  if (!contributeUrl && dependencies.length === 0) return null
+  const manifest = parseManifest(b.manifest)
 
-  return { contributeUrl, dependencies: dependencies.length > 0 ? dependencies : undefined }
+  if (!contributeUrl && dependencies.length === 0 && !manifest) return null
+
+  return {
+    contributeUrl,
+    dependencies: dependencies.length > 0 ? dependencies : undefined,
+    manifest,
+  }
 }
 
 function validatePayload(p: SetupPayload): Record<string, string> | null {
@@ -103,6 +177,30 @@ export async function POST(request: NextRequest) {
           createdAt,
         }, { rkey: dep.uri })
       }
+    }
+
+    // Write fund.at.manifest (singleton with rkey "self")
+    if (payload.manifest) {
+      await client.put(fund.at.manifest, {
+        channels: payload.manifest.channels.map((ch) => ({
+          id: ch.id,
+          ...(ch.type && { type: ch.type }),
+          uri: uri(ch.uri),
+          ...(ch.description && { description: ch.description }),
+        })),
+        ...(payload.manifest.plans && {
+          plans: payload.manifest.plans.map((p) => ({
+            id: p.id,
+            name: p.name,
+            ...(p.description && { description: p.description }),
+            amount: Math.round(p.amount * 100), // store as cents
+            currency: p.currency,
+            frequency: p.frequency,
+            ...(p.channels && { channels: p.channels }),
+          })),
+        }),
+        createdAt,
+      })
     }
 
     logger.info('setup: records published', { did: session.did })

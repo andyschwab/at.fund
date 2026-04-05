@@ -7,12 +7,16 @@ import {
   CheckCircle2,
   Heart,
   HeartHandshake,
+  Plus,
+  Trash2,
+  Wallet,
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
 import { StewardCard } from '@/components/ProjectCards'
 import { HandleChipInput } from '@/components/HandleChipInput'
 import type { ChipItem } from '@/components/HandleChipInput'
 import type { StewardEntry } from '@/lib/steward-model'
+import type { FundingManifest } from '@/lib/funding-manifest'
 import type { FundAtResult } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
 import { useSession } from '@/components/SessionContext'
@@ -23,9 +27,30 @@ import { useSession } from '@/components/SessionContext'
 
 type DependencyRow = ChipItem
 
+type ChannelRow = {
+  id: string
+  slug: string
+  type: string
+  uri: string
+  description: string
+}
+
+type PlanRow = {
+  id: string
+  slug: string
+  name: string
+  description: string
+  amount: string
+  currency: string
+  frequency: string
+  channels: string[]  // references channel slugs
+}
+
 type FormState = {
   contributeUrl: string
   dependencies: DependencyRow[]
+  channels: ChannelRow[]
+  plans: PlanRow[]
 }
 
 type Props = {
@@ -50,9 +75,32 @@ function initialFormState(existing: FundAtResult | null): FormState {
       label: d.label ?? '',
     })) ?? []
 
+  const channels: ChannelRow[] =
+    existing?.manifest?.funding.channels.map((ch) => ({
+      id: nextId(),
+      slug: ch.guid,
+      type: ch.type,
+      uri: ch.address,
+      description: ch.description ?? '',
+    })) ?? []
+
+  const plans: PlanRow[] =
+    existing?.manifest?.funding.plans.map((p) => ({
+      id: nextId(),
+      slug: p.guid,
+      name: p.name,
+      description: p.description ?? '',
+      amount: p.amount > 0 ? String(p.amount) : '',
+      currency: p.currency,
+      frequency: p.frequency,
+      channels: p.channels,
+    })) ?? []
+
   return {
     contributeUrl: existing?.contributeUrl ?? '',
     dependencies,
+    channels,
+    plans,
   }
 }
 
@@ -168,9 +216,11 @@ export function SetupClient({ did, handle, existing }: Props) {
     [form.contributeUrl],
   )
 
+  const validChannels = form.channels.filter((ch) => ch.slug.trim() && ch.uri.trim())
+
   const hasErrors =
     !!contributeUrlError ||
-    (!form.contributeUrl.trim() && form.dependencies.filter((d) => d.uri.trim()).length === 0)
+    (!form.contributeUrl.trim() && form.dependencies.filter((d) => d.uri.trim()).length === 0 && validChannels.length === 0)
 
   // Fetch enriched profile for the user's own entry (avatar, description, etc.)
   const [enriched, setEnriched] = useState<StewardEntry | null>(null)
@@ -185,6 +235,35 @@ export function SetupClient({ did, handle, existing }: Props) {
       .catch(() => {})
     return () => { cancelled = true }
   }, [did])
+
+  // Build a live preview FundingManifest from form channels/plans
+  const previewManifest: FundingManifest | undefined = useMemo(() => {
+    if (validChannels.length === 0) return undefined
+    return {
+      version: 'v1.0.0',
+      entity: { type: 'other', role: 'other', name: '', description: '' },
+      funding: {
+        channels: validChannels.map((ch) => ({
+          guid: ch.slug.trim(),
+          type: (ch.type || 'other') as 'payment-provider' | 'bank' | 'other',
+          address: ch.uri.trim(),
+          description: ch.description.trim() || undefined,
+        })),
+        plans: form.plans
+          .filter((p) => p.slug.trim() && p.name.trim())
+          .map((p) => ({
+            guid: p.slug.trim(),
+            status: 'active' as const,
+            name: p.name.trim(),
+            description: p.description.trim() || undefined,
+            amount: parseFloat(p.amount) || 0,
+            currency: p.currency || 'USD',
+            frequency: (p.frequency || 'other') as 'one-time' | 'monthly' | 'yearly' | 'other',
+            channels: p.channels.length > 0 ? p.channels : [],
+          })),
+      },
+    }
+  }, [validChannels, form.plans])
 
   // Live preview model — form fields override, enriched fields fill in the rest
   const previewModel: StewardEntry = useMemo(
@@ -203,8 +282,9 @@ export function SetupClient({ did, handle, existing }: Props) {
         .filter((d) => d.uri.trim())
         .map((d) => d.uri.trim()),
       source: 'fund.at' as const,
+      fundingManifest: previewManifest,
     }),
-    [form, did, handle, contributeUrlError, enriched],
+    [form, did, handle, contributeUrlError, enriched, previewManifest],
   )
 
   // Resolve dependency entries so the preview card can show enriched info
@@ -254,6 +334,26 @@ export function SetupClient({ did, handle, existing }: Props) {
     setSaved(false)
 
     try {
+      const manifestPayload = validChannels.length > 0 ? {
+        channels: validChannels.map((ch) => ({
+          id: ch.slug.trim(),
+          type: ch.type || 'other',
+          uri: ch.uri.trim(),
+          ...(ch.description.trim() && { description: ch.description.trim() }),
+        })),
+        plans: form.plans
+          .filter((p) => p.slug.trim() && p.name.trim())
+          .map((p) => ({
+            id: p.slug.trim(),
+            name: p.name.trim(),
+            ...(p.description.trim() && { description: p.description.trim() }),
+            amount: parseFloat(p.amount) || 0,
+            currency: p.currency || 'USD',
+            frequency: p.frequency || 'other',
+            ...(p.channels.length > 0 && { channels: p.channels }),
+          })),
+      } : undefined
+
       const res = await authFetch('/api/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -265,6 +365,7 @@ export function SetupClient({ did, handle, existing }: Props) {
               uri: d.uri.trim(),
               ...(d.label.trim() && { label: d.label.trim() }),
             })),
+          manifest: manifestPayload,
         }),
       })
       const data = await res.json()
@@ -329,28 +430,183 @@ export function SetupClient({ did, handle, existing }: Props) {
               </div>
             </div>
 
-            {/* funding.json education */}
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-5 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
-                Want richer funding cards?
+            {/* Funding manifest — channels & plans */}
+            <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/60">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <Wallet className="h-4 w-4 text-[var(--support)]" aria-hidden />
+                Payment channels
               </div>
-              <p className="mt-1.5 text-xs text-emerald-700 dark:text-emerald-400">
-                Publish a{' '}
-                <code className="rounded bg-emerald-100 px-1 py-0.5 font-mono text-[11px] dark:bg-emerald-900/50">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Where people can send you money — GitHub Sponsors, Open Collective,
+                Ko-fi, PayPal, or any payment URL. These are published as a{' '}
+                <code className="font-mono text-[11px]">fund.at.manifest</code>{' '}
+                record on your PDS with DID-signed provenance.
+                Also compatible with the{' '}
+                <a href="https://fundingjson.org/" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-slate-700 dark:hover:text-slate-200">
                   funding.json
-                </code>{' '}
-                file on your domain to show payment channels, tiers, and plans
-                directly on your at.fund card. It&apos;s an open standard — no
-                lock-in, works everywhere.
+                </a>{' '}
+                open standard.
               </p>
-              <a
-                href="https://fundingjson.org/"
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-block text-xs font-medium text-emerald-600 underline underline-offset-2 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-200"
+
+              {form.channels.map((ch, i) => (
+                <div key={ch.id} className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/30">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={ch.slug}
+                      onChange={(e) => {
+                        const updated = [...form.channels]
+                        updated[i] = { ...ch, slug: e.target.value }
+                        set('channels', updated)
+                      }}
+                      placeholder="github-sponsors"
+                      disabled={saving}
+                      className="w-36 rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-xs text-slate-700 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    />
+                    <select
+                      value={ch.type}
+                      onChange={(e) => {
+                        const updated = [...form.channels]
+                        updated[i] = { ...ch, type: e.target.value }
+                        set('channels', updated)
+                      }}
+                      disabled={saving}
+                      className="rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    >
+                      <option value="payment-provider">Payment provider</option>
+                      <option value="bank">Bank</option>
+                      <option value="other">Other</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => set('channels', form.channels.filter((_, j) => j !== i))}
+                      disabled={saving}
+                      className="ml-auto text-slate-400 hover:text-red-500 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <input
+                    value={ch.uri}
+                    onChange={(e) => {
+                      const updated = [...form.channels]
+                      updated[i] = { ...ch, uri: e.target.value }
+                      set('channels', updated)
+                    }}
+                    placeholder="https://github.com/sponsors/you"
+                    disabled={saving}
+                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  />
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => set('channels', [...form.channels, { id: nextId(), slug: '', type: 'payment-provider', uri: '', description: '' }])}
+                disabled={saving}
+                className="flex items-center gap-1.5 text-xs font-medium text-[var(--support)] hover:opacity-80 disabled:opacity-50"
               >
-                Learn more at fundingjson.org
-              </a>
+                <Plus className="h-3.5 w-3.5" /> Add channel
+              </button>
+
+              {/* Plans — only show if there are channels */}
+              {form.channels.length > 0 && (
+                <>
+                  <div className="mt-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Plans <span className="font-normal text-slate-400">(optional)</span>
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                      Suggested tiers — supporters choose which fits them.
+                    </p>
+                  </div>
+
+                  {form.plans.map((plan, i) => (
+                    <div key={plan.id} className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/30">
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={plan.slug}
+                          onChange={(e) => {
+                            const updated = [...form.plans]
+                            updated[i] = { ...plan, slug: e.target.value }
+                            set('plans', updated)
+                          }}
+                          placeholder="supporter"
+                          disabled={saving}
+                          className="w-28 rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-xs text-slate-700 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                        />
+                        <input
+                          value={plan.name}
+                          onChange={(e) => {
+                            const updated = [...form.plans]
+                            updated[i] = { ...plan, name: e.target.value }
+                            set('plans', updated)
+                          }}
+                          placeholder="Supporter"
+                          disabled={saving}
+                          className="flex-1 rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => set('plans', form.plans.filter((_, j) => j !== i))}
+                          disabled={saving}
+                          className="text-slate-400 hover:text-red-500 disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={plan.amount}
+                          onChange={(e) => {
+                            const updated = [...form.plans]
+                            updated[i] = { ...plan, amount: e.target.value }
+                            set('plans', updated)
+                          }}
+                          placeholder="5"
+                          disabled={saving}
+                          className="w-20 rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                        />
+                        <input
+                          value={plan.currency}
+                          onChange={(e) => {
+                            const updated = [...form.plans]
+                            updated[i] = { ...plan, currency: e.target.value.toUpperCase() }
+                            set('plans', updated)
+                          }}
+                          placeholder="USD"
+                          maxLength={3}
+                          disabled={saving}
+                          className="w-16 rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                        />
+                        <select
+                          value={plan.frequency}
+                          onChange={(e) => {
+                            const updated = [...form.plans]
+                            updated[i] = { ...plan, frequency: e.target.value }
+                            set('plans', updated)
+                          }}
+                          disabled={saving}
+                          className="rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:border-[var(--support)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                        >
+                          <option value="monthly">Monthly</option>
+                          <option value="yearly">Yearly</option>
+                          <option value="one-time">One-time</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => set('plans', [...form.plans, { id: nextId(), slug: '', name: '', description: '', amount: '', currency: 'USD', frequency: 'monthly', channels: [] }])}
+                    disabled={saving}
+                    className="flex items-center gap-1.5 text-xs font-medium text-[var(--support)] hover:opacity-80 disabled:opacity-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add plan
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Dependencies */}

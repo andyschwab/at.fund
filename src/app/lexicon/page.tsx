@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import contributeSchema from '../../../lexicon/fund.at.contribute.json'
+import manifestSchema from '../../../lexicon/fund.at.manifest.json'
 import dependencySchema from '../../../lexicon/fund.at.dependency.json'
 import endorseSchema from '../../../lexicon/fund.at.endorse.json'
 
@@ -254,9 +255,9 @@ export default function LexiconPage() {
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">Lexicon</h1>
           <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-slate-400">
-            Three AT Protocol record types that publish funding metadata to your PDS — where to
-            support you, what you depend on, and who you endorse. Any client can read them directly
-            from your repo. No central registry, no middleman.
+            Four AT Protocol record types that publish funding metadata to your PDS — where to
+            support you, how to pay you, what you depend on, and who you endorse. Any client can
+            read them directly from your repo. No central registry, no middleman.
           </p>
         </div>
 
@@ -268,6 +269,11 @@ export default function LexiconPage() {
             schema={contributeSchema as unknown as LexSchema}
             keyType="literal:self"
             summary="Your funding page — GitHub Sponsors, Open Collective, Patreon, or any URL where people can support you. One record per account."
+          />
+          <RecordSection
+            schema={manifestSchema as unknown as LexSchema}
+            keyType="literal:self"
+            summary="Machine-readable funding manifest — payment channels and optional plans with amounts. The ATProto-native equivalent of funding.json (fundingjson.org), with DID-signed provenance. Published alongside your contribute URL for richer funding cards."
           />
           <RecordSection
             schema={dependencySchema as unknown as LexSchema}
@@ -321,6 +327,8 @@ export default function LexiconPage() {
                 <span className="text-slate-400 dark:text-slate-500 shrink-0">all paths    </span>
                 <span className="text-slate-500 dark:text-slate-400">→ DID → PDS →{' '}
                   <span className="text-support">fund.at.contribute</span>
+                  <span className="text-slate-400 dark:text-slate-500">, </span>
+                  fund.at.manifest
                   <span className="text-slate-400 dark:text-slate-500">, </span>
                   fund.at.dependency
                   <span className="text-slate-400 dark:text-slate-500">, </span>

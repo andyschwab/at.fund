@@ -4,11 +4,13 @@ import type { OAuthSession } from '@atproto/oauth-client'
 import { Client } from '@atproto/lex'
 import type { AtIdentifierString } from '@atproto/lex-client'
 import * as fund from '@/lexicons/fund'
+import type { FundingManifest } from '@/lib/funding-manifest'
 import { xrpcQuery } from '@/lib/xrpc'
 
 export const FUND_CONTRIBUTE = 'fund.at.contribute'
 export const FUND_DEPENDENCY = 'fund.at.dependency'
 export const FUND_ENDORSE = 'fund.at.endorse'
+export const FUND_MANIFEST = 'fund.at.manifest'
 
 const PUBLIC_IDENTITY = 'https://public.api.bsky.app'
 const publicClient = new Client(PUBLIC_IDENTITY)
@@ -22,6 +24,7 @@ const didDocCache = (gDid.__didDocCache ??= new Map())
 export type FundAtResult = {
   contributeUrl?: string
   dependencies?: Array<{ uri: string; label?: string }>
+  manifest?: FundingManifest
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +109,56 @@ export async function resolvePdsUrl(stewardDid: string): Promise<URL | null> {
 }
 
 // ---------------------------------------------------------------------------
+// ATProto manifest → FundingManifest conversion
+// ---------------------------------------------------------------------------
+
+/**
+ * Converts a fund.at.manifest record value into a FundingManifest.
+ * The ATProto record stores amounts in smallest currency units (cents);
+ * the FundingManifest uses whole units for display.
+ */
+function atprotoManifestToFundingManifest(
+  value: Record<string, unknown>,
+): FundingManifest | null {
+  const channels = value.channels as Array<Record<string, unknown>> | undefined
+  if (!Array.isArray(channels) || channels.length === 0) return null
+
+  return {
+    version: 'v1.0.0',
+    entity: { type: 'other', role: 'other', name: '', description: '' },
+    funding: {
+      channels: channels.map((ch) => ({
+        guid: String(ch.id ?? ''),
+        type: (['bank', 'payment-provider', 'cheque', 'cash', 'other'] as const).includes(
+          ch.type as 'bank' | 'payment-provider' | 'cheque' | 'cash' | 'other',
+        )
+          ? (ch.type as 'bank' | 'payment-provider' | 'cheque' | 'cash' | 'other')
+          : 'other',
+        address: String(ch.uri ?? ''),
+        description: ch.description ? String(ch.description) : undefined,
+      })),
+      plans: Array.isArray(value.plans)
+        ? (value.plans as Array<Record<string, unknown>>).map((p) => ({
+            guid: String(p.id ?? ''),
+            status: 'active' as const,
+            name: String(p.name ?? ''),
+            description: p.description ? String(p.description) : undefined,
+            amount: typeof p.amount === 'number' ? p.amount / 100 : 0,
+            currency: String(p.currency ?? 'USD'),
+            frequency: (['one-time', 'weekly', 'fortnightly', 'monthly', 'yearly', 'other'] as const)
+              .includes(p.frequency as 'one-time' | 'weekly' | 'fortnightly' | 'monthly' | 'yearly' | 'other')
+              ? (p.frequency as 'one-time' | 'weekly' | 'fortnightly' | 'monthly' | 'yearly' | 'other')
+              : 'other',
+            channels: Array.isArray(p.channels)
+              ? p.channels.filter((c): c is string => typeof c === 'string')
+              : [],
+          }))
+        : [],
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
 // High-level fetch: fund.at.contribute + fund.at.dependency from one PDS
 // ---------------------------------------------------------------------------
 
@@ -152,8 +205,16 @@ export async function fetchFundAtRecords(
     // optional
   }
 
-  if (!contributeUrl && !dependencies) return null
-  return { contributeUrl, dependencies }
+  let manifest: FundingManifest | undefined
+  try {
+    const res = await readClient.get(fund.at.manifest, { repo })
+    manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
+  } catch {
+    // optional — record may not exist
+  }
+
+  if (!contributeUrl && !dependencies && !manifest) return null
+  return { contributeUrl, dependencies, manifest }
 }
 
 // ---------------------------------------------------------------------------
@@ -206,6 +267,14 @@ export async function fetchOwnFundAtRecords(
     // optional
   }
 
-  if (!contributeUrl && !dependencies) return null
-  return { contributeUrl, dependencies }
+  let manifest: FundingManifest | undefined
+  try {
+    const res = await client.get(fund.at.manifest)
+    manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
+  } catch {
+    // optional
+  }
+
+  if (!contributeUrl && !dependencies && !manifest) return null
+  return { contributeUrl, dependencies, manifest }
 }

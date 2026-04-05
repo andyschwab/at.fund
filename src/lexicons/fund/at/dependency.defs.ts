@@ -12,11 +12,19 @@ export { $nsid }
 type Main = {
   $type: 'fund.at.dependency'
 
-  /** The dependency identifier: a DID (did:plc:..., did:web:...) or a hostname (example.com). */
+  /**
+   * The dependency identifier: a DID (did:plc:..., did:web:...) or a hostname (example.com).
+   */
   uri: string
-  /** Optional human-readable name for this dependency (e.g. 'Bluesky', 'AT Protocol'). */
+
+  /**
+   * Optional human-readable name for this dependency (e.g. 'Bluesky', 'AT Protocol').
+   */
   label?: string
-  /** When this dependency was declared. */
+
+  /**
+   * When this dependency was declared.
+   */
   createdAt?: l.DatetimeString
 }
 
@@ -28,7 +36,7 @@ const main = l.record<'any', Main>(
   $nsid,
   l.object({
     uri: l.string(),
-    label: l.optional(l.string()),
+    label: l.optional(l.string({ maxLength: 128 })),
     createdAt: l.optional(l.string({ format: 'datetime' })),
   }),
 )

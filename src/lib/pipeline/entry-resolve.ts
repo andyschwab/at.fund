@@ -127,7 +127,10 @@ export async function resolveEntry(uri: string): Promise<ResolveResult> {
     ? fetchFundingManifest(hostname).catch(() => null)
     : Promise.resolve(null)
 
-  const [fundAt, manifest] = await Promise.all([fundAtPromise, manifestPromise])
+  const [fundAt, webManifest] = await Promise.all([fundAtPromise, manifestPromise])
+
+  // ATProto manifest wins over web funding.json
+  const fundingManifest = fundAt?.manifest ?? webManifest ?? undefined
 
   if (fundAt) {
     contributeUrl = fundAt.contributeUrl ?? manual?.contributeUrl
@@ -158,7 +161,7 @@ export async function resolveEntry(uri: string): Promise<ResolveResult> {
     contributeUrl,
     dependencies,
     source,
-    fundingManifest: manifest ?? undefined,
+    fundingManifest,
   }
 
   // ── 3. Capabilities — discover feeds + labeler from the DID's repo ────
