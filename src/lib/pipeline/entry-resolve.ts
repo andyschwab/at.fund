@@ -3,6 +3,7 @@ import type { StewardEntry, Capability } from '@/lib/steward-model'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
+import { fetchFundingManifest } from '@/lib/funding-manifest'
 import { xrpcQuery } from '@/lib/xrpc'
 import { resolveDependencies } from '@/lib/pipeline/dep-resolve'
 import { logger } from '@/lib/logger'
@@ -112,22 +113,29 @@ export async function resolveEntry(uri: string): Promise<ResolveResult> {
   let dependencies: string[] | undefined
   let source: 'fund.at' | 'manual' | 'unknown' = 'unknown'
 
-  if (did) {
-    try {
-      const fundAt = await fetchFundAtForStewardDid(did)
-      if (fundAt) {
-        contributeUrl = fundAt.contributeUrl ?? manual?.contributeUrl
-        dependencies = mergeDeps(
-          fundAt.dependencies?.map((d) => d.uri),
-          manual?.dependencies,
-        )
-        source = 'fund.at'
-      }
-    } catch (e) {
-      logger.warn('entry-resolve: fund.at fetch failed', {
-        uri, did, error: e instanceof Error ? e.message : String(e),
+  // Run fund.at and funding.json fetches concurrently
+  const fundAtPromise = did
+    ? fetchFundAtForStewardDid(did).catch((e) => {
+        logger.warn('entry-resolve: fund.at fetch failed', {
+          uri, did, error: e instanceof Error ? e.message : String(e),
+        })
+        return null
       })
-    }
+    : Promise.resolve(null)
+
+  const manifestPromise = hostname
+    ? fetchFundingManifest(hostname).catch(() => null)
+    : Promise.resolve(null)
+
+  const [fundAt, manifest] = await Promise.all([fundAtPromise, manifestPromise])
+
+  if (fundAt) {
+    contributeUrl = fundAt.contributeUrl ?? manual?.contributeUrl
+    dependencies = mergeDeps(
+      fundAt.dependencies?.map((d) => d.uri),
+      manual?.dependencies,
+    )
+    source = 'fund.at'
   }
 
   if (source === 'unknown' && manual) {
@@ -150,6 +158,7 @@ export async function resolveEntry(uri: string): Promise<ResolveResult> {
     contributeUrl,
     dependencies,
     source,
+    fundingManifest: manifest ?? undefined,
   }
 
   // ── 3. Capabilities — discover feeds + labeler from the DID's repo ────

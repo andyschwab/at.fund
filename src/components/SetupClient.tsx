@@ -329,6 +329,30 @@ export function SetupClient({ did, handle, existing }: Props) {
               </div>
             </div>
 
+            {/* funding.json education */}
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-5 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                Want richer funding cards?
+              </div>
+              <p className="mt-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+                Publish a{' '}
+                <code className="rounded bg-emerald-100 px-1 py-0.5 font-mono text-[11px] dark:bg-emerald-900/50">
+                  funding.json
+                </code>{' '}
+                file on your domain to show payment channels, tiers, and plans
+                directly on your at.fund card. It&apos;s an open standard — no
+                lock-in, works everywhere.
+              </p>
+              <a
+                href="https://fundingjson.org/"
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-block text-xs font-medium text-emerald-600 underline underline-offset-2 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-200"
+              >
+                Learn more at fundingjson.org
+              </a>
+            </div>
+
             {/* Dependencies */}
             <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/60">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">

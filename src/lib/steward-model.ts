@@ -1,3 +1,5 @@
+import type { FundingManifest } from '@/lib/funding-manifest'
+
 export type StewardSource = 'fund.at' | 'manual' | 'unknown'
 
 /**
@@ -49,4 +51,6 @@ export type StewardEntry = {
   source: StewardSource
   /** Feeds and labelers this account provides. */
   capabilities?: Capability[]
+  /** Optional enrichment from a funding.json manifest on the steward's domain. */
+  fundingManifest?: FundingManifest
 }

@@ -4,6 +4,7 @@ import type { StewardEntry, StewardTag } from '@/lib/steward-model'
 import { lookupManualStewardRecord } from '@/lib/catalog'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { fetchOwnFundAtRecords } from '@/lib/fund-at-records'
+import { fetchFundingManifest } from '@/lib/funding-manifest'
 import { xrpcQuery } from '@/lib/xrpc'
 import { logger } from '@/lib/logger'
 import type { AccountStub, UnresolvedService, ScanWarning } from './account-gather'
@@ -115,34 +116,44 @@ export async function enrichAccounts(
       landingPage,
     }
 
-    // 1. Try fund.at records by DID
-    try {
-      let fundAt
-      if (stub.did === session.did) {
-        const own = await fetchOwnFundAtRecords(session)
-        fundAt = own ? { stewardDid: stub.did, ...own } : null
-      } else {
-        fundAt = await fetchFundAtForStewardDid(stub.did)
-      }
-      if (fundAt) {
-        // Also check manual catalog for extra deps
-        const manual = lookupByAllKeys(stub)
-        const entry: StewardEntry = {
-          ...base,
-          contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
-          dependencies: mergeDeps(
-            fundAt.dependencies?.map((d) => d.uri),
-            manual?.dependencies,
-          ),
-          source: 'fund.at',
+    // 1a. Try fund.at records by DID
+    // 1b. Try funding.json by hostname (concurrent with 1a)
+    const fundAtPromise = (async () => {
+      try {
+        if (stub.did === session.did) {
+          const own = await fetchOwnFundAtRecords(session)
+          return own ? { stewardDid: stub.did, ...own } : null
         }
-        onEntry?.(entry)
-        return entry
+        return await fetchFundAtForStewardDid(stub.did)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'fund.at fetch failed'
+        logger.warn('enrich: fund.at fetch failed', { did: stub.did, error: msg })
+        warnings.push({ stewardUri: uri, step: 'fund-at-fetch', message: msg })
+        return null
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'fund.at fetch failed'
-      logger.warn('enrich: fund.at fetch failed', { did: stub.did, error: msg })
-      warnings.push({ stewardUri: uri, step: 'fund-at-fetch', message: msg })
+    })()
+
+    const manifestPromise = hostname
+      ? fetchFundingManifest(hostname).catch(() => null)
+      : Promise.resolve(null)
+
+    const [fundAt, manifest] = await Promise.all([fundAtPromise, manifestPromise])
+
+    if (fundAt) {
+      // Also check manual catalog for extra deps
+      const manual = lookupByAllKeys(stub)
+      const entry: StewardEntry = {
+        ...base,
+        contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
+        dependencies: mergeDeps(
+          fundAt.dependencies?.map((d) => d.uri),
+          manual?.dependencies,
+        ),
+        source: 'fund.at',
+        fundingManifest: manifest ?? undefined,
+      }
+      onEntry?.(entry)
+      return entry
     }
 
     // 2. Try manual catalog by ALL keys (DID, hostnames, handle)
@@ -153,21 +164,33 @@ export async function enrichAccounts(
         contributeUrl: manual.contributeUrl,
         dependencies: manual.dependencies,
         source: 'manual',
+        fundingManifest: manifest ?? undefined,
       }
       onEntry?.(entry)
       return entry
     }
 
     // 3. Fallback — unknown source
-    const entry: StewardEntry = { ...base, source: 'unknown' }
+    const entry: StewardEntry = {
+      ...base,
+      source: 'unknown',
+      fundingManifest: manifest ?? undefined,
+    }
     onEntry?.(entry)
     return entry
   })
 
   // ── Resolve unresolved services (hostname-only, no DID) ────────────────
   const unresolvedEntries: StewardEntry[] = []
-  for (const svc of unresolvedServices) {
+  const unresolvedManifests = await Promise.all(
+    unresolvedServices.map((svc) =>
+      fetchFundingManifest(svc.hostname).catch(() => null),
+    ),
+  )
+  for (let i = 0; i < unresolvedServices.length; i++) {
+    const svc = unresolvedServices[i]!
     const manual = lookupManualStewardRecord(svc.hostname)
+    const manifest = unresolvedManifests[i]
     const entry: StewardEntry = {
       uri: svc.hostname,
       tags: svc.tags,
@@ -175,6 +198,7 @@ export async function enrichAccounts(
       source: manual ? 'manual' : 'unknown',
       contributeUrl: manual?.contributeUrl,
       dependencies: manual?.dependencies,
+      fundingManifest: manifest ?? undefined,
     }
     unresolvedEntries.push(entry)
     onEntry?.(entry)
