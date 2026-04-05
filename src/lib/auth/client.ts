@@ -42,6 +42,13 @@ const safeFetch: typeof globalThis.fetch = async (input, init) => {
 
 export const SCOPE = [
   'atproto',
+  // New grouped NSIDs
+  'repo:fund.at.actor.declaration',
+  'repo:fund.at.funding.contribute',
+  'repo:fund.at.funding.manifest',
+  'repo:fund.at.graph.dependency',
+  'repo:fund.at.graph.endorse',
+  // Legacy NSIDs (needed for migration reads/deletes)
   'repo:fund.at.contribute',
   'repo:fund.at.dependency',
   'repo:fund.at.endorse',

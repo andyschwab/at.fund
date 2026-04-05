@@ -198,6 +198,8 @@ export function SetupClient({ did, handle, existing }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [migrating, setMigrating] = useState(false)
+  const [migrated, setMigrated] = useState(false)
 
   const uid = useId()
   const f = (name: string) => `${uid}-${name}`
@@ -325,6 +327,21 @@ export function SetupClient({ did, handle, existing }: Props) {
     return () => { cancelled = true }
   }, [depUris])
 
+  async function handleMigrate() {
+    setMigrating(true)
+    setErr(null)
+    try {
+      const res = await authFetch('/api/migrate', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || data.error || 'Migration failed')
+      setMigrated(true)
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : 'Migration failed. Try again.')
+    } finally {
+      setMigrating(false)
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (hasErrors) return
@@ -398,6 +415,36 @@ export function SetupClient({ did, handle, existing }: Props) {
           </ul>
         </section>
 
+        {/* Migration banner */}
+        {existing?.needsMigration && !migrated && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950/30">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+              Your records use an older format
+            </p>
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+              We&apos;ve restructured the fund.at lexicons into grouped namespaces
+              (fund.at.funding.*, fund.at.graph.*). Your existing data will continue
+              to work, but migrating ensures compatibility going forward.
+            </p>
+            <button
+              type="button"
+              onClick={handleMigrate}
+              disabled={migrating}
+              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {migrating ? 'Migrating…' : 'Update my records'}
+            </button>
+          </div>
+        )}
+        {migrated && (
+          <div className="flex items-center gap-2 rounded-xl border border-[var(--support-border)] bg-[var(--support-muted)] p-4">
+            <CheckCircle2 className="h-4 w-4 text-[var(--support)]" />
+            <p className="text-sm text-[var(--support)]">
+              Records migrated successfully. Your data is now in the latest format.
+            </p>
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
@@ -439,7 +486,7 @@ export function SetupClient({ did, handle, existing }: Props) {
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Where people can send you money — GitHub Sponsors, Open Collective,
                 Ko-fi, PayPal, or any payment URL. These are published as a{' '}
-                <code className="font-mono text-[11px]">fund.at.manifest</code>{' '}
+                <code className="font-mono text-[11px]">fund.at.funding.manifest</code>{' '}
                 record on your PDS with DID-signed provenance.
                 Also compatible with the{' '}
                 <a href="https://fundingjson.org/" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-slate-700 dark:hover:text-slate-200">

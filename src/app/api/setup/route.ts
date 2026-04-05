@@ -160,48 +160,54 @@ export async function POST(request: NextRequest) {
   const uri = (v: string) => l.asStringFormat(v, 'uri')
 
   try {
-    // Write fund.at.contribute (singleton with rkey "self")
+    // Write fund.at.funding.contribute (singleton with rkey "self")
     if (payload.contributeUrl) {
-      await client.put(fund.at.contribute, {
+      await client.put(fund.at.funding.contribute, {
         url: uri(payload.contributeUrl),
         createdAt,
       })
     }
 
-    // Write fund.at.dependency records (one per dependency)
+    // Write fund.at.graph.dependency records (one per dependency)
     if (payload.dependencies) {
       for (const dep of payload.dependencies) {
-        await client.put(fund.at.dependency, {
-          uri: dep.uri,
+        await client.put(fund.at.graph.dependency, {
+          subject: dep.uri,
           ...(dep.label && { label: dep.label }),
           createdAt,
         }, { rkey: dep.uri })
       }
     }
 
-    // Write fund.at.manifest (singleton with rkey "self")
+    // Write fund.at.funding.manifest (singleton with rkey "self")
     if (payload.manifest) {
-      await client.put(fund.at.manifest, {
+      await client.put(fund.at.funding.manifest, {
         channels: payload.manifest.channels.map((ch) => ({
-          id: ch.id,
-          ...(ch.type && { type: ch.type }),
+          channelId: ch.id,
+          ...(ch.type && { channelType: ch.type }),
           uri: uri(ch.uri),
           ...(ch.description && { description: ch.description }),
         })),
         ...(payload.manifest.plans && {
           plans: payload.manifest.plans.map((p) => ({
-            id: p.id,
+            planId: p.id,
             name: p.name,
             ...(p.description && { description: p.description }),
             amount: Math.round(p.amount * 100), // store as cents
             currency: p.currency,
             frequency: p.frequency,
-            ...(p.channels && { channels: p.channels }),
+            ...(p.channels && {
+              channels: p.channels.map((c) => ({ channelId: c })),
+            }),
           })),
         }),
         createdAt,
       })
     }
+
+    // Write fund.at.actor.declaration (singleton with rkey "self")
+    // Ensures the account is discoverable in the ecosystem
+    await client.put(fund.at.actor.declaration, { createdAt })
 
     logger.info('setup: records published', { did: session.did })
     return NextResponse.json({ success: true })

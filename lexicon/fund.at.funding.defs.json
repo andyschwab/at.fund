@@ -1,0 +1,101 @@
+{
+  "lexicon": 1,
+  "id": "fund.at.funding.defs",
+  "description": "Reusable definitions for fund.at funding metadata. Designed for use by fund.at.funding.manifest and any future record types or third-party integrations.",
+  "defs": {
+    "channel": {
+      "type": "object",
+      "description": "A single payment channel where contributions can be made.",
+      "required": ["channelId", "uri"],
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Slug identifier for this channel, unique within the manifest (e.g. 'github-sponsors', 'open-collective')."
+        },
+        "channelType": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Channel category.",
+          "knownValues": [
+            "payment-provider",
+            "bank",
+            "other"
+          ]
+        },
+        "uri": {
+          "type": "string",
+          "format": "uri",
+          "description": "The payment URL for this channel (e.g. https://github.com/sponsors/you)."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "Human-readable description of this channel."
+        }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "description": "A funding plan or tier with a suggested amount.",
+      "required": ["planId", "name"],
+      "properties": {
+        "planId": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Slug identifier for this plan, unique within the manifest."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Human-readable plan name (e.g. 'Supporter', 'Sustainer')."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "What this plan covers or how the funds are used."
+        },
+        "amount": {
+          "type": "integer",
+          "description": "Suggested amount in the smallest currency unit (e.g. cents for USD). Use 0 for 'any amount'."
+        },
+        "currency": {
+          "type": "string",
+          "maxLength": 3,
+          "description": "ISO 4217 currency code (e.g. 'USD', 'EUR')."
+        },
+        "frequency": {
+          "type": "string",
+          "maxLength": 16,
+          "description": "How often the plan is billed.",
+          "knownValues": [
+            "one-time",
+            "monthly",
+            "yearly",
+            "other"
+          ]
+        },
+        "channels": {
+          "type": "array",
+          "description": "Channel IDs where this plan can be fulfilled. If omitted, all channels apply.",
+          "items": {
+            "type": "ref",
+            "ref": "#channelRef"
+          }
+        }
+      }
+    },
+    "channelRef": {
+      "type": "object",
+      "description": "A reference to a channel by its ID.",
+      "required": ["channelId"],
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "The channelId of the referenced channel."
+        }
+      }
+    }
+  }
+}

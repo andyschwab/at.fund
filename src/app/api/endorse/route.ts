@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   const createdAt = l.toDatetimeString(new Date())
 
   try {
-    await client.put(fund.at.endorse, { uri, createdAt }, { rkey: uri })
+    await client.put(fund.at.graph.endorse, { subject: uri, createdAt }, { rkey: uri })
     logger.info('endorse: record created', { did: session.did, uri })
     return NextResponse.json({ success: true })
   } catch (e) {

@@ -1,0 +1,46 @@
+{
+  "lexicon": 1,
+  "id": "fund.at.actor.declaration",
+  "description": "Signaling record indicating this account participates in the fund.at funding ecosystem. Its existence is the signal — all fields are optional enrichment.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "The account's fund.at declaration. Create to join the ecosystem, delete to leave. A backfill service can enumerate all participants by scanning for this record.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "entityType": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "What kind of entity this account represents.",
+            "knownValues": [
+              "individual",
+              "group",
+              "organisation",
+              "other"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "The account's role relative to the projects it stewards.",
+            "knownValues": [
+              "owner",
+              "steward",
+              "maintainer",
+              "contributor",
+              "other"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this declaration was created or last updated."
+          }
+        }
+      }
+    }
+  }
+}

@@ -7,7 +7,7 @@ import { logger } from '@/lib/logger'
 // ---------------------------------------------------------------------------
 //
 // Single-pass approach: for each candidate DID (e.g. follows), query their
-// PDS for all fund.at.endorse records. This is O(DIDs), not O(DIDs × URIs).
+// PDS for all fund.at.graph.endorse records. This is O(DIDs), not O(DIDs × URIs).
 // We use Slingshot's resolveMiniDoc to get PDS URLs, then listRecords
 // directly from each PDS.
 // ---------------------------------------------------------------------------
@@ -91,43 +91,49 @@ async function resolvePds(did: string): Promise<string | null> {
 type ListRecordsResponse = {
   records?: Array<{
     uri?: string
-    value?: { uri?: string; [key: string]: unknown }
+    value?: { subject?: string; uri?: string; [key: string]: unknown }
   }>
 }
 
 /**
- * Fetch all fund.at.endorse records for a single DID from its PDS.
+ * Fetch all fund.at.graph.endorse records for a single DID from its PDS.
+ * Falls back to legacy fund.at.endorse collection.
  * Returns the endorsed URIs (normalized).
  */
 async function fetchEndorsementsForDid(
   did: string,
   pdsUrl: string,
 ): Promise<string[]> {
-  try {
-    const params = new URLSearchParams({
-      repo: did,
-      collection: 'fund.at.endorse',
-      limit: '100',
-    })
-    const res = await fetch(
-      `${pdsUrl}/xrpc/com.atproto.repo.listRecords?${params}`,
-      { headers: HEADERS },
-    )
-    if (!res.ok) return []
+  // Try new NSID first, fall back to legacy
+  for (const collection of ['fund.at.graph.endorse', 'fund.at.endorse']) {
+    try {
+      const params = new URLSearchParams({
+        repo: did,
+        collection,
+        limit: '100',
+      })
+      const res = await fetch(
+        `${pdsUrl}/xrpc/com.atproto.repo.listRecords?${params}`,
+        { headers: HEADERS },
+      )
+      if (!res.ok) continue
 
-    const data = (await res.json()) as ListRecordsResponse
-    const uris: string[] = []
-    for (const record of data.records ?? []) {
-      const raw = record.value?.uri
-      if (typeof raw === 'string' && raw.trim()) {
-        const normalized = normalizeStewardUri(raw) ?? raw.trim()
-        uris.push(normalized)
+      const data = (await res.json()) as ListRecordsResponse
+      const uris: string[] = []
+      for (const record of data.records ?? []) {
+        // New schema uses 'subject', legacy uses 'uri'
+        const raw = record.value?.subject ?? record.value?.uri
+        if (typeof raw === 'string' && raw.trim()) {
+          const normalized = normalizeStewardUri(raw) ?? raw.trim()
+          uris.push(normalized)
+        }
       }
+      if (uris.length > 0) return uris
+    } catch {
+      continue
     }
-    return uris
-  } catch {
-    return []
   }
+  return []
 }
 
 /**
@@ -151,7 +157,7 @@ export async function collectNetworkEndorsements(
     if (!pdsUrl) return
     resolvedCount++
 
-    // Step 2: List all fund.at.endorse records
+    // Step 2: List all fund.at.graph.endorse records
     const endorsedUris = await fetchEndorsementsForDid(did, pdsUrl)
     if (endorsedUris.length === 0) return
     withRecords++

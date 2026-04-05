@@ -59,9 +59,15 @@ vi.mock('@/lib/atfund-uri', () => ({
 
 // Mock fund-at-records identity resolution
 vi.mock('@/lib/fund-at-records', () => ({
-  FUND_CONTRIBUTE: 'fund.at.contribute',
-  FUND_DEPENDENCY: 'fund.at.dependency',
-  FUND_ENDORSE: 'fund.at.endorse',
+  FUND_DECLARATION: 'fund.at.actor.declaration',
+  FUND_CONTRIBUTE: 'fund.at.funding.contribute',
+  FUND_MANIFEST: 'fund.at.funding.manifest',
+  FUND_DEPENDENCY: 'fund.at.graph.dependency',
+  FUND_ENDORSE: 'fund.at.graph.endorse',
+  LEGACY_CONTRIBUTE: 'fund.at.contribute',
+  LEGACY_MANIFEST: 'fund.at.manifest',
+  LEGACY_DEPENDENCY: 'fund.at.dependency',
+  LEGACY_ENDORSE: 'fund.at.endorse',
   resolveHandleFromDid: vi.fn().mockResolvedValue(undefined),
   resolveDidFromIdentifier: vi.fn().mockResolvedValue(undefined),
   resolvePdsUrl: vi.fn().mockResolvedValue(null),
