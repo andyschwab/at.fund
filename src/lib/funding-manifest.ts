@@ -27,15 +27,6 @@ export type FundingPlan = {
   channels: string[] // references Channel GUIDs
 }
 
-export type FundingHistory = {
-  year: number
-  income: number
-  expenses: number
-  taxes: number
-  currency: string
-  description?: string
-}
-
 export type FundingManifest = {
   version: string
   entity: {
@@ -47,7 +38,6 @@ export type FundingManifest = {
   funding: {
     channels: FundingChannel[]
     plans: FundingPlan[]
-    history?: FundingHistory[]
   }
 }
 
@@ -186,24 +176,6 @@ export function parseFundingManifest(json: unknown): FundingManifest | null {
     }
   }
 
-  // Parse history (optional)
-  const history: FundingHistory[] = []
-  if (Array.isArray(funding.history)) {
-    for (const h of funding.history) {
-      if (!h || typeof h !== 'object') continue
-      const hi = h as Record<string, unknown>
-      if (typeof hi.year !== 'number') continue
-      history.push({
-        year: hi.year,
-        income: typeof hi.income === 'number' ? hi.income : 0,
-        expenses: typeof hi.expenses === 'number' ? hi.expenses : 0,
-        taxes: typeof hi.taxes === 'number' ? hi.taxes : 0,
-        currency: typeof hi.currency === 'string' ? hi.currency : 'USD',
-        description: typeof hi.description === 'string' ? hi.description : undefined,
-      })
-    }
-  }
-
   // Parse entity (best-effort)
   const rawEntity = obj.entity as Record<string, unknown> | undefined
   const entity = {
@@ -219,7 +191,6 @@ export function parseFundingManifest(json: unknown): FundingManifest | null {
     funding: {
       channels,
       plans,
-      history: history.length > 0 ? history : undefined,
     },
   }
 }

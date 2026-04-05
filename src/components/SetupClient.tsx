@@ -16,7 +16,7 @@ import { StewardCard } from '@/components/ProjectCards'
 import { HandleChipInput } from '@/components/HandleChipInput'
 import type { ChipItem } from '@/components/HandleChipInput'
 import type { StewardEntry } from '@/lib/steward-model'
-import type { FundingManifest } from '@/lib/funding-manifest'
+import type { FundingChannel, FundingPlan } from '@/lib/funding-manifest'
 import type { FundAtResult } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
 import { useSession } from '@/components/SessionContext'
@@ -69,7 +69,7 @@ function initialFormState(existing: FundAtResult | null): FormState {
     })) ?? []
 
   const channels: ChannelRow[] =
-    existing?.manifest?.funding.channels.map((ch) => ({
+    existing?.channels?.map((ch) => ({
       id: nextId(),
       slug: ch.guid,
       type: ch.type,
@@ -78,7 +78,7 @@ function initialFormState(existing: FundAtResult | null): FormState {
     })) ?? []
 
   const plans: PlanRow[] =
-    existing?.manifest?.funding.plans.map((p) => ({
+    existing?.plans?.map((p) => ({
       id: nextId(),
       slug: p.guid,
       name: p.name,
@@ -229,34 +229,31 @@ export function SetupClient({ did, handle, existing }: Props) {
     return () => { cancelled = true }
   }, [did])
 
-  // Build a live preview FundingManifest from form channels/plans
-  const previewManifest: FundingManifest | undefined = useMemo(() => {
+  // Build live preview channels/plans from form state
+  const previewChannels: FundingChannel[] | undefined = useMemo(() => {
     if (validChannels.length === 0) return undefined
-    return {
-      version: 'v1.0.0',
-      entity: { type: 'other', role: 'other', name: '', description: '' },
-      funding: {
-        channels: validChannels.map((ch) => ({
-          guid: ch.slug.trim(),
-          type: (ch.type || 'other') as 'payment-provider' | 'bank' | 'other',
-          address: ch.uri.trim(),
-          description: ch.description.trim() || undefined,
-        })),
-        plans: form.plans
-          .filter((p) => p.slug.trim() && p.name.trim())
-          .map((p) => ({
-            guid: p.slug.trim(),
-            status: 'active' as const,
-            name: p.name.trim(),
-            description: p.description.trim() || undefined,
-            amount: parseFloat(p.amount) || 0,
-            currency: p.currency || 'USD',
-            frequency: (p.frequency || 'other') as 'one-time' | 'monthly' | 'yearly' | 'other',
-            channels: p.channels.length > 0 ? p.channels : [],
-          })),
-      },
-    }
-  }, [validChannels, form.plans])
+    return validChannels.map((ch) => ({
+      guid: ch.slug.trim(),
+      type: (ch.type || 'other') as 'payment-provider' | 'bank' | 'other',
+      address: ch.uri.trim(),
+      description: ch.description.trim() || undefined,
+    }))
+  }, [validChannels])
+
+  const previewPlans: FundingPlan[] | undefined = useMemo(() => {
+    const valid = form.plans.filter((p) => p.slug.trim() && p.name.trim())
+    if (valid.length === 0) return undefined
+    return valid.map((p) => ({
+      guid: p.slug.trim(),
+      status: 'active' as const,
+      name: p.name.trim(),
+      description: p.description.trim() || undefined,
+      amount: parseFloat(p.amount) || 0,
+      currency: p.currency || 'USD',
+      frequency: (p.frequency || 'other') as 'one-time' | 'monthly' | 'yearly' | 'other',
+      channels: p.channels.length > 0 ? p.channels : [],
+    }))
+  }, [form.plans])
 
   // Live preview model — form fields override, enriched fields fill in the rest
   const previewModel: StewardEntry = useMemo(
@@ -275,9 +272,10 @@ export function SetupClient({ did, handle, existing }: Props) {
         .filter((d) => d.uri.trim())
         .map((d) => d.uri.trim()),
       source: 'fund.at' as const,
-      fundingManifest: previewManifest,
+      channels: previewChannels,
+      plans: previewPlans,
     }),
-    [form, did, handle, contributeUrlError, enriched, previewManifest],
+    [form, did, handle, contributeUrlError, enriched, previewChannels, previewPlans],
   )
 
   // Resolve dependency entries so the preview card can show enriched info
@@ -342,16 +340,18 @@ export function SetupClient({ did, handle, existing }: Props) {
     setSaved(false)
 
     try {
-      const manifestPayload = validChannels.length > 0 ? {
-        channels: validChannels.map((ch) => ({
-          id: ch.slug.trim(),
-          type: ch.type || 'other',
-          uri: ch.uri.trim(),
-          ...(ch.description.trim() && { description: ch.description.trim() }),
-        })),
-        plans: form.plans
-          .filter((p) => p.slug.trim() && p.name.trim())
-          .map((p) => ({
+      const channelsPayload = validChannels.length > 0
+        ? validChannels.map((ch) => ({
+            id: ch.slug.trim(),
+            type: ch.type || 'other',
+            uri: ch.uri.trim(),
+            ...(ch.description.trim() && { description: ch.description.trim() }),
+          }))
+        : undefined
+
+      const plansPayload = form.plans.filter((p) => p.slug.trim() && p.name.trim())
+      const plansList = plansPayload.length > 0
+        ? plansPayload.map((p) => ({
             id: p.slug.trim(),
             name: p.name.trim(),
             ...(p.description.trim() && { description: p.description.trim() }),
@@ -359,8 +359,8 @@ export function SetupClient({ did, handle, existing }: Props) {
             currency: p.currency || 'USD',
             frequency: p.frequency || 'other',
             ...(p.channels.length > 0 && { channels: p.channels }),
-          })),
-      } : undefined
+          }))
+        : undefined
 
       const res = await authFetch('/api/setup', {
         method: 'POST',
@@ -373,10 +373,13 @@ export function SetupClient({ did, handle, existing }: Props) {
               uri: d.uri.trim(),
               ...(d.label.trim() && { label: d.label.trim() }),
             })),
-          manifest: manifestPayload,
+          channels: channelsPayload,
+          plans: plansList,
           existing: existing ? {
             contributeUrl: existing.contributeUrl || undefined,
             dependencies: existing.dependencies?.map((d) => ({ uri: d.uri })),
+            channelIds: existing.channels?.map((c) => c.guid),
+            planIds: existing.plans?.map((p) => p.guid),
           } : undefined,
         }),
       })
@@ -472,7 +475,7 @@ export function SetupClient({ did, handle, existing }: Props) {
               </div>
             </div>
 
-            {/* Funding manifest — channels & plans */}
+            {/* Funding channels & plans */}
             <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/60">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                 <Wallet className="h-4 w-4 text-[var(--support)]" aria-hidden />
@@ -480,9 +483,8 @@ export function SetupClient({ did, handle, existing }: Props) {
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Where people can send you money — GitHub Sponsors, Open Collective,
-                Ko-fi, PayPal, or any payment URL. These are published as a{' '}
-                <code className="font-mono text-[11px]">fund.at.funding.manifest</code>{' '}
-                record on your PDS with DID-signed provenance.
+                Ko-fi, PayPal, or any payment URL. Each channel and plan is published as an
+                individual record on your PDS with DID-signed provenance.
                 Also compatible with the{' '}
                 <a href="https://fundingjson.org/" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-slate-700 dark:hover:text-slate-200">
                   funding.json

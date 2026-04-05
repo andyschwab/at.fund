@@ -163,9 +163,9 @@ export function StewardCard({
         </div>
       )}
 
-      {entry.fundingManifest && (
+      {(entry.channels || entry.plans) && (
         <div className="pl-12">
-          <FundingChannelsSection manifest={entry.fundingManifest} />
+          <FundingChannelsSection channels={entry.channels} plans={entry.plans} />
         </div>
       )}
 

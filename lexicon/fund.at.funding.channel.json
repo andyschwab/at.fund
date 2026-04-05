@@ -1,0 +1,45 @@
+{
+  "lexicon": 1,
+  "id": "fund.at.funding.channel",
+  "description": "A single payment channel where contributions can be made. Each channel is an individual record keyed by its slug ID. Maps to a funding.json channel entry.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A payment channel — a specific place where contributions can be received (e.g. a GitHub Sponsors page, an Open Collective profile, a bank account). Each channel is an independent record, individually addressable by its AT URI.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["channelType"],
+        "properties": {
+          "channelType": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "Channel category. Maps to funding.json channel.type.",
+            "knownValues": [
+              "payment-provider",
+              "bank",
+              "cheque",
+              "cash",
+              "other"
+            ]
+          },
+          "uri": {
+            "type": "string",
+            "format": "uri",
+            "description": "The payment URL for this channel (e.g. https://github.com/sponsors/you). Optional for channels without a public URL (e.g. bank transfers). Maps to funding.json channel.address."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Human-readable description of this channel."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this record was created or last updated."
+          }
+        }
+      }
+    }
+  }
+}

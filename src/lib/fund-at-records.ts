@@ -4,14 +4,14 @@ import type { OAuthSession } from '@atproto/oauth-client'
 import { Client } from '@atproto/lex'
 import type { AtIdentifierString } from '@atproto/lex-client'
 import * as fund from '@/lexicons/fund'
-import type { FundingManifest, FundingHistory } from '@/lib/funding-manifest'
+import type { FundingChannel, FundingPlan } from '@/lib/funding-manifest'
 import { xrpcQuery } from '@/lib/xrpc'
 
 // New grouped NSIDs
 export const FUND_DECLARATION = 'fund.at.actor.declaration'
 export const FUND_CONTRIBUTE = 'fund.at.funding.contribute'
-export const FUND_MANIFEST = 'fund.at.funding.manifest'
-export const FUND_HISTORY = 'fund.at.funding.history'
+export const FUND_CHANNEL = 'fund.at.funding.channel'
+export const FUND_PLAN = 'fund.at.funding.plan'
 export const FUND_DEPENDENCY = 'fund.at.graph.dependency'
 export const FUND_ENDORSE = 'fund.at.graph.endorse'
 
@@ -33,9 +33,10 @@ const didDocCache = (gDid.__didDocCache ??= new Map())
 export type FundAtResult = {
   contributeUrl?: string
   dependencies?: Array<{ uri: string; label?: string }>
-  manifest?: FundingManifest
-  /** Annual financial history from fund.at.funding.history records. */
-  history?: FundingHistory[]
+  /** Payment channels from fund.at.funding.channel records. */
+  channels?: FundingChannel[]
+  /** Funding plans/tiers from fund.at.funding.plan records. */
+  plans?: FundingPlan[]
   /** True if any records were found using legacy NSIDs (migration needed). */
   needsMigration?: boolean
 }
@@ -122,57 +123,88 @@ export async function resolvePdsUrl(stewardDid: string): Promise<URL | null> {
 }
 
 // ---------------------------------------------------------------------------
-// ATProto manifest → FundingManifest conversion
+// ATProto record → FundingChannel/FundingPlan conversion helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Converts a fund.at.funding.manifest (or legacy fund.at.manifest) record
- * value into a FundingManifest. Handles both old field names (id, type) and
- * new ones (channelId, channelType).
- */
-function atprotoManifestToFundingManifest(
-  value: Record<string, unknown>,
-): FundingManifest | null {
-  const channels = value.channels as Array<Record<string, unknown>> | undefined
-  if (!Array.isArray(channels) || channels.length === 0) return null
+const CHANNEL_TYPES = ['bank', 'payment-provider', 'cheque', 'cash', 'other'] as const
+type ChannelType = (typeof CHANNEL_TYPES)[number]
 
+function parseChannelRecord(rkey: string, value: Record<string, unknown>): FundingChannel {
+  const rawType = value.channelType as string | undefined
   return {
-    version: 'v1.0.0',
-    entity: { type: 'other', role: 'other', name: '', description: '' },
-    funding: {
-      channels: channels.map((ch) => ({
-        guid: String(ch.channelId ?? ch.id ?? ''),
-        type: (['bank', 'payment-provider', 'cheque', 'cash', 'other'] as const).includes(
-          (ch.channelType ?? ch.type) as 'bank' | 'payment-provider' | 'cheque' | 'cash' | 'other',
-        )
-          ? ((ch.channelType ?? ch.type) as 'bank' | 'payment-provider' | 'cheque' | 'cash' | 'other')
-          : 'other',
-        address: String(ch.uri ?? ''),
-        description: ch.description ? String(ch.description) : undefined,
-      })),
-      plans: Array.isArray(value.plans)
-        ? (value.plans as Array<Record<string, unknown>>).map((p) => ({
-            guid: String(p.planId ?? p.id ?? ''),
-            status: p.status === 'inactive' ? 'inactive' as const : 'active' as const,
-            name: String(p.name ?? ''),
-            description: p.description ? String(p.description) : undefined,
-            amount: typeof p.amount === 'number' ? p.amount / 100 : 0,
-            currency: String(p.currency ?? 'USD'),
-            frequency: (['one-time', 'weekly', 'fortnightly', 'monthly', 'yearly', 'other'] as const)
-              .includes(p.frequency as 'one-time' | 'weekly' | 'fortnightly' | 'monthly' | 'yearly' | 'other')
-              ? (p.frequency as 'one-time' | 'weekly' | 'fortnightly' | 'monthly' | 'yearly' | 'other')
-              : 'other',
-            channels: Array.isArray(p.channels)
-              ? p.channels.map((c: unknown) =>
-                  typeof c === 'object' && c && 'channelId' in c
-                    ? String((c as Record<string, unknown>).channelId)
-                    : typeof c === 'string' ? c : '',
-                ).filter(Boolean)
-              : [],
-          }))
-        : [],
-    },
+    guid: rkey,
+    type: CHANNEL_TYPES.includes(rawType as ChannelType) ? (rawType as ChannelType) : 'other',
+    address: typeof value.uri === 'string' ? value.uri : '',
+    description: typeof value.description === 'string' ? value.description : undefined,
   }
+}
+
+const FREQUENCIES = ['one-time', 'weekly', 'fortnightly', 'monthly', 'yearly', 'other'] as const
+type Frequency = (typeof FREQUENCIES)[number]
+
+function parsePlanRecord(rkey: string, value: Record<string, unknown>): FundingPlan | null {
+  if (typeof value.name !== 'string') return null
+  return {
+    guid: rkey,
+    status: value.status === 'inactive' ? 'inactive' : 'active',
+    name: value.name,
+    description: typeof value.description === 'string' ? value.description : undefined,
+    amount: typeof value.amount === 'number' ? value.amount : 0,
+    currency: typeof value.currency === 'string' ? value.currency : 'USD',
+    frequency: FREQUENCIES.includes(value.frequency as Frequency)
+      ? (value.frequency as Frequency)
+      : 'other',
+    channels: Array.isArray(value.channels)
+      ? value.channels.filter((c): c is string => typeof c === 'string')
+      : [],
+  }
+}
+
+/**
+ * Parses a legacy fund.at.manifest record into channels + plans.
+ * Handles both old field names (id, type) and new ones (channelId, channelType).
+ */
+function parseLegacyManifest(
+  value: Record<string, unknown>,
+): { channels: FundingChannel[]; plans: FundingPlan[] } | null {
+  const rawChannels = value.channels as Array<Record<string, unknown>> | undefined
+  if (!Array.isArray(rawChannels) || rawChannels.length === 0) return null
+
+  const channels: FundingChannel[] = rawChannels.map((ch) => ({
+    guid: String(ch.channelId ?? ch.id ?? ''),
+    type: CHANNEL_TYPES.includes((ch.channelType ?? ch.type) as ChannelType)
+      ? ((ch.channelType ?? ch.type) as ChannelType)
+      : 'other',
+    address: String(ch.uri ?? ''),
+    description: ch.description ? String(ch.description) : undefined,
+  }))
+
+  const plans: FundingPlan[] = []
+  if (Array.isArray(value.plans)) {
+    for (const p of value.plans as Array<Record<string, unknown>>) {
+      if (typeof p.name !== 'string') continue
+      plans.push({
+        guid: String(p.planId ?? p.id ?? ''),
+        status: p.status === 'inactive' ? 'inactive' : 'active',
+        name: p.name,
+        description: p.description ? String(p.description) : undefined,
+        amount: typeof p.amount === 'number' ? p.amount / 100 : 0,
+        currency: String(p.currency ?? 'USD'),
+        frequency: FREQUENCIES.includes(p.frequency as Frequency)
+          ? (p.frequency as Frequency)
+          : 'other',
+        channels: Array.isArray(p.channels)
+          ? (p.channels as unknown[]).map((c) =>
+              typeof c === 'object' && c && 'channelId' in c
+                ? String((c as Record<string, unknown>).channelId)
+                : typeof c === 'string' ? c : '',
+            ).filter(Boolean)
+          : [],
+      })
+    }
+  }
+
+  return { channels, plans }
 }
 
 // ---------------------------------------------------------------------------
@@ -258,52 +290,55 @@ export async function fetchFundAtRecords(
   const dependencies = dependencyResult.deps
   if (contributeResult.legacy || dependencyResult.legacy) needsMigration = true
 
-  // ── Manifest + History: fetch in parallel ──────────────────────────────
-  let manifest: FundingManifest | undefined
-  let history: FundingHistory[] | undefined
+  // ── Channels + Plans: try new individual records, fall back to legacy manifest ──
+  let channels: FundingChannel[] | undefined
+  let plans: FundingPlan[] | undefined
 
-  const [, historyRecords] = await Promise.all([
-    // Manifest: try new, fall back to legacy
-    (async () => {
+  const [channelRecords, planRecords] = await Promise.all([
+    (async (): Promise<FundingChannel[]> => {
       try {
-        const res = await readClient.get(fund.at.funding.manifest, { repo })
-        manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
+        const res = await readClient.list(fund.at.funding.channel, { repo, limit: 50 })
+        return res.records.map((r) => {
+          const rkey = r.uri.split('/').pop() ?? ''
+          return parseChannelRecord(rkey, r.value as Record<string, unknown>)
+        })
       } catch {
-        try {
-          const res = await readClient.get(fund.at.manifest, { repo })
-          manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
-          if (manifest) needsMigration = true
-        } catch { /* neither exists */ }
+        return []
       }
     })(),
-    // History: list fund.at.funding.history records
-    (async (): Promise<FundingHistory[]> => {
+    (async (): Promise<FundingPlan[]> => {
       try {
-        const res = await readClient.list(fund.at.funding.history, { repo, limit: 50 })
+        const res = await readClient.list(fund.at.funding.plan, { repo, limit: 50 })
         return res.records
           .map((r) => {
-            const v = r.value as Record<string, unknown>
-            if (typeof v.year !== 'number') return null
-            return {
-              year: v.year,
-              income: typeof v.income === 'number' ? v.income : 0,
-              expenses: typeof v.expenses === 'number' ? v.expenses : 0,
-              taxes: typeof v.taxes === 'number' ? v.taxes : 0,
-              currency: typeof v.currency === 'string' ? v.currency : 'USD',
-              description: typeof v.description === 'string' ? v.description : undefined,
-            } as FundingHistory
+            const rkey = r.uri.split('/').pop() ?? ''
+            return parsePlanRecord(rkey, r.value as Record<string, unknown>)
           })
-          .filter((h): h is FundingHistory => h !== null)
+          .filter((p): p is FundingPlan => p !== null)
       } catch {
         return []
       }
     })(),
   ])
 
-  if (historyRecords.length > 0) history = historyRecords
+  if (channelRecords.length > 0) channels = channelRecords
+  if (planRecords.length > 0) plans = planRecords
 
-  if (!contributeUrl && !dependencies && !manifest && !history) return null
-  return { contributeUrl, dependencies, manifest, history, needsMigration: needsMigration || undefined }
+  // Fall back to legacy manifest if no individual channels found
+  if (!channels) {
+    try {
+      const res = await readClient.get(fund.at.manifest, { repo })
+      const legacy = parseLegacyManifest(res.value as Record<string, unknown>)
+      if (legacy) {
+        channels = legacy.channels.length > 0 ? legacy.channels : undefined
+        plans = legacy.plans.length > 0 ? legacy.plans : undefined
+        needsMigration = true
+      }
+    } catch { /* no legacy manifest */ }
+  }
+
+  if (!contributeUrl && !dependencies && !channels && !plans) return null
+  return { contributeUrl, dependencies, channels, plans, needsMigration: needsMigration || undefined }
 }
 
 // ---------------------------------------------------------------------------
@@ -397,48 +432,53 @@ export async function fetchOwnFundAtRecords(
     } catch { /* optional */ }
   }
 
-  // ── Manifest + History ─────────────────────────────────────────────────
-  let manifest: FundingManifest | undefined
-  let history: FundingHistory[] | undefined
+  // ── Channels + Plans ───────────────────────────────────────────────────
+  let channels: FundingChannel[] | undefined
+  let plans: FundingPlan[] | undefined
 
-  const [, historyRecords] = await Promise.all([
-    (async () => {
+  const [channelRecords, planRecords] = await Promise.all([
+    (async (): Promise<FundingChannel[]> => {
       try {
-        const res = await client.get(fund.at.funding.manifest)
-        manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
+        const res = await client.list(fund.at.funding.channel, { limit: 50 })
+        return res.records.map((r) => {
+          const rkey = r.uri.split('/').pop() ?? ''
+          return parseChannelRecord(rkey, r.value as Record<string, unknown>)
+        })
       } catch {
-        try {
-          const res = await client.get(fund.at.manifest)
-          manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
-          if (manifest) needsMigration = true
-        } catch { /* neither exists */ }
+        return []
       }
     })(),
-    (async (): Promise<FundingHistory[]> => {
+    (async (): Promise<FundingPlan[]> => {
       try {
-        const res = await client.list(fund.at.funding.history, { limit: 50 })
+        const res = await client.list(fund.at.funding.plan, { limit: 50 })
         return res.records
           .map((r) => {
-            const v = r.value as Record<string, unknown>
-            if (typeof v.year !== 'number') return null
-            return {
-              year: v.year,
-              income: typeof v.income === 'number' ? v.income : 0,
-              expenses: typeof v.expenses === 'number' ? v.expenses : 0,
-              taxes: typeof v.taxes === 'number' ? v.taxes : 0,
-              currency: typeof v.currency === 'string' ? v.currency : 'USD',
-              description: typeof v.description === 'string' ? v.description : undefined,
-            } as FundingHistory
+            const rkey = r.uri.split('/').pop() ?? ''
+            return parsePlanRecord(rkey, r.value as Record<string, unknown>)
           })
-          .filter((h): h is FundingHistory => h !== null)
+          .filter((p): p is FundingPlan => p !== null)
       } catch {
         return []
       }
     })(),
   ])
 
-  if (historyRecords.length > 0) history = historyRecords
+  if (channelRecords.length > 0) channels = channelRecords
+  if (planRecords.length > 0) plans = planRecords
 
-  if (!contributeUrl && !dependencies && !manifest && !history) return null
-  return { contributeUrl, dependencies, manifest, history, needsMigration: needsMigration || undefined }
+  // Fall back to legacy manifest if no individual channels found
+  if (!channels) {
+    try {
+      const res = await client.get(fund.at.manifest)
+      const legacy = parseLegacyManifest(res.value as Record<string, unknown>)
+      if (legacy) {
+        channels = legacy.channels.length > 0 ? legacy.channels : undefined
+        plans = legacy.plans.length > 0 ? legacy.plans : undefined
+        needsMigration = true
+      }
+    } catch { /* no legacy manifest */ }
+  }
+
+  if (!contributeUrl && !dependencies && !channels && !plans) return null
+  return { contributeUrl, dependencies, channels, plans, needsMigration: needsMigration || undefined }
 }

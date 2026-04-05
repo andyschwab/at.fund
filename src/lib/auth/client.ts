@@ -45,8 +45,8 @@ export const SCOPE = [
   // New grouped NSIDs
   'repo:fund.at.actor.declaration',
   'repo:fund.at.funding.contribute',
-  'repo:fund.at.funding.manifest',
-  'repo:fund.at.funding.history',
+  'repo:fund.at.funding.channel',
+  'repo:fund.at.funding.plan',
   'repo:fund.at.graph.dependency',
   'repo:fund.at.graph.endorse',
   // Legacy NSIDs (needed for migration reads/deletes)

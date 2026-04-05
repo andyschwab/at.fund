@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { StewardEntry, StewardTag, Capability } from '@/lib/steward-model'
-import type { FundingManifest, FundingChannel, FundingPlan } from '@/lib/funding-manifest'
+import type { FundingChannel, FundingPlan } from '@/lib/funding-manifest'
 import { detectPlatform, PLATFORM_LABELS } from '@/lib/funding-manifest'
 
 // ---------------------------------------------------------------------------
@@ -258,13 +258,12 @@ function frequencyLabel(freq: FundingPlan['frequency']): string {
   }
 }
 
-export function FundingChannelsSection({ manifest }: { manifest: FundingManifest }) {
+export function FundingChannelsSection({ channels, plans }: { channels?: FundingChannel[]; plans?: FundingPlan[] }) {
   const [expanded, setExpanded] = useState(false)
-  const { channels, plans } = manifest.funding
-  const activePlans = plans.filter((p) => p.status === 'active' && p.amount > 0)
+  const activePlans = (plans ?? []).filter((p) => p.status === 'active' && p.amount > 0)
 
   // Only linkable channels (URLs)
-  const linkableChannels = channels.filter((ch) => {
+  const linkableChannels = (channels ?? []).filter((ch) => {
     try { new URL(ch.address); return true } catch { return false }
   })
 

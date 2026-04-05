@@ -1,4 +1,4 @@
-# fund.at Funding Specification
+# at.fund Funding Specification
 
 > A derivative specification for decentralized funding metadata on the
 > AT Protocol, honoring the lineage of prior art in web-native funding signals.
@@ -7,11 +7,14 @@
 **Date:** 2026-04-05
 **Status:** Working draft
 
+Note: The lexicon namespace `fund.at.*` follows ATProto's reverse-DNS
+convention (TLD first). The product is **at.fund**.
+
 ---
 
 ## 1. Prior Art and Lineage
 
-fund.at does not exist in isolation. It inherits from a decades-long lineage of
+at.fund does not exist in isolation. It inherits from a decades-long lineage of
 web-native funding signals, each building on the last:
 
 | Year | Standard | What it introduced |
@@ -21,7 +24,7 @@ web-native funding signals, each building on the last:
 | 2019 | npm `funding` field | Package-level funding metadata in `package.json`. Made funding discoverable via dependency trees (`npm fund`). First standard to connect funding to the dependency graph. |
 | 2020 | Podcasting 2.0 `<podcast:funding>` | RSS namespace extension for podcast feeds. Brought `url` + `label` semantics to audio content — directly echoing `rel="payment"` but for syndicated media. |
 | 2024 | funding.json (fundingjson.org) | Comprehensive machine-readable standard for FOSS projects. Entity metadata, typed payment channels, tiered plans, financial history. The most complete expression of structured funding metadata to date. |
-| 2025 | fund.at | ATProto-native funding layer. Combines structured metadata with cryptographic identity provenance and social graph context. This specification. |
+| 2025 | at.fund | ATProto-native funding layer. Combines structured metadata with cryptographic identity provenance and social graph context. This specification. |
 
 ### What each layer contributes
 
@@ -31,28 +34,33 @@ GitHub FUNDING.yml    →  "Support this project, via these platforms"
 npm funding           →  "Support this dependency" (graph-aware)
 podcast:funding       →  "Support this feed" (syndicated, labeled)
 funding.json          →  "Support this entity" (structured, multi-channel)
-fund.at               →  "Support this entity" (signed, social, graph-aware)
+at.fund               →  "Support this entity" (signed, social, graph-aware)
 ```
 
-fund.at's unique contributions beyond prior art:
+at.fund's unique contributions beyond prior art:
 - **Cryptographic provenance** — records are DID-signed, not just DNS-verified
 - **Social context** — endorsements from your network surface relevance
 - **Dependency awareness** — transitive dependency scanning, not just direct
 - **Protocol-native** — records live in the user's ATProto repository, not a
   separate file or platform
+- **Cross-account references** — plans can point to channels in any account,
+  enabling shared payment infrastructure for teams
 
 ## 2. Architecture: Three Layers
 
-fund.at operates as a three-layer system. Each layer is independent; higher
-layers provide progressive enhancement.
+at.fund operates as a three-layer system. Each layer is independent and
+optional; higher layers provide progressive enhancement.
 
 ```
 Layer 1: Contribute     →  "Here is my funding page"
-Layer 2: Manifest       →  "Here are my payment channels and plans"
+Layer 2: Channels+Plans →  "Here are my payment endpoints and tiers"
 Layer 3: Social Graph   →  "Here is who endorses and depends on me"
 ```
 
-### Layer 1: Contribute (required)
+Any combination is valid: just social signal (declaration only), just a
+contribute link, channels without a contribute link, or the full stack.
+
+### Layer 1: Contribute
 
 **Lexicon:** `fund.at.funding.contribute`
 **Key:** `literal:self` (singleton per account)
@@ -73,50 +81,62 @@ contributions can be made. This is the ATProto equivalent of:
 
 **Design principle:** The contribute URL is unopinionated. It may point to
 GitHub Sponsors, a Stripe checkout, a Ko-fi page, or a hand-coded HTML page.
-fund.at renders the link; the user clicks through. No intermediation.
+at.fund renders the link; the user clicks through. No intermediation.
 
-### Layer 2: Manifest (optional enrichment)
+**Relationship to channels:** Contribute and channels serve different semantic
+roles. Contribute answers "what's the one link I put on a card?" — it's the
+`rel="payment"` primitive for consumers. Channels answer "what are my actual
+payment endpoints?" — they're structured data for clients that render rich UIs.
+A contribute URL is often a landing page that itself contains multiple channels.
 
-**Lexicon:** `fund.at.funding.manifest`
-**Key:** `literal:self` (singleton per account)
-**Inspiration:** funding.json
+### Layer 2: Channels and Plans (optional enrichment)
 
 Structured payment metadata: channels where contributions can flow, and plans
-(tiers) that suggest amounts and frequencies. This is the ATProto equivalent
-of the `funding` section in a funding.json file.
+(tiers) that suggest amounts and frequencies. This is the ATProto-native
+equivalent of the `funding` section in a funding.json file.
 
-The manifest uses shared definitions from `fund.at.funding.defs`:
+Unlike prior approaches that embed channels and plans in a single manifest
+record, at.fund stores each as an individual record. This enables:
+- Independent create/update/delete for each channel and plan
+- Individual addressability via AT URI
+- Cross-account references (a plan in one account can point to a channel in
+  another account)
 
-#### Channel (`fund.at.funding.defs#channel`)
+#### Channel (`fund.at.funding.channel`)
 
-A single payment channel. Maps to a funding.json `channel` entry.
+**Key:** `any` (rkey = slug like `github-sponsors`, `open-collective`)
+
+A single payment channel — a specific place where contributions can be received.
 
 | Field | Type | Required | Maps to funding.json |
 |-------|------|----------|---------------------|
-| `channelId` | string (≤32) | Yes | `channel.guid` |
-| `channelType` | string (≤32) | No | `channel.type` |
+| `channelType` | string (≤32) | Yes | `channel.type` |
 | `uri` | uri | No | `channel.address` |
 | `description` | string (≤500) | No | `channel.description` |
+| `createdAt` | datetime | No | — |
 
 **`channelType` known values:** `payment-provider`, `bank`, `cheque`, `cash`, `other`
 
 Note: `uri` is optional because some channel types (bank transfers, cheques)
-have no public URL. This differs from funding.json where `address` is required.
+have no public URL. The record key (rkey) serves as the channel's identifier,
+equivalent to funding.json's `channel.guid`.
 
-#### Plan (`fund.at.funding.defs#plan`)
+#### Plan (`fund.at.funding.plan`)
 
-A funding plan or tier. Maps to a funding.json `plan` entry.
+**Key:** `any` (rkey = slug like `supporter`, `sustainer`)
+
+A funding plan or tier with a suggested contribution level.
 
 | Field | Type | Required | Maps to funding.json |
 |-------|------|----------|---------------------|
-| `planId` | string (≤32) | Yes | `plan.guid` |
 | `status` | string (≤16) | No | `plan.status` |
 | `name` | string (≤128) | Yes | `plan.name` |
 | `description` | string (≤500) | No | `plan.description` |
 | `amount` | integer | No | `plan.amount` (×100) |
 | `currency` | string (≤3) | No | `plan.currency` |
-| `frequency` | string (≤16) | No | `plan.frequency` |
-| `channels` | channelRef[] | No | `plan.channels` |
+| `frequency` | string (���16) | No | `plan.frequency` |
+| `channels` | at-uri[] | No | `plan.channels` |
+| `createdAt` | datetime | No | — |
 
 **`status` known values:** `active`, `inactive`
 **`frequency` known values:** `one-time`, `weekly`, `fortnightly`, `monthly`, `yearly`, `other`
@@ -126,35 +146,29 @@ A funding plan or tier. Maps to a funding.json `plan` entry.
 in a protocol context. When converting from funding.json (which uses whole
 units), multiply by 100.
 
-### Layer 2b: History (optional enrichment)
+**Cross-account channel references:** The `channels` field takes AT URIs,
+not local IDs. A plan's channels may reference `fund.at.funding.channel`
+records in *any* account. This enables a team of maintainers to each publish
+their own plans while pointing to a shared organizational payment channel:
 
-**Lexicon:** `fund.at.funding.history`
-**Key:** `any` (one record per year, rkey is the year string)
-**Inspiration:** funding.json `funding.history`
+```
+at://did:plc:maintainer-a/fund.at.funding.plan/supporter
+  → channels: [at://did:plc:org/fund.at.funding.channel/open-collective]
 
-Annual financial transparency records. Each record covers one calendar year.
+at://did:plc:maintainer-b/fund.at.funding.plan/supporter
+  → channels: [at://did:plc:org/fund.at.funding.channel/open-collective]
+```
 
-| Field | Type | Required | Maps to funding.json |
-|-------|------|----------|---------------------|
-| `year` | integer | Yes | `history[].year` |
-| `income` | integer | No | `history[].income` (×100) |
-| `expenses` | integer | No | `history[].expenses` (×100) |
-| `taxes` | integer | No | `history[].taxes` (×100) |
-| `currency` | string (≤3) | No | `history[].currency` |
-| `description` | string (≤500) | No | `history[].description` |
-| `createdAt` | datetime | No | — |
+If `channels` is omitted, all of the account's own channels apply.
 
-History records are individually addressable via `com.atproto.repo.listRecords`,
-making them suitable for incremental updates and historical queries.
-
-### Layer 3: Social Graph (novel to fund.at)
+### Layer 3: Social Graph (novel to at.fund)
 
 **Lexicons:** `fund.at.graph.endorse`, `fund.at.graph.dependency`
 
 These records have no equivalent in prior art. They create a social funding
 graph on top of the ATProto social graph:
 
-- **Endorsements** — "I vouch for this entity's work." Allows fund.at to
+- **Endorsements** — "I vouch for this entity's work." Allows at.fund to
   surface entries that your network trusts.
 - **Dependencies** — "My work depends on this entity." Enables transitive
   dependency scanning ("you use Feed X, which depends on Library Y").
@@ -165,7 +179,7 @@ graph on top of the ATProto social graph:
 **Key:** `literal:self` (singleton)
 
 A participation signal — its existence means "this account is part of the
-fund.at ecosystem." All fields are optional enrichment.
+at.fund ecosystem." All fields are optional enrichment.
 
 | Field | Type | Required | Maps to funding.json |
 |-------|------|----------|---------------------|
@@ -182,13 +196,12 @@ Records are organized into three namespace groups:
 
 ```
 fund.at.actor.*      Identity and participation signals
-  .declaration       "I exist in the fund.at ecosystem"
+  .declaration       "I exist in the at.fund ecosystem"
 
 fund.at.funding.*    Payment and financial metadata
   .contribute        "Here is my funding page" (the primitive signal)
-  .manifest          "Here are my channels and plans"
-  .history           "Here is my financial history"
-  .defs              Shared type definitions (channel, plan, channelRef)
+  .channel           "Here is a payment endpoint" (individual record per channel)
+  .plan              "Here is a funding tier" (individual record per plan)
 
 fund.at.graph.*      Social relationships
   .endorse           "I endorse this entity"
@@ -197,23 +210,22 @@ fund.at.graph.*      Social relationships
 
 ## 4. funding.json Compatibility
 
-fund.at aims for **round-trip fidelity** with funding.json v1.x. A steward's
-funding.json can be converted to fund.at records and back without information
-loss for the fields fund.at supports.
+at.fund aims for **round-trip fidelity** with funding.json v1.x. A steward's
+funding.json can be converted to at.fund records and back without information
+loss for the fields at.fund supports.
 
-### Conversion: funding.json → fund.at records
+### Conversion: funding.json → at.fund records
 
-| funding.json field | fund.at record | Notes |
+| funding.json field | at.fund record | Notes |
 |---|---|---|
 | `entity.type` | `fund.at.actor.declaration.entityType` | Direct mapping |
 | `entity.role` | `fund.at.actor.declaration.role` | Direct mapping |
-| `funding.channels[]` | `fund.at.funding.manifest.channels[]` | `guid`→`channelId`, `type`→`channelType`, `address`→`uri` |
-| `funding.plans[]` | `fund.at.funding.manifest.plans[]` | `guid`→`planId`, `amount`×100, `channels` wrapped in `channelRef` objects |
-| `funding.history[]` | `fund.at.funding.history` records | One record per year, amounts ×100 |
+| `funding.channels[]` | `fund.at.funding.channel` records | One record per channel; `guid`→rkey, `type`→`channelType`, `address`→`uri` |
+| `funding.plans[]` | `fund.at.funding.plan` records | One record per plan; `guid`→rkey, `amount`×100, `channels` as AT URIs |
 
-### Fields fund.at does not map
+### Fields at.fund does not map
 
-The following funding.json fields have no fund.at equivalent. They are
+The following funding.json fields have no at.fund equivalent. They are
 intentionally omitted because they duplicate information available elsewhere
 in the ATProto ecosystem:
 
@@ -224,7 +236,16 @@ in the ATProto ecosystem:
 | `entity.phone` | Privacy concern |
 | `entity.description` | Available from the ATProto profile |
 | `entity.webpageUrl` | Derivable from the DID document (`alsoKnownAs`) |
-| `projects[]` | Out of scope — fund.at is per-account, not per-project |
+| `projects[]` | Out of scope — at.fund is per-account, not per-project |
+
+### History (not implemented)
+
+funding.json includes a `funding.history[]` section for annual financial
+transparency (income, expenses, taxes). at.fund does not currently implement
+history records. Self-reported financial data without verification or
+attestation has limited value in a protocol context. This may be revisited
+in the future if paired with provenance mechanisms (e.g. third-party
+attestations, on-chain payment proofs).
 
 ### knownValues, not enums
 
@@ -242,35 +263,40 @@ of closed enums in a decentralized protocol.
 
 ### 1. Signal, not platform
 
-fund.at publishes metadata. It never intermediates payments, never holds funds,
+at.fund publishes metadata. It never intermediates payments, never holds funds,
 never takes a commission. The `contribute` URL and channel URIs link to external
 platforms where the actual transaction happens.
 
 ### 2. Progressive enhancement
 
-Each layer is optional beyond Layer 1 (contribute). A steward with just a
-contribute URL gets a card. A steward with a manifest gets richer cards. A
-steward with history gets transparency indicators. Nothing breaks when layers
-are absent.
+Each layer is optional. A steward with just a declaration gets discovered. A
+steward with a contribute URL gets a card with a button. A steward with channels
+and plans gets richer cards. Nothing breaks when layers are absent.
 
-### 3. Steward sovereignty
+### 3. Individual records, not monoliths
 
-The steward's PDS repository is the source of truth. fund.at reads from it but
+Each channel and plan is its own record, individually addressable by AT URI.
+This enables fine-grained updates, cross-account references, and natural
+protocol-level operations (list, get, put, delete). Prior approaches (embedded
+arrays in a manifest record) created coupling that made partial updates awkward.
+
+### 4. Steward sovereignty
+
+The steward's PDS repository is the source of truth. at.fund reads from it but
 never writes to it (except during explicit user-initiated setup). Records are
 DID-signed, giving cryptographic proof of authorship that DNS-based systems
 (funding.json's `.well-known` discovery) cannot provide.
 
-### 4. Lenient reader, strict writer
+### 5. Lenient reader, strict writer
 
-fund.at reads funding data leniently — if a field parses, we use it. We do not
-validate manifests or reject records with unknown fields. But our setup flow
-writes records strictly, producing well-formed data that other consumers can
-rely on.
+at.fund reads funding data leniently — if a field parses, we use it. We do not
+validate records with unknown fields. But our setup flow writes records
+strictly, producing well-formed data that other consumers can rely on.
 
-### 5. Social context is the differentiator
+### 6. Social context is the differentiator
 
 The prior art lineage shows a clear progression: from a simple link
-(`rel="payment"`), to structured metadata (funding.json), to what fund.at
+(`rel="payment"`), to structured metadata (funding.json), to what at.fund
 adds — social context. "12 people you follow endorse this project" is
 information no static file can provide.
 

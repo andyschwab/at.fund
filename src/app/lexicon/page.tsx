@@ -2,15 +2,15 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import declarationSchema from '../../../lexicon/fund.at.actor.declaration.json'
 import contributeSchema from '../../../lexicon/fund.at.funding.contribute.json'
-import manifestSchema from '../../../lexicon/fund.at.funding.manifest.json'
-import defsSchema from '../../../lexicon/fund.at.funding.defs.json'
+import channelSchema from '../../../lexicon/fund.at.funding.channel.json'
+import planSchema from '../../../lexicon/fund.at.funding.plan.json'
 import dependencySchema from '../../../lexicon/fund.at.graph.dependency.json'
 import endorseSchema from '../../../lexicon/fund.at.graph.endorse.json'
 
 export const metadata: Metadata = {
   title: 'Lexicon — at.fund',
   description:
-    'The fund.at.* AT Protocol lexicons: declaration, contribute, manifest, dependency, and endorse.',
+    'The fund.at.* AT Protocol lexicons: declaration, contribute, channel, plan, dependency, and endorse.',
 }
 
 // ---- Schema shape types ----
@@ -293,9 +293,14 @@ export default function LexiconPage() {
             summary="Your funding page — GitHub Sponsors, Open Collective, Patreon, or any URL where people can support you. One record per account."
           />
           <RecordSection
-            schema={manifestSchema as unknown as LexSchema}
-            keyType="literal:self"
-            summary="Machine-readable funding manifest — payment channels and optional plans with amounts. The ATProto-native equivalent of funding.json (fundingjson.org), with DID-signed provenance. Published alongside your contribute URL for richer funding cards."
+            schema={channelSchema as unknown as LexSchema}
+            keyType="any (channel slug)"
+            summary="A payment channel — a specific place where contributions can be received. Each channel is its own record keyed by a slug ID (e.g. 'github-sponsors'). Individually addressable by AT URI, enabling cross-account references."
+          />
+          <RecordSection
+            schema={planSchema as unknown as LexSchema}
+            keyType="any (plan slug)"
+            summary="A funding plan or tier with a suggested amount. References channels by AT URI, which may be in this account or any other account. This enables teams to share a common payment channel while each maintainer publishes their own plans."
           />
 
           {/* fund.at.graph — Relationships */}
@@ -357,7 +362,9 @@ export default function LexiconPage() {
                 <span className="text-slate-500 dark:text-slate-400">→ DID → PDS →{' '}
                   <span className="text-support">fund.at.funding.contribute</span>
                   <span className="text-slate-400 dark:text-slate-500">, </span>
-                  fund.at.funding.manifest
+                  fund.at.funding.channel
+                  <span className="text-slate-400 dark:text-slate-500">, </span>
+                  fund.at.funding.plan
                   <span className="text-slate-400 dark:text-slate-500">, </span>
                   fund.at.graph.dependency
                   <span className="text-slate-400 dark:text-slate-500">, </span>

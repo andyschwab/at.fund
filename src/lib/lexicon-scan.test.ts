@@ -73,7 +73,8 @@ vi.mock('@/lib/atfund-uri', () => ({
 vi.mock('@/lib/fund-at-records', () => ({
   FUND_DECLARATION: 'fund.at.actor.declaration',
   FUND_CONTRIBUTE: 'fund.at.funding.contribute',
-  FUND_MANIFEST: 'fund.at.funding.manifest',
+  FUND_CHANNEL: 'fund.at.funding.channel',
+  FUND_PLAN: 'fund.at.funding.plan',
   FUND_DEPENDENCY: 'fund.at.graph.dependency',
   FUND_ENDORSE: 'fund.at.graph.endorse',
   LEGACY_CONTRIBUTE: 'fund.at.contribute',

@@ -95,8 +95,8 @@ export async function resolveFunding(
               fundAt.dependencies?.map((d) => d.uri),
               manual?.dependencies,
             ),
-            fundingManifest: fundAt.manifest,
-            fundingHistory: fundAt.history,
+            channels: fundAt.channels,
+            plans: fundAt.plans,
           },
         }
       }
@@ -143,8 +143,8 @@ export async function resolveFundingForDep(
             fundAt.dependencies?.map((d) => d.uri),
             manual?.dependencies,
           ),
-          fundingManifest: fundAt.manifest,
-          fundingHistory: fundAt.history,
+          channels: fundAt.channels,
+          plans: fundAt.plans,
         }
       }
     } catch (e) {

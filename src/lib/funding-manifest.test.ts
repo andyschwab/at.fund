@@ -57,9 +57,6 @@ describe('parseFundingManifest', () => {
             channels: ['gh-sponsors'],
           },
         ],
-        history: [
-          { year: 2025, income: 5000, expenses: 3000, taxes: 500, currency: 'USD' },
-        ],
       },
     }
 
@@ -72,8 +69,6 @@ describe('parseFundingManifest', () => {
     expect(result!.funding.plans).toHaveLength(2)
     expect(result!.funding.plans[0]!.amount).toBe(5)
     expect(result!.funding.plans[0]!.frequency).toBe('monthly')
-    expect(result!.funding.history).toHaveLength(1)
-    expect(result!.funding.history![0]!.income).toBe(5000)
   })
 
   it('returns null for non-v1 version', () => {

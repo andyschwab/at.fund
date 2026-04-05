@@ -1,4 +1,4 @@
-import type { FundingManifest, FundingHistory } from '@/lib/funding-manifest'
+import type { FundingChannel, FundingPlan } from '@/lib/funding-manifest'
 
 export type StewardSource = 'fund.at' | 'manual' | 'unknown'
 
@@ -63,10 +63,10 @@ export type Funding = {
   source: StewardSource
   contributeUrl?: string
   dependencies?: string[]
-  /** Structured funding manifest from ATProto record or funding.json. */
-  fundingManifest?: FundingManifest
-  /** Annual financial history from fund.at.funding.history records. */
-  fundingHistory?: FundingHistory[]
+  /** Payment channels from fund.at.funding.channel records or funding.json. */
+  channels?: FundingChannel[]
+  /** Funding plans/tiers from fund.at.funding.plan records or funding.json. */
+  plans?: FundingPlan[]
 }
 
 // ---------------------------------------------------------------------------
@@ -96,8 +96,6 @@ export type StewardEntry = Identity & Funding & {
   tags: StewardTag[]
   /** Feeds and labelers this account provides. */
   capabilities?: Capability[]
-  /** Optional enrichment from a funding.json manifest on the steward's domain. */
-  fundingManifest?: FundingManifest
 }
 
 // ---------------------------------------------------------------------------

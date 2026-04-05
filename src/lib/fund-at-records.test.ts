@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   FUND_DECLARATION,
   FUND_CONTRIBUTE,
-  FUND_MANIFEST,
+  FUND_CHANNEL,
+  FUND_PLAN,
   FUND_DEPENDENCY,
   FUND_ENDORSE,
   LEGACY_CONTRIBUTE,
@@ -15,7 +16,8 @@ describe('collection constants', () => {
   it('exports correct new grouped NSIDs', () => {
     expect(FUND_DECLARATION).toBe('fund.at.actor.declaration')
     expect(FUND_CONTRIBUTE).toBe('fund.at.funding.contribute')
-    expect(FUND_MANIFEST).toBe('fund.at.funding.manifest')
+    expect(FUND_CHANNEL).toBe('fund.at.funding.channel')
+    expect(FUND_PLAN).toBe('fund.at.funding.plan')
     expect(FUND_DEPENDENCY).toBe('fund.at.graph.dependency')
     expect(FUND_ENDORSE).toBe('fund.at.graph.endorse')
   })

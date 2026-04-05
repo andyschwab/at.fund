@@ -86,49 +86,65 @@ export async function POST() {
     // No legacy endorse records — skip
   }
 
-  // ── Migrate fund.at.manifest → fund.at.funding.manifest ──────────────
+  // ── Migrate fund.at.manifest → individual channel + plan records ──────
   try {
     const res = await client.get(fund.at.manifest)
     const val = res.value as Record<string, unknown>
     const channels = val.channels as Array<Record<string, unknown>> | undefined
     if (Array.isArray(channels) && channels.length > 0) {
-      await client.put(fund.at.funding.manifest, {
-        channels: channels.map((ch) => ({
-          channelId: String(ch.channelId ?? ch.id ?? ''),
-          ...(ch.channelType || ch.type
-            ? { channelType: String(ch.channelType ?? ch.type) }
-            : {}),
-          uri: uri(String(ch.uri ?? '')),
-          ...(ch.description ? { description: String(ch.description) } : {}),
-        })),
-        ...(Array.isArray(val.plans) && (val.plans as unknown[]).length > 0
-          ? {
-              plans: (val.plans as Array<Record<string, unknown>>).map((p) => ({
-                planId: String(p.planId ?? p.id ?? ''),
-                name: String(p.name ?? ''),
-                ...(p.description ? { description: String(p.description) } : {}),
-                ...(typeof p.amount === 'number' ? { amount: p.amount } : {}),
-                ...(p.currency ? { currency: String(p.currency) } : {}),
-                ...(p.frequency ? { frequency: String(p.frequency) } : {}),
-                ...(Array.isArray(p.channels)
-                  ? {
-                      channels: p.channels.map((c: unknown) => ({
-                        channelId:
-                          typeof c === 'object' && c && 'channelId' in c
-                            ? String((c as Record<string, unknown>).channelId)
-                            : typeof c === 'string'
-                              ? c
-                              : '',
-                      })),
-                    }
-                  : {}),
-              })),
-            }
-          : {}),
-        createdAt,
-      })
+      // Write individual channel records
+      for (const ch of channels) {
+        const rkey = String(ch.channelId ?? ch.id ?? '')
+        if (!rkey) continue
+        try {
+          await client.put(fund.at.funding.channel, {
+            channelType: String(ch.channelType ?? ch.type ?? 'other'),
+            ...(ch.uri ? { uri: uri(String(ch.uri)) } : {}),
+            ...(ch.description ? { description: String(ch.description) } : {}),
+            createdAt,
+          }, { rkey })
+        } catch (e) {
+          errors.push(`channel ${rkey}: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+
+      // Write individual plan records
+      if (Array.isArray(val.plans)) {
+        for (const p of val.plans as Array<Record<string, unknown>>) {
+          const rkey = String(p.planId ?? p.id ?? '')
+          if (!rkey) continue
+          try {
+            await client.put(fund.at.funding.plan, {
+              name: String(p.name ?? ''),
+              ...(p.description ? { description: String(p.description) } : {}),
+              ...(typeof p.amount === 'number' ? { amount: p.amount } : {}),
+              ...(p.currency ? { currency: String(p.currency) } : {}),
+              ...(p.frequency ? { frequency: String(p.frequency) } : {}),
+              ...(Array.isArray(p.channels)
+                ? {
+                    // Legacy channels were channelId refs — convert to AT URIs
+                    // pointing to the same account's new channel records
+                    channels: p.channels.map((c: unknown) => {
+                      const id = typeof c === 'object' && c && 'channelId' in c
+                        ? String((c as Record<string, unknown>).channelId)
+                        : typeof c === 'string' ? c : ''
+                      return id ? l.asStringFormat(
+                        `at://${session.did}/fund.at.funding.channel/${id}`,
+                        'at-uri',
+                      ) : null
+                    }).filter((v): v is NonNullable<typeof v> => v !== null),
+                  }
+                : {}),
+              createdAt,
+            }, { rkey })
+          } catch (e) {
+            errors.push(`plan ${rkey}: ${e instanceof Error ? e.message : String(e)}`)
+          }
+        }
+      }
+
       await client.deleteRecord('fund.at.manifest', 'self')
-      migrated.push('manifest')
+      migrated.push('manifest→channels+plans')
     }
   } catch {
     // No legacy manifest record — skip
