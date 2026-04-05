@@ -133,7 +133,7 @@ export default async function Image({ params }: Props) {
             letterSpacing: '-0.01em',
           }}
         >
-          open source stack — at.fund
+          stack — at.fund
         </div>
       </div>
     ),
