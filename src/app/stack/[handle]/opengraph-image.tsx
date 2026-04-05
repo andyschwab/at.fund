@@ -1,11 +1,11 @@
 import { ImageResponse } from 'next/og'
-import { fetchPublicEndorsements } from '@/lib/pipeline/fetch-public-endorsements'
-import { resolveDidFromIdentifier } from '@/lib/fund-at-records'
 import { Client } from '@atproto/lex'
 import { xrpcQuery } from '@/lib/xrpc'
 
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
+// Cache for 24 hours; stale-while-revalidate in the background
+export const revalidate = 86400
 
 const PUBLIC_API = 'https://public.api.bsky.app'
 
@@ -16,30 +16,21 @@ type Props = {
 export default async function Image({ params }: Props) {
   const { handle } = await params
 
-  const [endorsedUris, did] = await Promise.all([
-    fetchPublicEndorsements(handle),
-    resolveDidFromIdentifier(handle),
-  ])
-
-  const count = endorsedUris.length
-
-  // Fetch avatar + display name for the OG card
+  // Single API call: profile only (avatar + displayName)
   let displayName = `@${handle}`
   let avatar: string | undefined
 
-  if (did) {
-    try {
-      const publicClient = new Client(PUBLIC_API)
-      const data = await xrpcQuery<{
-        profiles?: Array<{ did: string; handle?: string; displayName?: string; avatar?: string }>
-      }>(publicClient, 'app.bsky.actor.getProfiles', { actors: [did] })
-      const profile = data.profiles?.[0]
-      if (profile) {
-        if (profile.displayName) displayName = profile.displayName
-        if (profile.avatar) avatar = profile.avatar
-      }
-    } catch { /* best-effort */ }
-  }
+  try {
+    const publicClient = new Client(PUBLIC_API)
+    const data = await xrpcQuery<{
+      profiles?: Array<{ handle?: string; displayName?: string; avatar?: string }>
+    }>(publicClient, 'app.bsky.actor.getProfiles', { actors: [handle] })
+    const profile = data.profiles?.[0]
+    if (profile) {
+      if (profile.displayName) displayName = profile.displayName
+      if (profile.avatar) avatar = profile.avatar
+    }
+  } catch { /* best-effort — fall back to handle */ }
 
   return new ImageResponse(
     (
@@ -133,18 +124,16 @@ export default async function Image({ params }: Props) {
           </div>
         </div>
 
-        {/* Project count */}
+        {/* Tagline */}
         <div
           style={{
-            fontSize: 40,
-            fontWeight: 600,
-            color: 'rgba(255,255,255,0.9)',
+            fontSize: 32,
+            fontWeight: 500,
+            color: 'rgba(255,255,255,0.85)',
             letterSpacing: '-0.01em',
           }}
         >
-          {count === 0
-            ? 'No endorsed projects yet'
-            : `${count} project${count === 1 ? '' : 's'} endorsed`}
+          open source stack — at.fund
         </div>
       </div>
     ),
