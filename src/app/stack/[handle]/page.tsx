@@ -3,7 +3,9 @@ import { Client } from '@atproto/lex'
 import { Share2 } from 'lucide-react'
 import { fetchPublicEndorsements } from '@/lib/pipeline/fetch-public-endorsements'
 import { resolveEntry } from '@/lib/pipeline/entry-resolve'
+import { resolveDependencies } from '@/lib/pipeline/dep-resolve'
 import { resolveDidFromIdentifier } from '@/lib/fund-at-records'
+import { createScanContext } from '@/lib/scan-context'
 import { xrpcQuery } from '@/lib/xrpc'
 import { StackEntriesList } from './StackEntriesList'
 import type { StewardEntry } from '@/lib/steward-model'
@@ -53,15 +55,16 @@ export default async function StackPage({ params }: Props) {
   ])
 
   // Resolve entries, capped at 30
+  const sharedCtx = createScanContext()
   const urisToResolve = endorsedUris.slice(0, 30)
-  const results = await Promise.allSettled(urisToResolve.map((uri) => resolveEntry(uri)))
+  const results = await Promise.allSettled(urisToResolve.map((uri) => resolveEntry(uri, sharedCtx)))
   const entries: StewardEntry[] = results
     .filter((r): r is PromiseFulfilledResult<{ entry: StewardEntry; referenced: StewardEntry[] }> => r.status === 'fulfilled')
     .map((r) => r.value.entry)
 
-  const allReferenced: StewardEntry[] = results
-    .filter((r): r is PromiseFulfilledResult<{ entry: StewardEntry; referenced: StewardEntry[] }> => r.status === 'fulfilled')
-    .flatMap((r) => r.value.referenced)
+  // Resolve dependencies for all entries together in one BFS pass so the
+  // lookup used by sub-icons is complete (shared ctx reuses cached fund.at records).
+  const allReferenced = await resolveDependencies(entries, undefined, sharedCtx)
 
   const displayHandle = profile?.handle ?? handle
   const displayName = profile?.displayName ?? `@${displayHandle}`
@@ -122,7 +125,7 @@ export default async function StackPage({ params }: Props) {
             </p>
           </div>
         ) : (
-          <StackEntriesList entries={entries} allEntries={allReferenced} />
+          <StackEntriesList entries={entries} allEntries={[...entries, ...allReferenced]} />
         )}
 
         {/* Footer */}
