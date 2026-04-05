@@ -5,7 +5,7 @@ import { fetchPublicEndorsements } from '@/lib/pipeline/fetch-public-endorsement
 import { resolveEntry } from '@/lib/pipeline/entry-resolve'
 import { resolveDidFromIdentifier } from '@/lib/fund-at-records'
 import { xrpcQuery } from '@/lib/xrpc'
-import { StewardCard } from '@/components/ProjectCards'
+import { StackEntriesList } from './StackEntriesList'
 import type { StewardEntry } from '@/lib/steward-model'
 
 const PUBLIC_API = 'https://public.api.bsky.app'
@@ -122,17 +122,7 @@ export default async function StackPage({ params }: Props) {
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-            {entries.map((entry) => (
-              <StewardCard
-                key={entry.uri}
-                entry={entry}
-                allEntries={allReferenced}
-                endorsed
-                compact
-              />
-            ))}
-          </ul>
+          <StackEntriesList entries={entries} allEntries={allReferenced} />
         )}
 
         {/* Footer */}

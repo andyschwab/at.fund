@@ -33,6 +33,7 @@ export function StewardCard({
   onEndorse,
   onUnendorse,
   networkEndorsementCount,
+  active,
 }: {
   entry: StewardEntry
   allEntries?: StewardEntry[]
@@ -41,6 +42,7 @@ export function StewardCard({
   onEndorse?: (uri: string) => void
   onUnendorse?: (uri: string) => void
   networkEndorsementCount?: number
+  active?: boolean
 }) {
   const type = cardType(entry)
 
@@ -69,7 +71,7 @@ export function StewardCard({
 
   return (
     <li className={`px-4 py-3.5 transition-all duration-100 ${
-      state === 'none'
+      state === 'none' && !active
         ? 'opacity-60 hover:opacity-100 hover:bg-slate-100 dark:hover:bg-slate-800/50'
         : 'bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/50'
     }`}>
