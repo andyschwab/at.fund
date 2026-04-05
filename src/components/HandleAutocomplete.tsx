@@ -85,6 +85,7 @@ export function HandleAutocomplete({
           spellCheck={false}
           role="combobox"
           aria-expanded={open}
+          aria-controls="hac-listbox"
           aria-haspopup="listbox"
           aria-autocomplete="list"
           aria-activedescendant={active >= 0 ? `hac-suggestion-${active}` : undefined}

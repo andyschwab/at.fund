@@ -1,6 +1,6 @@
 import { Client } from '@atproto/lex'
 import type { StewardEntry, Capability } from '@/lib/steward-model'
-import { resolveIdentity, resolveRefToDid } from '@/lib/identity'
+import { resolveIdentity } from '@/lib/identity'
 import { resolveFunding, lookupManualByIdentity } from '@/lib/funding'
 import { xrpcQuery } from '@/lib/xrpc'
 import { resolveDependencies } from '@/lib/pipeline/dep-resolve'

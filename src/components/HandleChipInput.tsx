@@ -137,6 +137,7 @@ export function HandleChipInput({ chips, onChange, disabled }: Props) {
             spellCheck={false}
             role="combobox"
             aria-expanded={open}
+            aria-controls="hci-listbox"
             aria-haspopup="listbox"
             aria-autocomplete="list"
             aria-activedescendant={active >= 0 ? `hci-suggestion-${active}` : undefined}

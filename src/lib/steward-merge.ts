@@ -1,4 +1,4 @@
-import type { StewardEntry, StewardSource, StewardTag, Capability } from '@/lib/steward-model'
+import type { StewardEntry, StewardSource, Capability } from '@/lib/steward-model'
 import { isHumanReadableName } from '@/lib/steward-model'
 
 // ---------------------------------------------------------------------------

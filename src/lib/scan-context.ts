@@ -28,7 +28,7 @@ export type ScanContext = {
  * Create a fresh scan context. Call once per scan session.
  */
 export function createScanContext(): ScanContext {
-  const { map, prefetch, flush: _flush } = createFundAtPrefetch()
+  const { map, prefetch } = createFundAtPrefetch()
 
   return {
     fundAtPrefetch: map,
