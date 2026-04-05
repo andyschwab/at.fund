@@ -5,75 +5,93 @@ import { join } from 'path'
 const CATALOG_DIR = join(__dirname, 'catalog')
 const RESOLVER_PATH = join(__dirname, 'resolver-catalog.json')
 
+const ALLOWED_KEYS = new Set([
+  'contributeUrl',
+  'dependencies',
+  'tags',
+  'atprotoHandle',
+  'pdsHostnames',
+])
+
 // ---------------------------------------------------------------------------
-// Catalog entry validation
+// Catalog entry validation — one sweep, not per-file tests
 // ---------------------------------------------------------------------------
 
 describe('catalog entries', () => {
   const files = readdirSync(CATALOG_DIR).filter((f) => f.endsWith('.json'))
 
-  it('catalog directory has entries', () => {
+  it('catalog directory is not empty', () => {
     expect(files.length).toBeGreaterThan(0)
   })
 
-  for (const file of files) {
-    describe(file, () => {
+  it('every entry is valid JSON with allowed schema', () => {
+    const errors: string[] = []
+
+    for (const file of files) {
       const raw = readFileSync(join(CATALOG_DIR, file), 'utf-8')
       let data: Record<string, unknown>
-
-      it('is valid JSON', () => {
+      try {
         data = JSON.parse(raw)
-        expect(typeof data).toBe('object')
-        expect(data).not.toBeNull()
-      })
+      } catch {
+        errors.push(`${file}: invalid JSON`)
+        continue
+      }
 
-      it('has no unknown top-level keys', () => {
-        data ??= JSON.parse(raw)
-        const allowed = new Set([
-          'contributeUrl',
-          'dependencies',
-          'tags',
-          'atprotoHandle',
-          'pdsHostnames',
-        ])
-        for (const key of Object.keys(data)) {
-          expect(allowed.has(key), `unexpected key "${key}" in ${file}`).toBe(true)
+      if (typeof data !== 'object' || data === null) {
+        errors.push(`${file}: root must be an object`)
+        continue
+      }
+
+      // Unknown keys
+      for (const key of Object.keys(data)) {
+        if (!ALLOWED_KEYS.has(key)) {
+          errors.push(`${file}: unexpected key "${key}"`)
         }
-      })
+      }
 
-      it('contributeUrl is a valid https/http URL if present', () => {
-        data ??= JSON.parse(raw)
-        if (typeof data.contributeUrl === 'string') {
+      // contributeUrl format
+      if (typeof data.contributeUrl === 'string') {
+        try {
           const url = new URL(data.contributeUrl)
-          expect(
-            url.protocol === 'https:' || url.protocol === 'http:',
-            `contributeUrl must be http(s) in ${file}`,
-          ).toBe(true)
+          if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+            errors.push(`${file}: contributeUrl must be http(s)`)
+          }
+        } catch {
+          errors.push(`${file}: contributeUrl is not a valid URL`)
         }
-      })
+      }
 
-      it('dependencies is an array of strings if present', () => {
-        data ??= JSON.parse(raw)
-        if (data.dependencies !== undefined) {
-          expect(Array.isArray(data.dependencies), `dependencies must be array in ${file}`).toBe(true)
-          for (const dep of data.dependencies as unknown[]) {
-            expect(typeof dep, `dependency must be string in ${file}`).toBe('string')
-            expect((dep as string).length > 0, `empty dependency in ${file}`).toBe(true)
+      // dependencies shape
+      if (data.dependencies !== undefined) {
+        if (!Array.isArray(data.dependencies)) {
+          errors.push(`${file}: dependencies must be an array`)
+        } else {
+          for (const dep of data.dependencies) {
+            if (typeof dep !== 'string' || dep.length === 0) {
+              errors.push(`${file}: dependency must be a non-empty string`)
+            }
           }
         }
-      })
+      }
 
-      it('pdsHostnames is an array of strings if present', () => {
-        data ??= JSON.parse(raw)
-        if (data.pdsHostnames !== undefined) {
-          expect(Array.isArray(data.pdsHostnames), `pdsHostnames must be array in ${file}`).toBe(true)
-          for (const h of data.pdsHostnames as unknown[]) {
-            expect(typeof h, `hostname must be string in ${file}`).toBe('string')
+      // pdsHostnames shape
+      if (data.pdsHostnames !== undefined) {
+        if (!Array.isArray(data.pdsHostnames)) {
+          errors.push(`${file}: pdsHostnames must be an array`)
+        } else {
+          for (const h of data.pdsHostnames) {
+            if (typeof h !== 'string') {
+              errors.push(`${file}: hostname must be a string`)
+            }
           }
         }
-      })
-    })
-  }
+      }
+    }
+
+    if (errors.length > 0) {
+      expect.fail(`Catalog validation errors:\n  ${errors.join('\n  ')}`)
+    }
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -89,13 +107,21 @@ describe('resolver-catalog.json', () => {
     expect(Array.isArray(data.overrides)).toBe(true)
   })
 
-  it('each override has matchPrefix or matchSuffix plus stewardUri', () => {
-    for (const entry of data.overrides) {
-      const e = entry as Record<string, unknown>
+  it('every override has matchPrefix or matchSuffix plus stewardUri', () => {
+    const errors: string[] = []
+    for (let i = 0; i < data.overrides.length; i++) {
+      const e = data.overrides[i] as Record<string, unknown>
       const hasPrefix = typeof e.matchPrefix === 'string'
       const hasSuffix = typeof e.matchSuffix === 'string'
-      expect(hasPrefix || hasSuffix, `override must have matchPrefix or matchSuffix`).toBe(true)
-      expect(typeof e.stewardUri, `override must have stewardUri`).toBe('string')
+      if (!hasPrefix && !hasSuffix) {
+        errors.push(`override[${i}]: must have matchPrefix or matchSuffix`)
+      }
+      if (typeof e.stewardUri !== 'string') {
+        errors.push(`override[${i}]: must have stewardUri`)
+      }
+    }
+    if (errors.length > 0) {
+      expect.fail(`Resolver catalog errors:\n  ${errors.join('\n  ')}`)
     }
   })
 })
