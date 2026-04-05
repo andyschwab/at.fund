@@ -188,62 +188,72 @@ async function getClientForDid(
  * Fetches fund.at.* records for a DID from its PDS.
  * Tries new grouped NSIDs first, falls back to legacy flat NSIDs.
  * Returns null when no records exist.
+ *
+ * When `pdsUrl` is provided, skips the DID document fetch (saves one round-trip).
+ * The two PDS calls (contribute + dependency) run in parallel.
  */
 export async function fetchFundAtRecords(
   stewardDid: string,
+  pdsUrl?: string,
 ): Promise<FundAtResult | null> {
-  const readClient = await getClientForDid(stewardDid)
+  let readClient: Client | null
+  if (pdsUrl) {
+    readClient = new Client(pdsUrl)
+  } else {
+    readClient = await getClientForDid(stewardDid)
+  }
   if (!readClient) return null
 
   const repo = stewardDid as AtIdentifierString
   let needsMigration = false
 
-  // ── Contribute URL: try new, fall back to legacy ──────────────────────
-  let contributeUrl: string | undefined
-  try {
-    const res = await readClient.get(fund.at.funding.contribute, { repo })
-    if (res.value.url) contributeUrl = res.value.url
-  } catch {
-    try {
-      const res = await readClient.get(fund.at.contribute, { repo })
-      if (res.value.url) {
-        contributeUrl = res.value.url
-        needsMigration = true
+  // Run contribute + dependency fetches in parallel (new NSIDs, then legacy fallback)
+  const [contributeResult, dependencyResult] = await Promise.all([
+    (async (): Promise<{ url?: string; legacy: boolean }> => {
+      try {
+        const res = await readClient.get(fund.at.funding.contribute, { repo })
+        return { url: res.value.url || undefined, legacy: false }
+      } catch {
+        try {
+          const res = await readClient.get(fund.at.contribute, { repo })
+          return { url: res.value.url || undefined, legacy: !!res.value.url }
+        } catch {
+          return { legacy: false }
+        }
       }
-    } catch { /* neither exists */ }
-  }
+    })(),
+    (async (): Promise<{ deps?: Array<{ uri: string; label?: string }>; legacy: boolean }> => {
+      try {
+        const res = await readClient.list(fund.at.graph.dependency, { repo, limit: 100 })
+        const deps: Array<{ uri: string; label?: string }> = []
+        for (const r of res.records) {
+          const subject = (r.value as Record<string, unknown>).subject as string | undefined
+          const uri = subject?.trim()
+          if (!uri) continue
+          const label = ((r.value as Record<string, unknown>).label as string)?.trim() || undefined
+          deps.push({ uri, label })
+        }
+        if (deps.length > 0) return { deps, legacy: false }
+      } catch { /* try legacy */ }
+      try {
+        const res = await readClient.list(fund.at.dependency, { repo, limit: 100 })
+        const deps: Array<{ uri: string; label?: string }> = []
+        for (const r of res.records) {
+          const uri = r.value.uri?.trim()
+          if (!uri) continue
+          const label = r.value.label?.trim() || undefined
+          deps.push({ uri, label })
+        }
+        return { deps: deps.length > 0 ? deps : undefined, legacy: deps.length > 0 }
+      } catch {
+        return { legacy: false }
+      }
+    })(),
+  ])
 
-  // ── Dependencies: try new, fall back to legacy ────────────────────────
-  let dependencies: Array<{ uri: string; label?: string }> | undefined
-  try {
-    const res = await readClient.list(fund.at.graph.dependency, { repo, limit: 100 })
-    const deps: Array<{ uri: string; label?: string }> = []
-    for (const r of res.records) {
-      const subject = (r.value as Record<string, unknown>).subject as string | undefined
-      const uri = subject?.trim()
-      if (!uri) continue
-      const label = ((r.value as Record<string, unknown>).label as string)?.trim() || undefined
-      deps.push({ uri, label })
-    }
-    if (deps.length > 0) dependencies = deps
-  } catch { /* optional */ }
-
-  if (!dependencies) {
-    try {
-      const res = await readClient.list(fund.at.dependency, { repo, limit: 100 })
-      const deps: Array<{ uri: string; label?: string }> = []
-      for (const r of res.records) {
-        const uri = r.value.uri?.trim()
-        if (!uri) continue
-        const label = r.value.label?.trim() || undefined
-        deps.push({ uri, label })
-      }
-      if (deps.length > 0) {
-        dependencies = deps
-        needsMigration = true
-      }
-    } catch { /* optional */ }
-  }
+  const contributeUrl = contributeResult.url
+  const dependencies = dependencyResult.deps
+  if (contributeResult.legacy || dependencyResult.legacy) needsMigration = true
 
   // ── Manifest: try new, fall back to legacy ────────────────────────────
   let manifest: FundingManifest | undefined

@@ -3,9 +3,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 /**
  * Integration tests for the scan pipeline.
  *
- * We mock the ATProto Agent and external network calls so the full
- * pipeline runs deterministically: repo describe → collection filter →
- * NSID resolve → steward lookup → card assembly.
+ * We mock the ATProto Agent, external network calls, AND the catalog module
+ * so the pipeline runs deterministically without coupling to admin-managed
+ * catalog data. The resolver overrides and manual catalog entries used here
+ * are synthetic test fixtures.
  */
 
 // Mock @atproto/lex Client
@@ -34,6 +35,17 @@ vi.mock('@atproto/lex', () => {
 // Mock @atproto/did
 vi.mock('@atproto/did', () => ({
   extractPdsUrl: vi.fn().mockReturnValue(new URL('https://pds.example.com')),
+}))
+
+// Mock catalog — synthetic overrides and manual records, not real catalog data
+const mockResolveStewardUri = vi.fn()
+const mockLookupManualStewardRecord = vi.fn()
+const mockGetEcosystemCatalogEntries = vi.fn()
+
+vi.mock('@/lib/catalog', () => ({
+  resolveStewardUri: (...args: unknown[]) => mockResolveStewardUri(...args),
+  lookupManualStewardRecord: (...args: unknown[]) => mockLookupManualStewardRecord(...args),
+  getEcosystemCatalogEntries: (...args: unknown[]) => mockGetEcosystemCatalogEntries(...args),
 }))
 
 // Mock DNS resolution (atfund-dns)
@@ -76,6 +88,7 @@ vi.mock('@/lib/fund-at-records', () => ({
 }))
 
 import { scanRepo } from './lexicon-scan'
+import { clearXrpcCache } from '@/lib/xrpc'
 import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import type { StewardFundAt } from '@/lib/steward-funding'
@@ -88,8 +101,41 @@ function makeMockSession(did = 'did:plc:testuser123'): OAuthSession {
   } as unknown as OAuthSession
 }
 
+/** Default catalog mock: resolves synthetic NSIDs, returns null for everything else. */
+function setupCatalogDefaults() {
+  // Synthetic resolver: test.alpha.* → alpha.test, test.beta.* → beta.test
+  mockResolveStewardUri.mockImplementation((key: string) => {
+    if (!key || !key.trim()) return null
+    if (key.startsWith('did:')) return key
+    if (key.startsWith('test.alpha.')) return 'alpha.test'
+    if (key.startsWith('test.beta.')) return 'beta.test'
+    // 2-segment domains pass through
+    const parts = key.split('.')
+    if (parts.length === 2) return key
+    // 3+ segments: reverse first two (NSID inference)
+    if (parts.length >= 3) return `${parts[1]}.${parts[0]}`
+    return key
+  })
+
+  // Synthetic manual catalog: alpha.test has a contributeUrl and dependencies
+  mockLookupManualStewardRecord.mockImplementation((uri: string) => {
+    if (uri === 'alpha.test') {
+      return {
+        stewardUri: 'alpha.test',
+        contributeUrl: 'https://alpha.test/donate',
+        dependencies: ['dep.test'],
+      }
+    }
+    return null
+  })
+
+  mockGetEcosystemCatalogEntries.mockReturnValue([])
+}
+
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
+  clearXrpcCache()
+  setupCatalogDefaults()
 
   // Reset describeRepo default
   describeRepoResponse = {
@@ -98,8 +144,8 @@ beforeEach(() => {
       'app.bsky.feed.post',
       'app.bsky.actor.profile',
       'com.atproto.repo.strongRef',
-      'fyi.unravel.frontpage.post',
-      'blue.zio.atfile.upload',
+      'test.alpha.record',
+      'test.beta.upload',
     ],
   }
 
@@ -117,8 +163,15 @@ beforeEach(() => {
     if (path.includes('app.bsky.graph.getFollows')) {
       return new Response(JSON.stringify({ follows: [] }), { status: 200 })
     }
+    if (path.includes('app.bsky.actor.getPreferences')) {
+      return new Response(JSON.stringify({ preferences: [] }), { status: 200 })
+    }
     return new Response(JSON.stringify({}), { status: 200 })
   })
+
+  // Restore default mock behaviors from module-level vi.mock calls
+  vi.mocked(lookupAtprotoDid).mockResolvedValue(null)
+  vi.mocked(fetchFundAtForStewardDid).mockResolvedValue(null)
 
   // Default: no records in any collection
   mockListRecords.mockResolvedValue({ body: { records: [] } })
@@ -133,13 +186,10 @@ describe('scanRepo pipeline', () => {
     expect(result.did).toBe('did:plc:testuser123')
     expect(result.handle).toBe('testuser.bsky.social')
 
-    // Should have resolved frontpage and atfile stewards
+    // Should have resolved synthetic stewards via mocked catalog
     const uris = result.entries.map((e) => e.uri)
-    expect(uris).toContain('frontpage.fyi') // fyi.unravel.frontpage.post → resolver override
-    expect(uris).toContain('zio.sh')        // blue.zio.atfile.upload → resolver override → zio.sh
-
-    // Should NOT include bsky steward (noise filtered)
-    // bsky collections are filtered before resolution
+    expect(uris).toContain('alpha.test') // test.alpha.record → mocked resolver
+    expect(uris).toContain('beta.test')  // test.beta.upload → mocked resolver
   })
 
   it('uses manual catalog fallback for known stewards', async () => {
@@ -147,23 +197,23 @@ describe('scanRepo pipeline', () => {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
-          'fyi.unravel.frontpage.post',
+          'test.alpha.record',
         ],
       }
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    const frontpage = result.entries.find((e) => e.uri === 'frontpage.fyi')
-    // frontpage.fyi has a manual catalog entry with dependencies
-    if (frontpage) {
-      expect(frontpage.source).toBe('manual')
-      expect(frontpage.dependencies).toBeDefined()
+    const alpha = result.entries.find((e) => e.uri === 'alpha.test')
+    // alpha.test has a mocked manual catalog entry with dependencies
+    if (alpha) {
+      expect(alpha.source).toBe('manual')
+      expect(alpha.dependencies).toBeDefined()
     }
   })
 
   it('marks stewards as unknown when no fund.at or manual record exists', async () => {
-    // Use a collection NSID that maps to a domain not in the manual catalog
+    // Use a collection NSID that the mock resolver maps to an unknown domain
     describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [
@@ -186,28 +236,28 @@ describe('scanRepo pipeline', () => {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
-          'fyi.unravel.frontpage.post',
+          'test.alpha.record',
         ],
       }
 
-    // Mock DNS resolution for frontpage.fyi
-    vi.mocked(lookupAtprotoDid).mockResolvedValue('did:plc:frontpage')
+    // Mock DNS resolution for alpha.test
+    vi.mocked(lookupAtprotoDid).mockResolvedValue('did:plc:alpha')
 
     // Mock fund.at records
     const fundAtResult: StewardFundAt = {
-      stewardDid: 'did:plc:frontpage',
-      contributeUrl: 'https://frontpage.fyi/donate',
+      stewardDid: 'did:plc:alpha',
+      contributeUrl: 'https://alpha.test/donate',
     }
     vi.mocked(fetchFundAtForStewardDid).mockResolvedValue(fundAtResult)
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    const frontpage = result.entries.find((e) => e.uri === 'frontpage.fyi')
-    expect(frontpage).toBeDefined()
-    expect(frontpage!.source).toBe('fund.at')
-    expect(frontpage!.contributeUrl).toBe('https://frontpage.fyi/donate')
-    expect(frontpage!.did).toBe('did:plc:frontpage')
+    const alpha = result.entries.find((e) => e.uri === 'alpha.test')
+    expect(alpha).toBeDefined()
+    expect(alpha!.source).toBe('fund.at')
+    expect(alpha!.contributeUrl).toBe('https://alpha.test/donate')
+    expect(alpha!.did).toBe('did:plc:alpha')
   })
 
   it('includes self-reported stewards in resolution', async () => {
@@ -217,12 +267,11 @@ describe('scanRepo pipeline', () => {
       }
 
     const session = makeMockSession()
-    const result = await scanRepo(session, ['bsky.app'])
+    const result = await scanRepo(session, ['alpha.test'])
 
-    const bsky = result.entries.find((e) => e.uri === 'bsky.app')
-    expect(bsky).toBeDefined()
-    // bsky.app has no manual catalog entry with contribute/deps, so it's unknown
-    expect(bsky!.displayName).toBeTruthy()
+    const alpha = result.entries.find((e) => e.uri === 'alpha.test')
+    expect(alpha).toBeDefined()
+    expect(alpha!.displayName).toBeTruthy()
   })
 
   it('sorts stewards: fund.at with links first, unknown last', async () => {
@@ -230,21 +279,21 @@ describe('scanRepo pipeline', () => {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
-          'fyi.unravel.frontpage.post',
+          'test.alpha.record',
           'com.randomdev.myapp.record',
         ],
       }
 
-    // frontpage.fyi resolves to fund.at with contribute URL
+    // alpha.test resolves to fund.at with contribute URL
     vi.mocked(lookupAtprotoDid).mockImplementation(async (hostname) => {
-      if (hostname === 'frontpage.fyi') return 'did:plc:frontpage'
+      if (hostname === 'alpha.test') return 'did:plc:alpha'
       return null
     })
     vi.mocked(fetchFundAtForStewardDid).mockImplementation(async (did) => {
-      if (did === 'did:plc:frontpage') {
+      if (did === 'did:plc:alpha') {
         return {
           stewardDid: did,
-          contributeUrl: 'https://frontpage.fyi/donate',
+          contributeUrl: 'https://alpha.test/donate',
         }
       }
       return null
@@ -268,7 +317,9 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    expect(result.entries).toEqual([])
+    // No tool entries from repo collections; only PDS host entry from session PDS URL
+    const toolEntries = result.entries.filter((e) => !e.tags.includes('pds-host'))
+    expect(toolEntries).toEqual([])
     expect(result.did).toBe('did:plc:testuser123')
   })
 
@@ -279,33 +330,35 @@ describe('scanRepo pipeline', () => {
           'app.bsky.feed.post',
           'app.bsky.actor.profile',
           'com.atproto.label.label',
-          'chat.bsky.convo',
         ],
       }
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    expect(result.entries).toEqual([])
+    // All collections are filtered as noise (app.bsky.*, com.atproto.*)
+    // so no third-party tool entries should be produced
+    const toolEntries = result.entries.filter((e) => !e.tags.includes('pds-host'))
+    expect(toolEntries).toEqual([])
   })
 
   it('deduplicates steward URIs from multiple collections', async () => {
-    // Two collections that both resolve to the same steward
+    // Two collections that both resolve to alpha.test via mocked resolver
     describeRepoResponse = {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
-          'feed.popfeed.xyz',
-          'actor.popfeed.settings',
+          'test.alpha.record',
+          'test.alpha.vote',
         ],
       }
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    // Both popfeed collections should resolve to popfeed.social (one entry)
-    const popfeedCards = result.entries.filter((e) => e.uri === 'popfeed.social')
-    expect(popfeedCards).toHaveLength(1)
+    // Both collections should resolve to a single alpha.test entry
+    const alphaCards = result.entries.filter((e) => e.uri === 'alpha.test')
+    expect(alphaCards).toHaveLength(1)
   })
 
   it('captures warnings when DNS lookup throws', async () => {
@@ -313,7 +366,7 @@ describe('scanRepo pipeline', () => {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
-          'fyi.unravel.frontpage.post',
+          'test.alpha.record',
         ],
       }
 
@@ -337,19 +390,19 @@ describe('scanRepo pipeline', () => {
         handle: 'testuser.bsky.social',
         collections: [
           'app.bsky.feed.post',
-          'fyi.unravel.frontpage.post',
+          'test.alpha.record',
         ],
       }
 
-    vi.mocked(lookupAtprotoDid).mockResolvedValue('did:plc:frontpage')
+    vi.mocked(lookupAtprotoDid).mockResolvedValue('did:plc:alpha')
     vi.mocked(fetchFundAtForStewardDid).mockRejectedValue(new Error('PDS unreachable'))
 
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
     // Should fall through to manual catalog
-    const frontpage = result.entries.find((e) => e.uri === 'frontpage.fyi')
-    expect(frontpage).toBeDefined()
+    const alpha = result.entries.find((e) => e.uri === 'alpha.test')
+    expect(alpha).toBeDefined()
 
     // Should have a warning
     const fundAtWarning = result.warnings.find((w) => w.step === 'fund-at-fetch')

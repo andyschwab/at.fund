@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { Client, l } from '@atproto/lex'
 import * as fund from '@/lexicons/fund'
+import { FUND_CONTRIBUTE, FUND_DEPENDENCY } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
 import { logger } from '@/lib/logger'
+import { str } from '@/lib/str'
 
 export type ManifestChannel = {
   id: string
@@ -29,12 +31,11 @@ export type SetupPayload = {
     channels: ManifestChannel[]
     plans?: ManifestPlan[]
   }
-}
-
-function str(v: unknown): string | undefined {
-  if (typeof v !== 'string') return undefined
-  const t = v.trim()
-  return t || undefined
+  /** Previous state from the PDS — used to diff and delete removed records. */
+  existing?: {
+    contributeUrl?: string
+    dependencies?: Array<{ uri: string }>
+  }
 }
 
 function parseManifest(raw: unknown): SetupPayload['manifest'] | undefined {
@@ -102,12 +103,25 @@ function parsePayload(body: unknown): SetupPayload | null {
 
   const manifest = parseManifest(b.manifest)
 
-  if (!contributeUrl && dependencies.length === 0 && !manifest) return null
+  // Parse existing state for diffing
+  let existing: SetupPayload['existing']
+  if (b.existing && typeof b.existing === 'object' && !Array.isArray(b.existing)) {
+    const ex = b.existing as Record<string, unknown>
+    existing = {
+      contributeUrl: str(ex.contributeUrl) || undefined,
+      dependencies: Array.isArray(ex.dependencies)
+        ? (ex.dependencies as Array<Record<string, unknown>>)
+            .map((d) => ({ uri: str(d?.uri) || '' }))
+            .filter((d) => d.uri)
+        : undefined,
+    }
+  }
 
   return {
     contributeUrl,
     dependencies: dependencies.length > 0 ? dependencies : undefined,
     manifest,
+    existing,
   }
 }
 
@@ -138,7 +152,7 @@ export async function POST(request: NextRequest) {
   const payload = parsePayload(body)
   if (!payload) {
     return NextResponse.json(
-      { error: 'At least a contributeUrl or dependencies are required' },
+      { error: 'Invalid request body' },
       { status: 400 },
     )
   }
@@ -160,15 +174,22 @@ export async function POST(request: NextRequest) {
   const uri = (v: string) => l.asStringFormat(v, 'uri')
 
   try {
-    // Write fund.at.funding.contribute (singleton with rkey "self")
+    // ── Contribute URL: create/update or delete ─────────────────────────
     if (payload.contributeUrl) {
       await client.put(fund.at.funding.contribute, {
         url: uri(payload.contributeUrl),
         createdAt,
       })
+    } else if (payload.existing?.contributeUrl) {
+      // User cleared the contribute URL — delete the record
+      try {
+        await client.deleteRecord(FUND_CONTRIBUTE, 'self')
+      } catch {
+        // Record may already be gone
+      }
     }
 
-    // Write fund.at.graph.dependency records (one per dependency)
+    // ── Dependencies: create/update new, delete removed ─────────────────
     if (payload.dependencies) {
       for (const dep of payload.dependencies) {
         await client.put(fund.at.graph.dependency, {
@@ -179,7 +200,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Write fund.at.funding.manifest (singleton with rkey "self")
+    // Delete dependencies that were in existing but not in the new list
+    const newDepUris = new Set(payload.dependencies?.map((d) => d.uri) ?? [])
+    for (const prev of payload.existing?.dependencies ?? []) {
+      if (!newDepUris.has(prev.uri)) {
+        try {
+          await client.deleteRecord(FUND_DEPENDENCY, prev.uri)
+        } catch {
+          // Record may already be gone
+        }
+      }
+    }
+
+    // ── Manifest: create/update ─────────────────────────────────────────
     if (payload.manifest) {
       await client.put(fund.at.funding.manifest, {
         channels: payload.manifest.channels.map((ch) => ({
@@ -205,8 +238,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Write fund.at.actor.declaration (singleton with rkey "self")
-    // Ensures the account is discoverable in the ecosystem
+    // ── Declaration: ensure the account is discoverable ──────────────────
     await client.put(fund.at.actor.declaration, { createdAt })
 
     logger.info('setup: records published', { did: session.did })

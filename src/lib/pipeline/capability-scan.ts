@@ -2,9 +2,7 @@ import { Client } from '@atproto/lex'
 import type { StewardEntry, Capability } from '@/lib/steward-model'
 import { xrpcQuery } from '@/lib/xrpc'
 import { logger } from '@/lib/logger'
-
-const PUBLIC_API = 'https://public.api.bsky.app'
-const FEED_BATCH = 25
+import { PUBLIC_API, FEED_BATCH } from '@/lib/constants'
 
 // ---------------------------------------------------------------------------
 // Phase 3: Attach feed + labeler capabilities to enriched entries

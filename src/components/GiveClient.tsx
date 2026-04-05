@@ -1,13 +1,15 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import Link from 'next/link'
-import type { ScanStreamEvent, ScanWarning, EndorsementCounts } from '@/lib/pipeline/scan-stream'
+import type { EndorsementCounts } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
-import { EntryIndex } from '@/lib/steward-merge'
+import { entryPriority } from '@/lib/entry-priority'
 import { pdslsRepoUrl } from '@/lib/pdsls'
 import { useSession } from '@/components/SessionContext'
+import { useScanStream } from '@/hooks/useScanStream'
 import { StewardCard } from '@/components/ProjectCards'
+import { CardErrorBoundary } from '@/components/CardErrorBoundary'
 import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
   AlertCircle,
@@ -20,18 +22,8 @@ import {
 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
-// Module-level scan cache — survives in-app navigation, cleared on Refresh
+// Helpers
 // ---------------------------------------------------------------------------
-
-type ScanCache = {
-  meta: { did: string; handle?: string; pdsUrl?: string } | null
-  entries: StewardEntry[]
-  warnings: ScanWarning[]
-  endorsedUris: Set<string>
-  endorsementCounts: Record<string, EndorsementCounts>
-}
-
-let _scanCache: ScanCache | null = null
 
 type TagFilter = 'all' | 'tool' | 'labeler' | 'feed' | 'follow'
 
@@ -42,82 +34,50 @@ const TAG_FILTER_LABELS: { tag: TagFilter; label: string }[] = [
   { tag: 'follow', label: 'Network' },
 ]
 
-function entryTier(
-  e: StewardEntry,
-  lookup?: (uri: string) => StewardEntry | undefined,
-): number {
-  if (e.contributeUrl) return 0
-  if (e.dependencies?.length && lookup) {
-    if (e.dependencies.some((uri) => !!(lookup(uri)?.contributeUrl))) return 1
-    if (
-      e.dependencies.some((uri) => {
-        const dep = lookup(uri)
-        return dep?.dependencies?.some((dUri) => !!(lookup(dUri)?.contributeUrl))
-      })
-    )
-      return 2
-    return 3
-  }
-  if (e.dependencies?.length) return 3
-  return 4
-}
-
 function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
   return uris.has(e.uri) || uris.has(e.did ?? '')
 }
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export function GiveClient() {
   const { did: sessionDid, authFetch } = useSession()
-  const [loading, setLoading] = useState(false)
-  const [selfReport, setSelfReport] = useState('')
-  const [err, setErr] = useState<string | null>(null)
-  const [hasOwnRecords, setHasOwnRecords] = useState<boolean | null>(null)
 
-  // Streaming scan state — single unified EntryIndex holds all entries
-  const [meta, setMeta] = useState<{ did: string; handle?: string; pdsUrl?: string } | null>(null)
-  const [entries, setEntries] = useState<StewardEntry[]>([])
-  const [warnings, setWarnings] = useState<ScanWarning[]>([])
-  const [endorsedUris, setEndorsedUris] = useState<Set<string>>(new Set())
-  const [endorsementCounts, setEndorsementCounts] = useState<Record<string, EndorsementCounts>>({})
-  const [scanDone, setScanDone] = useState(false)
-  const [scanStatus, setScanStatus] = useState<string>('')
+  const {
+    meta, entries, warnings, endorsedUris, endorsementCounts,
+    loading, scanDone, scanStatus, error,
+    entryIndexRef, setEntries, setEndorsedUris,
+    runScan,
+  } = useScanStream()
+
+  const [selfReport, setSelfReport] = useState('')
+  const [hasOwnRecords, setHasOwnRecords] = useState<boolean | null>(null)
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
   const [activeTab, setActiveTab] = useState<'discover' | 'ecosystem'>('discover')
-  const entryIndexRef = useRef(new EntryIndex())
 
   // Check whether the logged-in user has published fund.at records
-  useEffect(() => {
+  useState(() => {
     if (!sessionDid) return
-    let cancelled = false
     fetch(`/api/entry?uri=${encodeURIComponent(sessionDid)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!cancelled) setHasOwnRecords(!!data?.contributeUrl || !!(data?.dependencies?.length))
-      })
-      .catch(() => {
-        if (!cancelled) setHasOwnRecords(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [sessionDid])
+      .then((data) => setHasOwnRecords(!!data?.contributeUrl || !!(data?.dependencies?.length)))
+      .catch(() => setHasOwnRecords(false))
+  })
 
-  // All entries live in a single deduped index — no separate arrays needed
-  const allEntriesForLookup = entries
+  // ── Derived state ─────────────────────────────────────────────────────
 
-  // PDS-host entries are pinned to My Stack — exclude from the main discovered list
   const pdsEntries = useMemo(
     () => entries.filter((e) => e.tags.includes('pds-host')),
     [entries],
   )
 
-  // Inclusion rule: tools/labelers/feeds always; follows only if actionable;
-  // pds-host excluded (pinned separately); ecosystem-only excluded (own tab)
   const isEcosystemOnly = (e: StewardEntry) =>
     e.tags.includes('ecosystem') && !e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed' || t === 'follow')
 
   const visibleEntries = useMemo(() => {
-    const lookup = (uri: string) => allEntriesForLookup.find((e) => e.uri === uri)
+    const lookup = (uri: string) => entries.find((e) => e.uri === uri)
     const included = entries.filter(
       (e) =>
         !e.tags.includes('pds-host') &&
@@ -126,12 +86,11 @@ export function GiveClient() {
           (e.tags.includes('follow') && !!e.contributeUrl)),
     )
     return included.sort((a, b) => {
-      const diff = entryTier(a, lookup) - entryTier(b, lookup)
+      const diff = entryPriority(a, lookup) - entryPriority(b, lookup)
       return diff !== 0 ? diff : a.uri.localeCompare(b.uri)
     })
-  }, [entries, allEntriesForLookup])
+  }, [entries])
 
-  // Split into endorsed (My Stack) and discovered (main list)
   const endorsedEntries = useMemo(
     () => visibleEntries.filter((e) => isEndorsed(e, endorsedUris)),
     [visibleEntries, endorsedUris],
@@ -158,14 +117,12 @@ export function GiveClient() {
     return counts
   }, [discoveredEntries])
 
-  // Look up endorsement counts for any entry by URI, DID, or handle
   const lookupCounts = useCallback((entry: StewardEntry): EndorsementCounts | undefined => {
     return endorsementCounts[entry.uri]
       ?? (entry.did ? endorsementCounts[entry.did] : undefined)
       ?? (entry.handle ? endorsementCounts[entry.handle] : undefined)
   }, [endorsementCounts])
 
-  // Ecosystem entries: entries with 'ecosystem' tag that aren't in the discover list
   const visibleEcosystemEntries = useMemo(() => {
     const discoverUris = new Set(visibleEntries.map((e) => e.uri))
     return entries
@@ -177,7 +134,8 @@ export function GiveClient() {
       })
   }, [entries, visibleEntries, lookupCounts])
 
-  // Endorse / unendorse handlers
+  // ── Endorsement handlers ──────────────────────────────────────────────
+
   const handleEndorse = useCallback(async (uri: string) => {
     setEndorsedUris((prev) => new Set([...prev, uri]))
     try {
@@ -187,23 +145,14 @@ export function GiveClient() {
         body: JSON.stringify({ uri }),
       })
       if (!res.ok) {
-        setEndorsedUris((prev) => {
-          const next = new Set(prev)
-          next.delete(uri)
-          return next
-        })
+        setEndorsedUris((prev) => { const next = new Set(prev); next.delete(uri); return next })
       }
     } catch {
-      setEndorsedUris((prev) => {
-        const next = new Set(prev)
-        next.delete(uri)
-        return next
-      })
+      setEndorsedUris((prev) => { const next = new Set(prev); next.delete(uri); return next })
     }
-  }, [])
+  }, [authFetch, setEndorsedUris])
 
   const handleUnendorse = useCallback(async (uri: string) => {
-    // Find the entry to remove all endorsed URI variants (handle, uri, did)
     const entry = entryIndexRef.current.toArray().find(
       (e) => e.uri === uri || e.did === uri,
     )
@@ -229,27 +178,22 @@ export function GiveClient() {
     } catch {
       setEndorsedUris((prev) => new Set([...prev, ...removeUris]))
     }
-  }, [])
+  }, [authFetch, entryIndexRef, setEndorsedUris])
 
-  /** Endorse a URI and fetch its full entry via /api/entry (no rescan). */
   const endorseAndFetch = useCallback(async (uri: string) => {
-    // Optimistic endorse
     handleEndorse(uri)
     try {
       const res = await fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
       if (!res.ok) return
       const data = await res.json() as { entry: StewardEntry; referenced: StewardEntry[] }
-      // Upsert the entry into the index so it appears in the list
       entryIndexRef.current.upsert(data.entry)
       setEntries(entryIndexRef.current.toArray())
-      // Also endorse by the canonical URI/DID the entry resolved to
       if (data.entry.uri !== uri) {
         setEndorsedUris((prev) => new Set([...prev, data.entry.uri]))
       }
       if (data.entry.did && data.entry.did !== uri) {
         setEndorsedUris((prev) => new Set([...prev, data.entry.did!]))
       }
-      // Upsert referenced deps into the same index for drill-down lookup
       for (const ref of data.referenced) {
         entryIndexRef.current.upsert(ref)
       }
@@ -259,120 +203,19 @@ export function GiveClient() {
     } catch (e) {
       console.warn('endorseAndFetch failed', e)
     }
-  }, [handleEndorse])
+  }, [handleEndorse, entryIndexRef, setEntries, setEndorsedUris])
 
-  const runStreamingScan = useCallback(async (extra: string[]) => {
-    _scanCache = null
-    setLoading(true)
-    setScanDone(false)
-    setScanStatus('')
-    setMeta(null)
-    setEntries([])
-    setWarnings([])
-    setEndorsedUris(new Set())
-    setEndorsementCounts({})
-    setErr(null)
-    setActiveTag('all')
-    entryIndexRef.current = new EntryIndex()
-
-    try {
-      const params = new URLSearchParams()
-      if (extra.length) params.set('extraStewards', extra.join(','))
-      const res = await authFetch(`/api/lexicons/stream?${params}`)
-      if (!res.ok || !res.body) {
-        let msg = 'Scan failed'
-        try {
-          const data = await res.json() as { detail?: string; error?: string }
-          msg = data.detail ?? data.error ?? msg
-        } catch { /* empty body */ }
-        throw new Error(msg)
-      }
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop()!
-
-        for (const line of lines) {
-          if (!line.trim()) continue
-          let event: ScanStreamEvent
-          try {
-            event = JSON.parse(line) as ScanStreamEvent
-          } catch {
-            continue
-          }
-
-          if (event.type === 'meta') {
-            setMeta({ did: event.did, handle: event.handle, pdsUrl: event.pdsUrl })
-          } else if (event.type === 'status') {
-            setScanStatus(event.message)
-          } else if (event.type === 'endorsed') {
-            setEndorsedUris(new Set(event.uris))
-          } else if (event.type === 'entry') {
-            entryIndexRef.current.upsert(event.entry)
-            setEntries(entryIndexRef.current.toArray())
-          } else if (event.type === 'endorsement-counts') {
-            setEndorsementCounts(event.counts)
-          } else if (event.type === 'warning') {
-            setWarnings((prev) => [...prev, event.warning])
-          } else if (event.type === 'done') {
-            setScanDone(true)
-            setScanStatus('')
-          }
-        }
-      }
-    } catch (x) {
-      setErr(
-        x instanceof Error
-          ? x.message === 'Scan failed'
-            ? 'Could not load your account data. Try again.'
-            : x.message
-          : 'Could not load your account data. Try again.',
-      )
-    } finally {
-      setLoading(false)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Save completed scan to cache
-  useEffect(() => {
-    if (!scanDone) return
-    _scanCache = { meta, entries, warnings, endorsedUris, endorsementCounts }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scanDone])
-
-  // On mount: restore from cache or start scan
-  useEffect(() => {
-    if (_scanCache) {
-      setMeta(_scanCache.meta)
-      setEntries(_scanCache.entries)
-      setWarnings(_scanCache.warnings)
-      setEndorsedUris(_scanCache.endorsedUris)
-      setEndorsementCounts(_scanCache.endorsementCounts)
-      setScanDone(true)
-      return
-    }
-    void runStreamingScan([])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // ── Render helpers ────────────────────────────────────────────────────
 
   function parseSelfReportInput(): string[] {
-    return selfReport
-      .split(/[\s,]+/)
-      .map((s) => s.trim())
-      .filter(Boolean)
+    return selfReport.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
   }
 
   const pdsUrl = meta?.pdsUrl
   const filterableTagCount = TAG_FILTER_LABELS.filter(({ tag }) => (tagCounts[tag] ?? 0) > 0).length
   const hasStackContent = !!pdsUrl || endorsedEntries.length > 0
+
+  // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <div className="page-wash min-h-full">
@@ -382,7 +225,10 @@ export function GiveClient() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => runStreamingScan(parseSelfReportInput())}
+            onClick={() => {
+              setActiveTag('all')
+              runScan(parseSelfReportInput())
+            }}
             disabled={loading}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
@@ -451,29 +297,30 @@ export function GiveClient() {
           )}
 
           <div className="flex flex-col gap-3">
-            {/* PDS host + endorsed entries — single compact list */}
             {(pdsEntries.length > 0 || endorsedEntries.length > 0) && (
               <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
                 {pdsEntries.map((entry) => (
-                  <StewardCard
-                    key={entry.uri}
-                    entry={entry}
-                    allEntries={allEntriesForLookup}
-                  />
+                  <CardErrorBoundary key={entry.uri} uri={entry.uri}>
+                    <StewardCard
+                      entry={entry}
+                      allEntries={entries}
+                    />
+                  </CardErrorBoundary>
                 ))}
                 {endorsedEntries.map((entry) => {
                   const counts = lookupCounts(entry)
                   return (
-                    <StewardCard
-                      key={entry.uri}
-                      entry={entry}
-                      allEntries={allEntriesForLookup}
-                      endorsed
-                      endorsedSet={endorsedUris}
-                      onEndorse={handleEndorse}
-                      onUnendorse={handleUnendorse}
-                      networkEndorsementCount={counts?.networkEndorsementCount}
-                    />
+                    <CardErrorBoundary key={entry.uri} uri={entry.uri}>
+                      <StewardCard
+                        entry={entry}
+                        allEntries={entries}
+                        endorsed
+                        endorsedSet={endorsedUris}
+                        onEndorse={handleEndorse}
+                        onUnendorse={handleUnendorse}
+                        networkEndorsementCount={counts?.networkEndorsementCount}
+                      />
+                    </CardErrorBoundary>
                   )
                 })}
               </ul>
@@ -512,10 +359,10 @@ export function GiveClient() {
           </div>
         </section>
 
-        {err && (
+        {error && (
           <p className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            {err}
+            {error}
           </p>
         )}
 
@@ -582,7 +429,6 @@ export function GiveClient() {
                 </p>
               ) : (
                 <>
-                  {/* Filter pills */}
                   {filterableTagCount > 1 && (
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -617,21 +463,21 @@ export function GiveClient() {
                     </div>
                   )}
 
-                  {/* Flat entry list — compact rows in a shared container */}
                   {filteredEntries.length > 0 && (
                     <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
                       {filteredEntries.map((entry) => {
                         const counts = lookupCounts(entry)
                         return (
-                          <StewardCard
-                            key={entry.uri}
-                            entry={entry}
-                            allEntries={allEntriesForLookup}
-                            endorsedSet={endorsedUris}
-                            onEndorse={handleEndorse}
-                            onUnendorse={handleUnendorse}
-                            networkEndorsementCount={counts?.networkEndorsementCount}
-                          />
+                          <CardErrorBoundary key={entry.uri} uri={entry.uri}>
+                            <StewardCard
+                              entry={entry}
+                              allEntries={entries}
+                              endorsedSet={endorsedUris}
+                              onEndorse={handleEndorse}
+                              onUnendorse={handleUnendorse}
+                              networkEndorsementCount={counts?.networkEndorsementCount}
+                            />
+                          </CardErrorBoundary>
                         )
                       })}
                     </ul>
@@ -658,20 +504,26 @@ export function GiveClient() {
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Projects and services endorsed by people you follow that aren&apos;t already in your fundable services.
               </p>
+              {meta?.endorsementsCapped && (
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  Endorsement scanning is available for the first 2,500 of your {meta.followCount?.toLocaleString()} follows.
+                </p>
+              )}
               {visibleEcosystemEntries.length > 0 ? (
                 <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
                   {visibleEcosystemEntries.map((entry) => {
                     const counts = lookupCounts(entry)
                     return (
-                      <StewardCard
-                        key={entry.uri}
-                        entry={entry}
-                        allEntries={allEntriesForLookup}
-                        endorsedSet={endorsedUris}
-                        onEndorse={handleEndorse}
-                        onUnendorse={handleUnendorse}
-                        networkEndorsementCount={counts?.networkEndorsementCount}
-                      />
+                      <CardErrorBoundary key={entry.uri} uri={entry.uri}>
+                        <StewardCard
+                          entry={entry}
+                          allEntries={entries}
+                          endorsedSet={endorsedUris}
+                          onEndorse={handleEndorse}
+                          onUnendorse={handleUnendorse}
+                          networkEndorsementCount={counts?.networkEndorsementCount}
+                        />
+                      </CardErrorBoundary>
                     )
                   })}
                 </ul>

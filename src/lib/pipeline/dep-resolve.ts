@@ -1,13 +1,7 @@
-import { Client } from '@atproto/lex'
 import type { StewardEntry } from '@/lib/steward-model'
-import { lookupManualStewardRecord } from '@/lib/catalog'
-import { fetchFundAtRecords, resolveDidFromIdentifier, resolveHandleFromDid } from '@/lib/fund-at-records'
-import { lookupAtprotoDid } from '@/lib/atfund-dns'
-import { xrpcQuery } from '@/lib/xrpc'
-import { logger } from '@/lib/logger'
-
-const PUBLIC_API = 'https://public.api.bsky.app'
-const PROFILE_BATCH = 25
+import { buildIdentity, batchFetchProfiles, resolveRefToDid } from '@/lib/identity'
+import { resolveFundingForDep } from '@/lib/funding'
+import type { ScanContext } from '@/lib/scan-context'
 
 // ---------------------------------------------------------------------------
 // Phase 4: Resolve referenced dependency entries (multi-level)
@@ -25,6 +19,7 @@ const PROFILE_BATCH = 25
 export async function resolveDependencies(
   entries: StewardEntry[],
   onReferenced?: (entry: StewardEntry) => void,
+  ctx?: ScanContext,
 ): Promise<StewardEntry[]> {
   const knownUris = new Set<string>()
   for (const e of entries) {
@@ -49,7 +44,7 @@ export async function resolveDependencies(
     if (resolved.has(depUri) || knownUris.has(depUri)) continue
     resolved.add(depUri)
 
-    const refEntry = await resolveDepEntry(depUri)
+    const refEntry = await resolveDepEntry(depUri, ctx)
     referenced.push(refEntry)
     onReferenced?.(refEntry)
 
@@ -77,120 +72,48 @@ export async function resolveDependencies(
 }
 
 // ---------------------------------------------------------------------------
-// Single dependency resolution: DID + fund.at + manual catalog
+// Single dependency resolution: identity + funding
 // ---------------------------------------------------------------------------
 
-async function resolveDepEntry(depUri: string): Promise<StewardEntry> {
-  const manual = lookupManualStewardRecord(depUri)
+async function resolveDepEntry(
+  depUri: string,
+  ctx?: ScanContext,
+): Promise<StewardEntry> {
+  const did = await resolveRefToDid(depUri)
 
-  // Try to resolve URI to a DID
-  const did = await resolveUriToDid(depUri)
-
-  // Try fund.at records if we have a DID
-  if (did) {
-    try {
-      const fundAt = await fetchFundAtRecords(did)
-      if (fundAt) {
-        const deps = mergeDeps(
-          fundAt.dependencies?.map((d) => d.uri),
-          manual?.dependencies,
-        )
-        return {
-          uri: depUri,
-          did,
-          tags: ['dependency'],
-          displayName: depUri,
-          contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
-          dependencies: deps,
-          source: 'fund.at',
-        }
-      }
-    } catch (e) {
-      logger.warn('dep-resolve: fund.at fetch failed', {
-        depUri, did, error: e instanceof Error ? e.message : String(e),
-      })
-    }
-  }
-
-  // Fall back to manual catalog
-  return {
-    uri: depUri,
+  const identity = buildIdentity({
+    ref: depUri,
     did,
-    tags: ['dependency'],
-    displayName: depUri,
-    source: manual ? 'manual' : 'unknown',
-    contributeUrl: manual?.contributeUrl,
-    dependencies: manual?.dependencies,
-  }
+    // No profile data yet — backfillProfiles handles that later
+  })
+
+  const funding = await resolveFundingForDep(identity, ctx)
+
+  return { ...identity, ...funding, tags: ['dependency'] }
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Profile backfill for dependency entries
 // ---------------------------------------------------------------------------
-
-async function resolveUriToDid(uri: string): Promise<string | undefined> {
-  if (uri.startsWith('did:')) return uri
-
-  // Try as a handle first
-  try {
-    const did = await resolveDidFromIdentifier(uri)
-    if (did) return did
-  } catch { /* not a handle */ }
-
-  // Try DNS lookup for hostname
-  try {
-    const did = await lookupAtprotoDid(uri)
-    if (did) return did
-  } catch { /* not a hostname with atproto DNS */ }
-
-  return undefined
-}
 
 async function backfillProfiles(entries: StewardEntry[]): Promise<void> {
   const needsProfile = entries.filter((e) => e.did && !e.avatar)
   if (needsProfile.length === 0) return
 
-  const publicClient = new Client(PUBLIC_API)
   const dids = needsProfile.map((e) => e.did!)
+  const profileMap = await batchFetchProfiles(dids)
 
-  for (let i = 0; i < dids.length; i += PROFILE_BATCH) {
-    const batch = dids.slice(i, i + PROFILE_BATCH)
-    try {
-      const data = await xrpcQuery<{
-        profiles?: Array<{
-          did: string
-          handle?: string
-          displayName?: string
-          description?: string
-          avatar?: string
-        }>
-      }>(publicClient, 'app.bsky.actor.getProfiles', { actors: batch })
-      for (const p of data.profiles ?? []) {
-        const entry = needsProfile.find((e) => e.did === p.did)
-        if (!entry) continue
-        if (p.avatar) entry.avatar = p.avatar
-        if (p.handle && !entry.handle) entry.handle = p.handle
-        if (p.displayName && entry.displayName === entry.uri) {
-          entry.displayName = p.displayName
-        }
-        if (p.description && !entry.description) entry.description = p.description
-        if (p.handle && !entry.landingPage) {
-          entry.landingPage = `https://bsky.app/profile/${p.handle}`
-        }
-      }
-    } catch (e) {
-      logger.warn('dep-resolve: profile batch failed', {
-        error: e instanceof Error ? e.message : String(e),
-      })
+  for (const entry of needsProfile) {
+    const p = profileMap.get(entry.did!)
+    if (!p) continue
+    if (p.avatar) entry.avatar = p.avatar
+    if (p.handle && !entry.handle) entry.handle = p.handle
+    if (p.displayName && entry.displayName === entry.uri) {
+      entry.displayName = p.displayName
+    }
+    if (p.description && !entry.description) entry.description = p.description
+    if (p.handle && !entry.landingPage) {
+      entry.landingPage = `https://bsky.app/profile/${p.handle}`
     }
   }
-}
-
-function mergeDeps(
-  a: string[] | undefined,
-  b: string[] | undefined,
-): string[] | undefined {
-  if (!a && !b) return undefined
-  const set = new Set([...(a ?? []), ...(b ?? [])])
-  return set.size > 0 ? [...set].sort() : undefined
 }

@@ -1,6 +1,7 @@
 import { getRedisClient } from '@/lib/auth/kv-store'
 import { normalizeStewardUri } from '@/lib/steward-uri'
 import { logger } from '@/lib/logger'
+import { runWithConcurrency } from '@/lib/concurrency'
 
 // ---------------------------------------------------------------------------
 // Endorsement collection via PDS listRecords
@@ -29,34 +30,9 @@ const memoryCache = new Map<string, { data: unknown; fetchedAt: number }>()
 /** Map of endorsed URI → Set of endorser DIDs (from the scanned set). */
 export type EndorsementMap = Map<string, Set<string>>
 
-export type EndorsementResult = {
-  /** Network endorsement count (from checked DIDs). */
+/** Endorsement count for a single URI, derived from the endorsement map. */
+export type EndorsementCounts = {
   networkEndorsementCount: number
-  /** DIDs that endorsed this URI. */
-  endorserDids: string[]
-}
-
-// ---------------------------------------------------------------------------
-// Concurrency helper
-// ---------------------------------------------------------------------------
-
-async function runWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = []
-  let idx = 0
-  async function worker() {
-    while (idx < items.length) {
-      const i = idx++
-      results[i] = await fn(items[i]!)
-    }
-  }
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
-  )
-  return results
 }
 
 // ---------------------------------------------------------------------------
@@ -146,19 +122,23 @@ async function fetchEndorsementsForDid(
  */
 export async function collectNetworkEndorsements(
   candidateDids: string[],
+  onProgress?: (scanned: number, total: number) => void,
 ): Promise<EndorsementMap> {
   const endorsementMap: EndorsementMap = new Map()
   let resolvedCount = 0
   let withRecords = 0
+  let scannedCount = 0
 
   await runWithConcurrency(candidateDids, CONCURRENCY, async (did) => {
     // Step 1: Resolve PDS URL via Slingshot
     const pdsUrl = await resolvePds(did)
-    if (!pdsUrl) return
+    if (!pdsUrl) { scannedCount++; onProgress?.(scannedCount, candidateDids.length); return }
     resolvedCount++
 
     // Step 2: List all fund.at.graph.endorse records
     const endorsedUris = await fetchEndorsementsForDid(did, pdsUrl)
+    scannedCount++
+    onProgress?.(scannedCount, candidateDids.length)
     if (endorsedUris.length === 0) return
     withRecords++
 
@@ -215,6 +195,7 @@ function hashDids(dids: string[]): string {
 
 export async function collectNetworkEndorsementsCached(
   candidateDids: string[],
+  onProgress?: (scanned: number, total: number) => void,
 ): Promise<EndorsementMap> {
   const hash = hashDids(candidateDids)
   const key = `${CACHE_KEY}:${hash}`
@@ -243,7 +224,7 @@ export async function collectNetworkEndorsementsCached(
   }
 
   // Fetch fresh
-  const map = await collectNetworkEndorsements(candidateDids)
+  const map = await collectNetworkEndorsements(candidateDids, onProgress)
   const serialized = serializeMap(map)
 
   // Cache in Redis
@@ -273,11 +254,8 @@ export async function collectNetworkEndorsementsCached(
 export function getCountsFromMap(
   map: EndorsementMap,
   uri: string,
-): EndorsementResult {
+): EndorsementCounts {
   const normalized = normalizeStewardUri(uri) ?? uri
   const dids = map.get(normalized)
-  return {
-    networkEndorsementCount: dids?.size ?? 0,
-    endorserDids: dids ? [...dids] : [],
-  }
+  return { networkEndorsementCount: dids?.size ?? 0 }
 }

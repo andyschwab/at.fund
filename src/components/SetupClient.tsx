@@ -20,6 +20,7 @@ import type { FundingManifest } from '@/lib/funding-manifest'
 import type { FundAtResult } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
 import { useSession } from '@/components/SessionContext'
+import { nextId } from '@/lib/next-id'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,14 +58,6 @@ type Props = {
   did: string
   handle?: string
   existing: FundAtResult | null
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function nextId() {
-  return Math.random().toString(36).slice(2)
 }
 
 function initialFormState(existing: FundAtResult | null): FormState {
@@ -220,9 +213,7 @@ export function SetupClient({ did, handle, existing }: Props) {
 
   const validChannels = form.channels.filter((ch) => ch.slug.trim() && ch.uri.trim())
 
-  const hasErrors =
-    !!contributeUrlError ||
-    (!form.contributeUrl.trim() && form.dependencies.filter((d) => d.uri.trim()).length === 0 && validChannels.length === 0)
+  const hasErrors = !!contributeUrlError
 
   // Fetch enriched profile for the user's own entry (avatar, description, etc.)
   const [enriched, setEnriched] = useState<StewardEntry | null>(null)
@@ -383,6 +374,10 @@ export function SetupClient({ did, handle, existing }: Props) {
               ...(d.label.trim() && { label: d.label.trim() }),
             })),
           manifest: manifestPayload,
+          existing: existing ? {
+            contributeUrl: existing.contributeUrl || undefined,
+            dependencies: existing.dependencies?.map((d) => ({ uri: d.uri })),
+          } : undefined,
         }),
       })
       const data = await res.json()

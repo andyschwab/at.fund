@@ -39,10 +39,11 @@ describe('cache', () => {
   })
 
   it('evicts entries after TTL', () => {
-    setCached(nsid, params, value)
-    // Advance time past TTL
+    // Fake timers must wrap the entire set+get cycle so Date.now() is controlled
     vi.useFakeTimers()
-    vi.advanceTimersByTime(5 * 60 * 1000 + 1)
+    setCached(nsid, params, value)
+    // Advance time past TTL (30 min in test/dev mode)
+    vi.advanceTimersByTime(30 * 60 * 1000 + 1)
     expect(getCached(nsid, params)).toBeUndefined()
     vi.useRealTimers()
   })

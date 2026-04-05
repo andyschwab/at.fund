@@ -13,19 +13,28 @@ import {
   resolveSiteStandardPairs,
   stripDerivedCollections,
 } from '@/lib/repo-collection-resolve'
+import type { ScanContext } from '@/lib/scan-context'
+import { createScanContext } from '@/lib/scan-context'
 import { logger } from '@/lib/logger'
 import type { StewardTag } from '@/lib/steward-model'
+import { PUBLIC_API } from '@/lib/constants'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type AccountStub = {
+/**
+ * Pre-resolution account data collected during Phase 1.
+ * Fields overlap with Identity — these are the raw inputs that
+ * `buildIdentity()` processes in Phase 2 (enrichment).
+ */
+export type GatheredAccount = {
   did: string
   handle?: string
   displayName?: string
   description?: string
   avatar?: string
+  /** Discovery paths that found this account. Multi-valued accumulator. */
   tags: Set<StewardTag>
   /** Tool hostnames associated with this DID (for catalog lookup). */
   hostnames: Set<string>
@@ -46,27 +55,29 @@ export type GatherResult = {
   did: string
   handle?: string
   pdsUrl?: string
-  accounts: Map<string, AccountStub>
+  accounts: Map<string, GatheredAccount>
   unresolvedServices: UnresolvedService[]
   warnings: ScanWarning[]
   /** Feed AT URIs from user prefs (for Phase 3). */
   feedUris: string[]
   /** Labeler DIDs from user prefs (for Phase 3). */
   labelerDids: string[]
+  /** Shared scan context — prefetch map + orchestrator-level network state. */
+  ctx: ScanContext
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const PUBLIC_API = 'https://public.api.bsky.app'
-
 function addToAccount(
-  accounts: Map<string, AccountStub>,
+  accounts: Map<string, GatheredAccount>,
   did: string,
   tag: StewardTag,
   extra?: { handle?: string; displayName?: string; description?: string; hostname?: string },
+  onNewDid?: (did: string) => void,
 ) {
+  const isNew = !accounts.has(did)
   let stub = accounts.get(did)
   if (!stub) {
     stub = { did, tags: new Set(), hostnames: new Set() }
@@ -77,6 +88,7 @@ function addToAccount(
   if (extra?.displayName && !stub.displayName) stub.displayName = extra.displayName
   if (extra?.description && !stub.description) stub.description = extra.description
   if (extra?.hostname) stub.hostnames.add(extra.hostname)
+  if (isNew) onNewDid?.(did)
 }
 
 /**
@@ -84,9 +96,14 @@ function addToAccount(
  * Used for feed creators and labelers whose tags are derived from confirmed
  * capability data in Phase 3 (capability-scan), not from the discovery source.
  */
-function ensureAccount(accounts: Map<string, AccountStub>, did: string) {
+function ensureAccount(
+  accounts: Map<string, GatheredAccount>,
+  did: string,
+  onNewDid?: (did: string) => void,
+) {
   if (!accounts.has(did)) {
     accounts.set(did, { did, tags: new Set(), hostnames: new Set() })
+    onNewDid?.(did)
   }
 }
 
@@ -98,12 +115,17 @@ export async function gatherAccounts(
   session: OAuthSession,
   selfReportedStewards: string[] = [],
   onStatus?: (msg: string) => void,
+  ctx?: ScanContext,
 ): Promise<GatherResult> {
   const client = new Client(session)
   const publicClient = new Client(PUBLIC_API)
-  const accounts = new Map<string, AccountStub>()
+  const accounts = new Map<string, GatheredAccount>()
   const unresolvedServices: UnresolvedService[] = []
   const warnings: ScanWarning[] = []
+
+  // Use the orchestrator's scan context, or create a local one as fallback.
+  const scanCtx = ctx ?? createScanContext()
+  const prefetch = (did: string) => scanCtx.prefetch(did)
 
   // ── Resolve PDS URL ────────────────────────────────────────────────────
   let pdsUrl: string | undefined
@@ -162,14 +184,14 @@ export async function gatherAccounts(
   await Promise.allSettled(
     [...stewardUris].sort().map(async (stewardUri) => {
       if (stewardUri.startsWith('did:')) {
-        addToAccount(accounts, stewardUri, 'tool')
+        addToAccount(accounts, stewardUri, 'tool', undefined, prefetch)
         return
       }
       // Hostname — try DNS lookup
       try {
         const did = await lookupAtprotoDid(stewardUri)
         if (did) {
-          addToAccount(accounts, did, 'tool', { hostname: stewardUri })
+          addToAccount(accounts, did, 'tool', { hostname: stewardUri }, prefetch)
           return
         }
       } catch (e) {
@@ -203,7 +225,7 @@ export async function gatherAccounts(
           for (const f of res.follows) {
             addToAccount(accounts, f.did, 'follow', {
               handle: f.handle, displayName: f.displayName, description: f.description,
-            })
+            }, prefetch)
           }
           cursor = res.cursor
         } while (cursor)
@@ -227,14 +249,14 @@ export async function gatherAccounts(
         for (const pref of prefs.preferences) {
           if (pref.$type === 'app.bsky.actor.defs#labelersPref' && pref.labelers) {
             labelerDids = pref.labelers.map((l) => l.did)
-            for (const did of labelerDids) ensureAccount(accounts, did)
+            for (const did of labelerDids) ensureAccount(accounts, did, prefetch)
           }
           if (pref.$type === 'app.bsky.actor.defs#savedFeedsPrefV2' && pref.items) {
             feedUris = pref.items.filter((f) => f.type === 'feed').map((f) => f.value)
             // Ensure feed creator DIDs exist; tags derived in Phase 3
             for (const uri of feedUris) {
               const m = uri.match(/^at:\/\/(did:[^/]+)\//)
-              if (m) ensureAccount(accounts, m[1]!)
+              if (m) ensureAccount(accounts, m[1]!, prefetch)
             }
           }
         }
@@ -258,5 +280,5 @@ export async function gatherAccounts(
     },
   })
 
-  return { did: session.did, handle: handle ?? undefined, pdsUrl, accounts, unresolvedServices, warnings, feedUris, labelerDids }
+  return { did: session.did, handle: handle ?? undefined, pdsUrl, accounts, unresolvedServices, warnings, feedUris, labelerDids, ctx: scanCtx }
 }
