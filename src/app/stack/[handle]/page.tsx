@@ -2,14 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Client } from '@atproto/lex'
 import { Share2 } from 'lucide-react'
-import { fetchPublicEndorsements } from '@/lib/pipeline/fetch-public-endorsements'
-import { resolveEntry } from '@/lib/pipeline/entry-resolve'
-import { resolveDependencies } from '@/lib/pipeline/dep-resolve'
-import { resolveDidFromIdentifier } from '@/lib/fund-at-records'
-import { createScanContext } from '@/lib/scan-context'
 import { xrpcQuery } from '@/lib/xrpc'
-import { StackEntriesList } from './StackEntriesList'
-import type { StewardEntry } from '@/lib/steward-model'
+import { StackStream } from './StackStream'
 
 const PUBLIC_API = 'https://public.api.bsky.app'
 
@@ -18,7 +12,6 @@ type Props = {
 }
 
 type BlueskyProfile = {
-  did: string
   handle?: string
   displayName?: string
   avatar?: string
@@ -48,33 +41,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function StackPage({ params }: Props) {
   const { handle } = await params
-
-  const [endorsedUris, , profile] = await Promise.all([
-    fetchPublicEndorsements(handle),
-    resolveDidFromIdentifier(handle),
-    fetchBlueskyProfile(handle),
-  ])
-
-  // Resolve entries, capped at 30
-  const sharedCtx = createScanContext()
-  const urisToResolve = endorsedUris.slice(0, 30)
-  const results = await Promise.allSettled(urisToResolve.map((uri) => resolveEntry(uri, sharedCtx)))
-  const entries: StewardEntry[] = results
-    .filter((r): r is PromiseFulfilledResult<{ entry: StewardEntry; referenced: StewardEntry[] }> => r.status === 'fulfilled')
-    .map((r) => r.value.entry)
-
-  // Resolve dependencies for all entries together in one BFS pass so the
-  // lookup used by sub-icons is complete (shared ctx reuses cached fund.at records).
-  const allReferenced = await resolveDependencies(entries, undefined, sharedCtx)
+  const profile = await fetchBlueskyProfile(handle)
 
   const displayHandle = profile?.handle ?? handle
   const displayName = profile?.displayName ?? `@${displayHandle}`
   const avatar = profile?.avatar
 
   const stackUrl = `https://at.fund/stack/${handle}`
-  const shareText = entries.length > 0
-    ? `I've endorsed ${entries.length} project${entries.length === 1 ? '' : 's'} that fund the Atmosphere on @at.fund ❤️\n${stackUrl}`
-    : `Check out my stack on @at.fund ❤️\n${stackUrl}`
+  const shareText = `Check out @${displayHandle}'s stack on @at.fund ❤️\n${stackUrl}`
   const bskyShareUrl = `https://bsky.app/intent/compose?text=${encodeURIComponent(shareText)}`
 
   return (
@@ -98,11 +72,6 @@ export default async function StackPage({ params }: Props) {
             <div>
               <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{displayName}</h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">@{displayHandle}</p>
-              {entries.length > 0 && (
-                <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
-                  {entries.length} project{entries.length === 1 ? '' : 's'} endorsed
-                </p>
-              )}
             </div>
           </div>
 
@@ -117,16 +86,8 @@ export default async function StackPage({ params }: Props) {
           </a>
         </div>
 
-        {/* Entry list */}
-        {entries.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-white/60 p-8 text-center dark:border-slate-700/60 dark:bg-slate-900/40">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              No endorsed projects found for @{displayHandle}.
-            </p>
-          </div>
-        ) : (
-          <StackEntriesList entries={entries} allEntries={[...entries, ...allReferenced]} />
-        )}
+        {/* Entry list — streams entries client-side after fast initial render */}
+        <StackStream handle={handle} />
 
         {/* Footer */}
         <p className="text-center text-xs text-slate-400 dark:text-slate-600">
