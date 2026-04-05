@@ -84,6 +84,11 @@ async function resolveDepEntry(
   const identity = buildIdentity({
     ref: depUri,
     did,
+    // Hostname refs are tools: preserves the hostname as the canonical URI so
+    // that lookup(depUri) in DependenciesSection finds the entry. Without this,
+    // buildIdentity falls through to uri = did, which doesn't match the hostname
+    // stored in entry.dependencies.
+    isTool: !depUri.startsWith('did:'),
     // No profile data yet — backfillProfiles handles that later
   })
 
