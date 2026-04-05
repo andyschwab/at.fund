@@ -1,4 +1,4 @@
-import type { FundingManifest } from '@/lib/funding-manifest'
+import type { FundingManifest, FundingHistory } from '@/lib/funding-manifest'
 
 export type StewardSource = 'fund.at' | 'manual' | 'unknown'
 
@@ -65,6 +65,8 @@ export type Funding = {
   dependencies?: string[]
   /** Structured funding manifest from ATProto record or funding.json. */
   fundingManifest?: FundingManifest
+  /** Annual financial history from fund.at.funding.history records. */
+  fundingHistory?: FundingHistory[]
 }
 
 // ---------------------------------------------------------------------------

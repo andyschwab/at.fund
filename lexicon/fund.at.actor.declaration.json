@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "fund.at.actor.declaration",
-  "description": "Signaling record indicating this account participates in the fund.at funding ecosystem. Its existence is the signal — all fields are optional enrichment.",
+  "description": "Signaling record indicating this account participates in the fund.at funding ecosystem. Its existence is the signal — all fields are optional enrichment. Maps to funding.json entity.type and entity.role.",
   "defs": {
     "main": {
       "type": "record",
@@ -14,10 +14,11 @@
           "entityType": {
             "type": "string",
             "maxLength": 32,
-            "description": "What kind of entity this account represents.",
+            "description": "What kind of entity this account represents. Maps to funding.json entity.type.",
             "knownValues": [
               "individual",
               "group",
+              "collective",
               "organisation",
               "other"
             ]
@@ -25,12 +26,13 @@
           "role": {
             "type": "string",
             "maxLength": 32,
-            "description": "The account's role relative to the projects it stewards.",
+            "description": "The account's role relative to the projects it stewards. Maps to funding.json entity.role.",
             "knownValues": [
               "owner",
               "steward",
               "maintainer",
               "contributor",
+              "sponsor",
               "other"
             ]
           },

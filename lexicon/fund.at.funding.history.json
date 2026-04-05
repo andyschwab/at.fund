@@ -1,0 +1,49 @@
+{
+  "lexicon": 1,
+  "id": "fund.at.funding.history",
+  "description": "Annual financial transparency record. One record per year, keyed by the year string. Maps to funding.json funding.history entries.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A single year's financial summary — income, expenses, and taxes. Supports the same transparency that funding.json history provides, but as individual ATProto records that can be listed via com.atproto.repo.listRecords.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["year"],
+        "properties": {
+          "year": {
+            "type": "integer",
+            "description": "The calendar year this record covers (e.g. 2024)."
+          },
+          "income": {
+            "type": "integer",
+            "description": "Total income received in the smallest currency unit (e.g. cents for USD)."
+          },
+          "expenses": {
+            "type": "integer",
+            "description": "Total expenses in the smallest currency unit."
+          },
+          "taxes": {
+            "type": "integer",
+            "description": "Total taxes paid in the smallest currency unit."
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "description": "ISO 4217 currency code (e.g. 'USD', 'EUR')."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Human-readable narrative for this year (e.g. 'First year accepting donations')."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this record was created or last updated."
+          }
+        }
+      }
+    }
+  }
+}

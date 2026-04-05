@@ -96,6 +96,7 @@ export async function resolveFunding(
               manual?.dependencies,
             ),
             fundingManifest: fundAt.manifest,
+            fundingHistory: fundAt.history,
           },
         }
       }
@@ -143,6 +144,7 @@ export async function resolveFundingForDep(
             manual?.dependencies,
           ),
           fundingManifest: fundAt.manifest,
+          fundingHistory: fundAt.history,
         }
       }
     } catch (e) {

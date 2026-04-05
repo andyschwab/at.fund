@@ -8,7 +8,7 @@ const $nsid = 'fund.at.funding.contribute'
 
 export { $nsid }
 
-/** The steward's canonical funding entry point. A single URL where people can support this entity. */
+/** The steward's canonical funding entry point. A single URL where people can support this entity. Inspired by the rel="payment" microformat: a simple, unopinionated pointer to a support page. */
 type Main = {
   $type: 'fund.at.funding.contribute'
 
@@ -18,6 +18,11 @@ type Main = {
   url: l.UriString
 
   /**
+   * Human-readable description of the funding page (e.g. 'Support via GitHub Sponsors'). Inspired by rel="payment" title attribute. Optional — clients may derive a label from the URL.
+   */
+  label?: string
+
+  /**
    * When this record was created or last updated.
    */
   createdAt?: l.DatetimeString
@@ -25,12 +30,13 @@ type Main = {
 
 export type { Main }
 
-/** The steward's canonical funding entry point. A single URL where people can support this entity. */
+/** The steward's canonical funding entry point. A single URL where people can support this entity. Inspired by the rel="payment" microformat: a simple, unopinionated pointer to a support page. */
 const main = l.record<'literal:self', Main>(
   'literal:self',
   $nsid,
   l.object({
     url: l.string({ format: 'uri' }),
+    label: l.optional(l.string({ maxLength: 128 })),
     createdAt: l.optional(l.string({ format: 'datetime' })),
   }),
 )

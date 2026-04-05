@@ -1,49 +1,60 @@
 {
   "lexicon": 1,
   "id": "fund.at.funding.defs",
-  "description": "Reusable definitions for fund.at funding metadata. Designed for use by fund.at.funding.manifest and any future record types or third-party integrations.",
+  "description": "Reusable definitions for fund.at funding metadata. Designed for use by fund.at.funding.manifest and any future record types or third-party integrations. Field names and semantics are aligned with the funding.json open standard (fundingjson.org) where applicable.",
   "defs": {
     "channel": {
       "type": "object",
-      "description": "A single payment channel where contributions can be made.",
-      "required": ["channelId", "uri"],
+      "description": "A single payment channel where contributions can be made. Maps to a funding.json channel entry.",
+      "required": ["channelId"],
       "properties": {
         "channelId": {
           "type": "string",
           "maxLength": 32,
-          "description": "Slug identifier for this channel, unique within the manifest (e.g. 'github-sponsors', 'open-collective')."
+          "description": "Slug identifier for this channel, unique within the manifest (e.g. 'github-sponsors', 'open-collective'). Maps to funding.json channel.guid."
         },
         "channelType": {
           "type": "string",
           "maxLength": 32,
-          "description": "Channel category.",
+          "description": "Channel category. Maps to funding.json channel.type.",
           "knownValues": [
             "payment-provider",
             "bank",
+            "cheque",
+            "cash",
             "other"
           ]
         },
         "uri": {
           "type": "string",
           "format": "uri",
-          "description": "The payment URL for this channel (e.g. https://github.com/sponsors/you)."
+          "description": "The payment URL for this channel (e.g. https://github.com/sponsors/you). Optional for channels without a public URL (e.g. bank transfers). Maps to funding.json channel.address."
         },
         "description": {
           "type": "string",
-          "maxLength": 256,
+          "maxLength": 500,
           "description": "Human-readable description of this channel."
         }
       }
     },
     "plan": {
       "type": "object",
-      "description": "A funding plan or tier with a suggested amount.",
+      "description": "A funding plan or tier with a suggested amount. Maps to a funding.json plan entry.",
       "required": ["planId", "name"],
       "properties": {
         "planId": {
           "type": "string",
           "maxLength": 32,
-          "description": "Slug identifier for this plan, unique within the manifest."
+          "description": "Slug identifier for this plan, unique within the manifest. Maps to funding.json plan.guid."
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 16,
+          "description": "Whether this plan is currently accepting contributions. Maps to funding.json plan.status.",
+          "knownValues": [
+            "active",
+            "inactive"
+          ]
         },
         "name": {
           "type": "string",
@@ -52,12 +63,12 @@
         },
         "description": {
           "type": "string",
-          "maxLength": 256,
+          "maxLength": 500,
           "description": "What this plan covers or how the funds are used."
         },
         "amount": {
           "type": "integer",
-          "description": "Suggested amount in the smallest currency unit (e.g. cents for USD). Use 0 for 'any amount'."
+          "description": "Suggested amount in the smallest currency unit (e.g. cents for USD). Use 0 for 'any amount'. Maps to funding.json plan.amount (converted from whole units)."
         },
         "currency": {
           "type": "string",
@@ -67,9 +78,11 @@
         "frequency": {
           "type": "string",
           "maxLength": 16,
-          "description": "How often the plan is billed.",
+          "description": "How often the plan is billed. Maps to funding.json plan.frequency.",
           "knownValues": [
             "one-time",
+            "weekly",
+            "fortnightly",
             "monthly",
             "yearly",
             "other"
@@ -77,7 +90,7 @@
         },
         "channels": {
           "type": "array",
-          "description": "Channel IDs where this plan can be fulfilled. If omitted, all channels apply.",
+          "description": "Channel IDs where this plan can be fulfilled. If omitted, all channels apply. Maps to funding.json plan.channels.",
           "items": {
             "type": "ref",
             "ref": "#channelRef"

@@ -4,4 +4,5 @@
 
 export * as contribute from './funding/contribute'
 export * as defs from './funding/defs'
+export * as history from './funding/history'
 export * as manifest from './funding/manifest'

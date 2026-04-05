@@ -4,13 +4,14 @@ import type { OAuthSession } from '@atproto/oauth-client'
 import { Client } from '@atproto/lex'
 import type { AtIdentifierString } from '@atproto/lex-client'
 import * as fund from '@/lexicons/fund'
-import type { FundingManifest } from '@/lib/funding-manifest'
+import type { FundingManifest, FundingHistory } from '@/lib/funding-manifest'
 import { xrpcQuery } from '@/lib/xrpc'
 
 // New grouped NSIDs
 export const FUND_DECLARATION = 'fund.at.actor.declaration'
 export const FUND_CONTRIBUTE = 'fund.at.funding.contribute'
 export const FUND_MANIFEST = 'fund.at.funding.manifest'
+export const FUND_HISTORY = 'fund.at.funding.history'
 export const FUND_DEPENDENCY = 'fund.at.graph.dependency'
 export const FUND_ENDORSE = 'fund.at.graph.endorse'
 
@@ -33,6 +34,8 @@ export type FundAtResult = {
   contributeUrl?: string
   dependencies?: Array<{ uri: string; label?: string }>
   manifest?: FundingManifest
+  /** Annual financial history from fund.at.funding.history records. */
+  history?: FundingHistory[]
   /** True if any records were found using legacy NSIDs (migration needed). */
   needsMigration?: boolean
 }
@@ -150,7 +153,7 @@ function atprotoManifestToFundingManifest(
       plans: Array.isArray(value.plans)
         ? (value.plans as Array<Record<string, unknown>>).map((p) => ({
             guid: String(p.planId ?? p.id ?? ''),
-            status: 'active' as const,
+            status: p.status === 'inactive' ? 'inactive' as const : 'active' as const,
             name: String(p.name ?? ''),
             description: p.description ? String(p.description) : undefined,
             amount: typeof p.amount === 'number' ? p.amount / 100 : 0,
@@ -255,21 +258,52 @@ export async function fetchFundAtRecords(
   const dependencies = dependencyResult.deps
   if (contributeResult.legacy || dependencyResult.legacy) needsMigration = true
 
-  // ── Manifest: try new, fall back to legacy ────────────────────────────
+  // ── Manifest + History: fetch in parallel ──────────────────────────────
   let manifest: FundingManifest | undefined
-  try {
-    const res = await readClient.get(fund.at.funding.manifest, { repo })
-    manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
-  } catch {
-    try {
-      const res = await readClient.get(fund.at.manifest, { repo })
-      manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
-      if (manifest) needsMigration = true
-    } catch { /* neither exists */ }
-  }
+  let history: FundingHistory[] | undefined
 
-  if (!contributeUrl && !dependencies && !manifest) return null
-  return { contributeUrl, dependencies, manifest, needsMigration: needsMigration || undefined }
+  const [, historyRecords] = await Promise.all([
+    // Manifest: try new, fall back to legacy
+    (async () => {
+      try {
+        const res = await readClient.get(fund.at.funding.manifest, { repo })
+        manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
+      } catch {
+        try {
+          const res = await readClient.get(fund.at.manifest, { repo })
+          manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
+          if (manifest) needsMigration = true
+        } catch { /* neither exists */ }
+      }
+    })(),
+    // History: list fund.at.funding.history records
+    (async (): Promise<FundingHistory[]> => {
+      try {
+        const res = await readClient.list(fund.at.funding.history, { repo, limit: 50 })
+        return res.records
+          .map((r) => {
+            const v = r.value as Record<string, unknown>
+            if (typeof v.year !== 'number') return null
+            return {
+              year: v.year,
+              income: typeof v.income === 'number' ? v.income : 0,
+              expenses: typeof v.expenses === 'number' ? v.expenses : 0,
+              taxes: typeof v.taxes === 'number' ? v.taxes : 0,
+              currency: typeof v.currency === 'string' ? v.currency : 'USD',
+              description: typeof v.description === 'string' ? v.description : undefined,
+            } as FundingHistory
+          })
+          .filter((h): h is FundingHistory => h !== null)
+      } catch {
+        return []
+      }
+    })(),
+  ])
+
+  if (historyRecords.length > 0) history = historyRecords
+
+  if (!contributeUrl && !dependencies && !manifest && !history) return null
+  return { contributeUrl, dependencies, manifest, history, needsMigration: needsMigration || undefined }
 }
 
 // ---------------------------------------------------------------------------
@@ -363,19 +397,48 @@ export async function fetchOwnFundAtRecords(
     } catch { /* optional */ }
   }
 
-  // ── Manifest ──────────────────────────────────────────────────────────
+  // ── Manifest + History ─────────────────────────────────────────────────
   let manifest: FundingManifest | undefined
-  try {
-    const res = await client.get(fund.at.funding.manifest)
-    manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
-  } catch {
-    try {
-      const res = await client.get(fund.at.manifest)
-      manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
-      if (manifest) needsMigration = true
-    } catch { /* neither exists */ }
-  }
+  let history: FundingHistory[] | undefined
 
-  if (!contributeUrl && !dependencies && !manifest) return null
-  return { contributeUrl, dependencies, manifest, needsMigration: needsMigration || undefined }
+  const [, historyRecords] = await Promise.all([
+    (async () => {
+      try {
+        const res = await client.get(fund.at.funding.manifest)
+        manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
+      } catch {
+        try {
+          const res = await client.get(fund.at.manifest)
+          manifest = atprotoManifestToFundingManifest(res.value as Record<string, unknown>) ?? undefined
+          if (manifest) needsMigration = true
+        } catch { /* neither exists */ }
+      }
+    })(),
+    (async (): Promise<FundingHistory[]> => {
+      try {
+        const res = await client.list(fund.at.funding.history, { limit: 50 })
+        return res.records
+          .map((r) => {
+            const v = r.value as Record<string, unknown>
+            if (typeof v.year !== 'number') return null
+            return {
+              year: v.year,
+              income: typeof v.income === 'number' ? v.income : 0,
+              expenses: typeof v.expenses === 'number' ? v.expenses : 0,
+              taxes: typeof v.taxes === 'number' ? v.taxes : 0,
+              currency: typeof v.currency === 'string' ? v.currency : 'USD',
+              description: typeof v.description === 'string' ? v.description : undefined,
+            } as FundingHistory
+          })
+          .filter((h): h is FundingHistory => h !== null)
+      } catch {
+        return []
+      }
+    })(),
+  ])
+
+  if (historyRecords.length > 0) history = historyRecords
+
+  if (!contributeUrl && !dependencies && !manifest && !history) return null
+  return { contributeUrl, dependencies, manifest, history, needsMigration: needsMigration || undefined }
 }

@@ -13,23 +13,25 @@ type Main = {
   $type: 'fund.at.actor.declaration'
 
   /**
-   * What kind of entity this account represents.
+   * What kind of entity this account represents. Maps to funding.json entity.type.
    */
   entityType?:
     | 'individual'
     | 'group'
+    | 'collective'
     | 'organisation'
     | 'other'
     | l.UnknownString
 
   /**
-   * The account's role relative to the projects it stewards.
+   * The account's role relative to the projects it stewards. Maps to funding.json entity.role.
    */
   role?:
     | 'owner'
     | 'steward'
     | 'maintainer'
     | 'contributor'
+    | 'sponsor'
     | 'other'
     | l.UnknownString
 
@@ -49,13 +51,26 @@ const main = l.record<'literal:self', Main>(
     entityType: l.optional(
       l.string<{
         maxLength: 32
-        knownValues: ['individual', 'group', 'organisation', 'other']
+        knownValues: [
+          'individual',
+          'group',
+          'collective',
+          'organisation',
+          'other',
+        ]
       }>({ maxLength: 32 }),
     ),
     role: l.optional(
       l.string<{
         maxLength: 32
-        knownValues: ['owner', 'steward', 'maintainer', 'contributor', 'other']
+        knownValues: [
+          'owner',
+          'steward',
+          'maintainer',
+          'contributor',
+          'sponsor',
+          'other',
+        ]
       }>({ maxLength: 32 }),
     ),
     createdAt: l.optional(l.string({ format: 'datetime' })),

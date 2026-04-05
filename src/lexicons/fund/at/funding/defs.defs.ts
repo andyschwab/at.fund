@@ -8,24 +8,30 @@ const $nsid = 'fund.at.funding.defs'
 
 export { $nsid }
 
-/** A single payment channel where contributions can be made. */
+/** A single payment channel where contributions can be made. Maps to a funding.json channel entry. */
 type Channel = {
   $type?: 'fund.at.funding.defs#channel'
 
   /**
-   * Slug identifier for this channel, unique within the manifest (e.g. 'github-sponsors', 'open-collective').
+   * Slug identifier for this channel, unique within the manifest (e.g. 'github-sponsors', 'open-collective'). Maps to funding.json channel.guid.
    */
   channelId: string
 
   /**
-   * Channel category.
+   * Channel category. Maps to funding.json channel.type.
    */
-  channelType?: 'payment-provider' | 'bank' | 'other' | l.UnknownString
+  channelType?:
+    | 'payment-provider'
+    | 'bank'
+    | 'cheque'
+    | 'cash'
+    | 'other'
+    | l.UnknownString
 
   /**
-   * The payment URL for this channel (e.g. https://github.com/sponsors/you).
+   * The payment URL for this channel (e.g. https://github.com/sponsors/you). Optional for channels without a public URL (e.g. bank transfers). Maps to funding.json channel.address.
    */
-  uri: l.UriString
+  uri?: l.UriString
 
   /**
    * Human-readable description of this channel.
@@ -35,7 +41,7 @@ type Channel = {
 
 export type { Channel }
 
-/** A single payment channel where contributions can be made. */
+/** A single payment channel where contributions can be made. Maps to a funding.json channel entry. */
 const channel = l.typedObject<Channel>(
   $nsid,
   'channel',
@@ -44,24 +50,29 @@ const channel = l.typedObject<Channel>(
     channelType: l.optional(
       l.string<{
         maxLength: 32
-        knownValues: ['payment-provider', 'bank', 'other']
+        knownValues: ['payment-provider', 'bank', 'cheque', 'cash', 'other']
       }>({ maxLength: 32 }),
     ),
-    uri: l.string({ format: 'uri' }),
-    description: l.optional(l.string({ maxLength: 256 })),
+    uri: l.optional(l.string({ format: 'uri' })),
+    description: l.optional(l.string({ maxLength: 500 })),
   }),
 )
 
 export { channel }
 
-/** A funding plan or tier with a suggested amount. */
+/** A funding plan or tier with a suggested amount. Maps to a funding.json plan entry. */
 type Plan = {
   $type?: 'fund.at.funding.defs#plan'
 
   /**
-   * Slug identifier for this plan, unique within the manifest.
+   * Slug identifier for this plan, unique within the manifest. Maps to funding.json plan.guid.
    */
   planId: string
+
+  /**
+   * Whether this plan is currently accepting contributions. Maps to funding.json plan.status.
+   */
+  status?: 'active' | 'inactive' | l.UnknownString
 
   /**
    * Human-readable plan name (e.g. 'Supporter', 'Sustainer').
@@ -74,7 +85,7 @@ type Plan = {
   description?: string
 
   /**
-   * Suggested amount in the smallest currency unit (e.g. cents for USD). Use 0 for 'any amount'.
+   * Suggested amount in the smallest currency unit (e.g. cents for USD). Use 0 for 'any amount'. Maps to funding.json plan.amount (converted from whole units).
    */
   amount?: number
 
@@ -84,32 +95,51 @@ type Plan = {
   currency?: string
 
   /**
-   * How often the plan is billed.
+   * How often the plan is billed. Maps to funding.json plan.frequency.
    */
-  frequency?: 'one-time' | 'monthly' | 'yearly' | 'other' | l.UnknownString
+  frequency?:
+    | 'one-time'
+    | 'weekly'
+    | 'fortnightly'
+    | 'monthly'
+    | 'yearly'
+    | 'other'
+    | l.UnknownString
 
   /**
-   * Channel IDs where this plan can be fulfilled. If omitted, all channels apply.
+   * Channel IDs where this plan can be fulfilled. If omitted, all channels apply. Maps to funding.json plan.channels.
    */
   channels?: ChannelRef[]
 }
 
 export type { Plan }
 
-/** A funding plan or tier with a suggested amount. */
+/** A funding plan or tier with a suggested amount. Maps to a funding.json plan entry. */
 const plan = l.typedObject<Plan>(
   $nsid,
   'plan',
   l.object({
     planId: l.string({ maxLength: 32 }),
+    status: l.optional(
+      l.string<{ maxLength: 16; knownValues: ['active', 'inactive'] }>({
+        maxLength: 16,
+      }),
+    ),
     name: l.string({ maxLength: 128 }),
-    description: l.optional(l.string({ maxLength: 256 })),
+    description: l.optional(l.string({ maxLength: 500 })),
     amount: l.optional(l.integer()),
     currency: l.optional(l.string({ maxLength: 3 })),
     frequency: l.optional(
       l.string<{
         maxLength: 16
-        knownValues: ['one-time', 'monthly', 'yearly', 'other']
+        knownValues: [
+          'one-time',
+          'weekly',
+          'fortnightly',
+          'monthly',
+          'yearly',
+          'other',
+        ]
       }>({ maxLength: 16 }),
     ),
     channels: l.optional(l.array(l.ref<ChannelRef>((() => channelRef) as any))),
