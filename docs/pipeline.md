@@ -409,3 +409,63 @@ src/
 - `fund.at.endorse` — endorsement entries (rkey = endorsed URI)
 
 See the in-app lexicon page (`/lexicon`) for full schema documentation.
+
+## Error handling strategy
+
+The pipeline is designed for **graceful degradation** — a failure in any
+individual account, fetch, or resolution step should never crash the scan.
+The user sees partial results with warnings rather than a blank page.
+
+### Principles
+
+1. **Best-effort operations** — profile fetches, fund.at lookups, DNS
+   resolution, and capability fetches all catch errors and continue. A failed
+   batch doesn't block other batches.
+
+2. **Warnings, not exceptions** — non-fatal errors emit `warning` events via
+   the NDJSON stream. The client displays these to the user. Warnings carry a
+   `step` identifier for tracing (e.g. `fund-at-fetch`, `profile-batch`,
+   `dns-lookup`).
+
+3. **Fallback chains** — funding resolution tries fund.at → manual catalog →
+   unknown. Identity resolution tries handle → DNS → raw ref. Each level
+   catches independently.
+
+4. **Scan-level errors are fatal** — if the orchestrator itself fails (e.g.
+   session expired, stream encoding error), the scan aborts. The client handles
+   this via `authFetch` (401 → logout + reload) or the stream error handler.
+
+### Per-phase error behavior
+
+| Phase | Failure mode | Behavior |
+|-------|-------------|----------|
+| 1. Gather | Follow pagination fails | Emit warning, continue with partial follows |
+| 1. Gather | Repo listRecords fails | Emit warning, skip repo-based tool discovery |
+| 1. Gather | Steward URI DNS fails | Becomes `UnresolvedService` — shown as discover card |
+| 2. Endorsements | PDS unreachable for a follow | Skip that follow's endorsements, continue |
+| 2. Endorsements | Redis cache read/write fails | Fall back to in-memory, log warning |
+| 3. Ecosystem | No failures possible | Pure in-memory lookup against endorsement map |
+| 4. Enrich | Profile batch fails | Use partial profile data (handle/DID only) |
+| 4. Enrich | fund.at PDS fetch fails | Emit warning, fall back to manual catalog |
+| 4. Enrich | Manual catalog miss | Mark `source: 'unknown'` |
+| 5. Capabilities | Feed generator fetch fails | Skip capabilities for that DID |
+| 5. Capabilities | Labeler fetch fails | Skip labeler capability |
+| 6. Dependencies | Dep resolution fails | Omit that dependency entry |
+
+### Timeout behavior
+
+- **Vercel**: `maxDuration = 180` (3 minutes). Large follow lists may timeout.
+  When this happens, the client receives whatever events were emitted before
+  the cutoff. The `done` event will be missing; the client detects this as an
+  incomplete scan.
+- **Client login**: 15-second timeout with user-facing message.
+- **Individual fetches**: No per-request timeout (relies on Node.js/browser
+  defaults). The bounded concurrency limits (20 prefetch, 10 enrich, 20
+  endorsement) prevent runaway parallelism.
+
+### Client-side error handling
+
+- **401 from any `authFetch` call** → `invalidateSession()` + full page reload
+- **Stream read error** → scan marked as errored, user sees error message
+- **Missing `done` event** → scan treated as incomplete (partial results shown)
+- **Network offline** → fetch throws, caught by stream handler
