@@ -29,22 +29,24 @@ import { nextId } from '@/lib/next-id'
 
 type DependencyRow = ChipItem
 
-type ChannelRow = {
+/**
+ * Combined channel + plan row. One form row = one "way to support me."
+ * Behind the scenes, each row writes up to two records:
+ *   - fund.at.funding.channel/channel-{seq}
+ *   - fund.at.funding.plan/plan-{seq}   (only if amount is set)
+ */
+type FundingRow = {
   id: string
+  /** Stable sequence number used as record key: channel-{seq} / plan-{seq} */
+  seq: number
   uri: string
   /** User-editable label. Empty = auto-derived from URL. */
   label: string
-  description: string
-}
-
-type PlanRow = {
-  id: string
+  /** Plan name (optional — defaults to label if amount is set). */
   name: string
-  description: string
   amount: string
   currency: string
   frequency: string
-  channels: string[]  // slugs of selected channels (empty = all)
 }
 
 // ---------------------------------------------------------------------------
@@ -80,42 +82,13 @@ function deriveChannelType(uri: string): string {
   return 'payment-provider'
 }
 
-/**
- * Resolves display labels and unique slugs for all channels.
- * If a user set a custom label, use it. Otherwise auto-detect and
- * de-duplicate with numbering (e.g. "GitHub Sponsors", "GitHub Sponsors 2").
- */
-function resolveChannelIdentities(channels: ChannelRow[]): Array<{ label: string; slug: string }> {
-  const slugCounts = new Map<string, number>()
-  const labelCounts = new Map<string, number>()
-
-  return channels.map((ch) => {
-    const userLabel = ch.label.trim()
-    const autoLabel = baseLabelFromUri(ch.uri)
-    const baseSlug = userLabel
-      ? userLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
-      : baseSlugFromUri(ch.uri)
-
-    // Track how many times we've seen this base slug and label
-    const slugN = (slugCounts.get(baseSlug) ?? 0) + 1
-    slugCounts.set(baseSlug, slugN)
-
-    const displayBase = userLabel || autoLabel
-    const labelN = (labelCounts.get(displayBase) ?? 0) + 1
-    labelCounts.set(displayBase, labelN)
-
-    return {
-      label: displayBase + (labelN > 1 ? ` ${labelN}` : ''),
-      slug: baseSlug + (slugN > 1 ? `-${slugN}` : ''),
-    }
-  })
-}
 
 type FormState = {
   contributeUrl: string
   dependencies: DependencyRow[]
-  channels: ChannelRow[]
-  plans: PlanRow[]
+  rows: FundingRow[]
+  /** Next sequence number for new rows */
+  nextSeq: number
 }
 
 type Props = {
@@ -132,30 +105,63 @@ function initialFormState(existing: FundAtResult | null): FormState {
       label: d.label ?? '',
     })) ?? []
 
-  const channels: ChannelRow[] =
-    existing?.channels?.map((ch) => ({
-      id: nextId(),
-      uri: ch.address,
-      label: '',  // empty = auto-derived from URL
-      description: ch.description ?? '',
-    })) ?? []
+  // Merge existing channels + plans into combined rows.
+  // Match plans to channels by GUID reference. Unmatched channels get no plan
+  // fields; unmatched plans become standalone rows (URL-less).
+  const rows: FundingRow[] = []
+  let seq = 1
 
-  const plans: PlanRow[] =
-    existing?.plans?.map((p) => ({
+  // Index plans by which channel they reference
+  const planByChannel = new Map<string, FundingPlan>()
+  const matchedPlanGuids = new Set<string>()
+
+  for (const plan of existing?.plans ?? []) {
+    // A plan references channels by guid. In our simplified UI, a plan maps
+    // to one channel. Take the first channel reference.
+    if (plan.channels.length > 0) {
+      for (const chRef of plan.channels) {
+        // chRef may be a full AT URI or a bare slug — extract the slug
+        const slug = chRef.includes('/') ? chRef.split('/').pop()! : chRef
+        planByChannel.set(slug, plan)
+      }
+    }
+  }
+
+  for (const ch of existing?.channels ?? []) {
+    const plan = planByChannel.get(ch.guid)
+    if (plan) matchedPlanGuids.add(plan.guid)
+    rows.push({
       id: nextId(),
-      name: p.name,
-      description: p.description ?? '',
-      amount: p.amount > 0 ? String(p.amount) : '',
-      currency: p.currency,
-      frequency: p.frequency,
-      channels: p.channels,
-    })) ?? []
+      seq: seq++,
+      uri: ch.address,
+      label: '',  // auto-derived from URL
+      name: plan?.name ?? '',
+      amount: plan && plan.amount > 0 ? String(plan.amount) : '',
+      currency: plan?.currency ?? 'USD',
+      frequency: plan?.frequency ?? 'monthly',
+    })
+  }
+
+  // Standalone plans without a matching channel (rare, but handle gracefully)
+  for (const plan of existing?.plans ?? []) {
+    if (matchedPlanGuids.has(plan.guid)) continue
+    rows.push({
+      id: nextId(),
+      seq: seq++,
+      uri: '',
+      label: '',
+      name: plan.name,
+      amount: plan.amount > 0 ? String(plan.amount) : '',
+      currency: plan.currency,
+      frequency: plan.frequency,
+    })
+  }
 
   return {
     contributeUrl: existing?.contributeUrl ?? '',
     dependencies,
-    channels,
-    plans,
+    rows,
+    nextSeq: seq,
   }
 }
 
@@ -273,13 +279,7 @@ export function SetupClient({ did, handle, existing }: Props) {
     [form.contributeUrl],
   )
 
-  const validChannels = form.channels.filter((ch) => ch.uri.trim() && baseSlugFromUri(ch.uri))
-
-  // Resolved labels + slugs for all channels (handles duplicates)
-  const channelIdentities = useMemo(
-    () => resolveChannelIdentities(form.channels),
-    [form.channels],
-  )
+  const validRows = form.rows.filter((r) => r.uri.trim() && baseSlugFromUri(r.uri))
 
   const hasErrors = !!contributeUrlError
 
@@ -299,36 +299,30 @@ export function SetupClient({ did, handle, existing }: Props) {
 
   // Build live preview channels/plans from form state
   const previewChannels: FundingChannel[] | undefined = useMemo(() => {
-    if (validChannels.length === 0) return undefined
-    const result: FundingChannel[] = []
-    for (let i = 0; i < form.channels.length; i++) {
-      const ch = form.channels[i]!
-      if (!ch.uri.trim() || !baseSlugFromUri(ch.uri)) continue
-      const identity = channelIdentities[i]
-      result.push({
-        guid: identity?.slug ?? '',
-        type: deriveChannelType(ch.uri) as FundingChannel['type'],
-        address: ch.uri.trim(),
-        description: ch.description.trim() || undefined,
-      })
-    }
-    return result
-  }, [form.channels, validChannels, channelIdentities])
+    if (validRows.length === 0) return undefined
+    return validRows.map((r) => ({
+      guid: `channel-${r.seq}`,
+      type: deriveChannelType(r.uri) as FundingChannel['type'],
+      address: r.uri.trim(),
+    }))
+  }, [validRows])
 
   const previewPlans: FundingPlan[] | undefined = useMemo(() => {
-    const valid = form.plans.filter((p) => p.name.trim())
-    if (valid.length === 0) return undefined
-    return valid.map((p) => ({
-      guid: p.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, ''),
-      status: 'active' as const,
-      name: p.name.trim(),
-      description: p.description.trim() || undefined,
-      amount: parseFloat(p.amount) || 0,
-      currency: p.currency || 'USD',
-      frequency: (p.frequency || 'other') as 'one-time' | 'monthly' | 'yearly' | 'other',
-      channels: p.channels.length > 0 ? p.channels : [],
-    }))
-  }, [form.plans])
+    const withAmount = validRows.filter((r) => parseFloat(r.amount) > 0)
+    if (withAmount.length === 0) return undefined
+    return withAmount.map((r) => {
+      const label = r.name.trim() || r.label.trim() || baseLabelFromUri(r.uri)
+      return {
+        guid: `plan-${r.seq}`,
+        status: 'active' as const,
+        name: label,
+        amount: parseFloat(r.amount) || 0,
+        currency: r.currency || 'USD',
+        frequency: (r.frequency || 'monthly') as FundingPlan['frequency'],
+        channels: [`channel-${r.seq}`],
+      }
+    })
+  }, [validRows])
 
   // Live preview model — form fields override, enriched fields fill in the rest
   const previewModel: StewardEntry = useMemo(
@@ -415,30 +409,28 @@ export function SetupClient({ did, handle, existing }: Props) {
     setSaved(false)
 
     try {
-      const channelsPayload = validChannels.length > 0
-        ? form.channels.map((ch, i) => {
-            if (!ch.uri.trim() || !baseSlugFromUri(ch.uri)) return null
-            const identity = channelIdentities[i]
-            return {
-              id: identity?.slug ?? '',
-              type: deriveChannelType(ch.uri),
-              uri: ch.uri.trim(),
-              ...(ch.description.trim() && { description: ch.description.trim() }),
-            }
-          }).filter((ch): ch is NonNullable<typeof ch> => ch !== null)
+      // Build paired channel + plan payloads from combined rows
+      const channelsPayload = validRows.length > 0
+        ? validRows.map((r) => ({
+            id: `channel-${r.seq}`,
+            type: deriveChannelType(r.uri),
+            uri: r.uri.trim(),
+          }))
         : undefined
 
-      const validPlans = form.plans.filter((p) => p.name.trim())
-      const plansList = validPlans.length > 0
-        ? validPlans.map((p) => ({
-            id: p.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, ''),
-            name: p.name.trim(),
-            ...(p.description.trim() && { description: p.description.trim() }),
-            amount: parseFloat(p.amount) || 0,
-            currency: p.currency || 'USD',
-            frequency: p.frequency || 'other',
-            ...(p.channels.length > 0 && { channels: p.channels }),
-          }))
+      const rowsWithPlans = validRows.filter((r) => parseFloat(r.amount) > 0)
+      const plansList = rowsWithPlans.length > 0
+        ? rowsWithPlans.map((r) => {
+            const label = r.name.trim() || r.label.trim() || baseLabelFromUri(r.uri)
+            return {
+              id: `plan-${r.seq}`,
+              name: label,
+              amount: parseFloat(r.amount) || 0,
+              currency: r.currency || 'USD',
+              frequency: r.frequency || 'monthly',
+              channels: [`channel-${r.seq}`],
+            }
+          })
         : undefined
 
       const res = await authFetch('/api/setup', {
@@ -554,30 +546,31 @@ export function SetupClient({ did, handle, existing }: Props) {
               </div>
             </div>
 
-            {/* Payment channels */}
+            {/* Payment channels — combined channel + plan rows */}
             <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/60">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                 <Wallet className="h-4 w-4 text-[var(--support)]" aria-hidden />
                 Payment channels
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Add your payment links — GitHub Sponsors, Open Collective, Ko-fi,
-                PayPal, or any URL. We&apos;ll detect the platform automatically.
+                Add your funding links. We&apos;ll detect the platform automatically.
+                Optionally set a suggested amount for each.
               </p>
 
-              {form.channels.map((ch, i) => {
-                const identity = channelIdentities[i]
-                const displayLabel = identity?.label ?? ''
+              {form.rows.map((row, i) => {
+                const autoLabel = baseLabelFromUri(row.uri)
+                const displayLabel = row.label.trim() || autoLabel
                 return (
-                  <div key={ch.id} className="flex flex-col gap-1.5">
+                  <div key={row.id} className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/30">
+                    {/* Row 1: platform badge + URL + delete */}
                     <div className="flex items-center gap-2">
-                      {ch.uri.trim() && (
+                      {row.uri.trim() && (
                         <input
-                          value={ch.label}
+                          value={row.label}
                           onChange={(e) => {
-                            const updated = [...form.channels]
-                            updated[i] = { ...ch, label: e.target.value }
-                            set('channels', updated)
+                            const updated = [...form.rows]
+                            updated[i] = { ...row, label: e.target.value }
+                            set('rows', updated)
                           }}
                           placeholder={displayLabel || 'Label'}
                           disabled={saving}
@@ -585,11 +578,11 @@ export function SetupClient({ did, handle, existing }: Props) {
                         />
                       )}
                       <input
-                        value={ch.uri}
+                        value={row.uri}
                         onChange={(e) => {
-                          const updated = [...form.channels]
-                          updated[i] = { ...ch, uri: e.target.value }
-                          set('channels', updated)
+                          const updated = [...form.rows]
+                          updated[i] = { ...row, uri: e.target.value }
+                          set('rows', updated)
                         }}
                         placeholder="https://github.com/sponsors/you"
                         disabled={saving}
@@ -597,12 +590,55 @@ export function SetupClient({ did, handle, existing }: Props) {
                       />
                       <button
                         type="button"
-                        onClick={() => set('channels', form.channels.filter((_, j) => j !== i))}
+                        onClick={() => set('rows', form.rows.filter((_, j) => j !== i))}
                         disabled={saving}
                         className="shrink-0 text-slate-400 hover:text-red-500 disabled:opacity-50"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
+                    </div>
+                    {/* Row 2: suggested amount (optional plan details) */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] text-slate-400 dark:text-slate-500">Suggested:</span>
+                      <input
+                        value={row.amount}
+                        onChange={(e) => {
+                          const updated = [...form.rows]
+                          updated[i] = { ...row, amount: e.target.value }
+                          set('rows', updated)
+                        }}
+                        placeholder="—"
+                        disabled={saving}
+                        className="w-20 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                      />
+                      <input
+                        value={row.currency}
+                        onChange={(e) => {
+                          const updated = [...form.rows]
+                          updated[i] = { ...row, currency: e.target.value.toUpperCase() }
+                          set('rows', updated)
+                        }}
+                        placeholder="USD"
+                        maxLength={3}
+                        disabled={saving}
+                        className="w-16 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                      />
+                      <select
+                        value={row.frequency}
+                        onChange={(e) => {
+                          const updated = [...form.rows]
+                          updated[i] = { ...row, frequency: e.target.value }
+                          set('rows', updated)
+                        }}
+                        disabled={saving}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                      >
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                        <option value="one-time">One-time</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="other">Other</option>
+                      </select>
                     </div>
                   </div>
                 )
@@ -610,138 +646,19 @@ export function SetupClient({ did, handle, existing }: Props) {
 
               <button
                 type="button"
-                onClick={() => set('channels', [...form.channels, { id: nextId(), uri: '', label: '', description: '' }])}
+                onClick={() => {
+                  const seq = form.nextSeq
+                  setForm((prev) => ({
+                    ...prev,
+                    rows: [...prev.rows, { id: nextId(), seq, uri: '', label: '', name: '', amount: '', currency: 'USD', frequency: 'monthly' }],
+                    nextSeq: seq + 1,
+                  }))
+                  setSaved(false)
+                }}
                 disabled={saving}
                 className="flex items-center gap-1.5 text-xs font-medium text-[var(--support)] hover:opacity-80 disabled:opacity-50"
               >
                 <Plus className="h-3.5 w-3.5" /> Add channel
-              </button>
-            </div>
-
-            {/* Funding plans */}
-            <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/60">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                <Wallet className="h-4 w-4 text-[var(--support)]" aria-hidden />
-                Plans <span className="text-sm font-normal text-slate-400">(optional)</span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Suggested contribution tiers — supporters choose what fits them.
-              </p>
-
-              {form.plans.map((plan, i) => (
-                <div key={plan.id} className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/30">
-                  <div className="flex items-center gap-2">
-                    <input
-                      value={plan.name}
-                      onChange={(e) => {
-                        const updated = [...form.plans]
-                        updated[i] = { ...plan, name: e.target.value }
-                        set('plans', updated)
-                      }}
-                      placeholder="Plan name, e.g. Supporter"
-                      disabled={saving}
-                      className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => set('plans', form.plans.filter((_, j) => j !== i))}
-                      disabled={saving}
-                      className="shrink-0 text-slate-400 hover:text-red-500 disabled:opacity-50"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      value={plan.amount}
-                      onChange={(e) => {
-                        const updated = [...form.plans]
-                        updated[i] = { ...plan, amount: e.target.value }
-                        set('plans', updated)
-                      }}
-                      placeholder="5"
-                      disabled={saving}
-                      className="w-20 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                    />
-                    <input
-                      value={plan.currency}
-                      onChange={(e) => {
-                        const updated = [...form.plans]
-                        updated[i] = { ...plan, currency: e.target.value.toUpperCase() }
-                        set('plans', updated)
-                      }}
-                      placeholder="USD"
-                      maxLength={3}
-                      disabled={saving}
-                      className="w-16 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                    />
-                    <select
-                      value={plan.frequency}
-                      onChange={(e) => {
-                        const updated = [...form.plans]
-                        updated[i] = { ...plan, frequency: e.target.value }
-                        set('plans', updated)
-                      }}
-                      disabled={saving}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                    >
-                      <option value="monthly">Monthly</option>
-                      <option value="yearly">Yearly</option>
-                      <option value="one-time">One-time</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                  {/* Channel picker — only when 2+ valid channels */}
-                  {validChannels.length >= 2 && (
-                    <div className="mt-1">
-                      <p className="mb-1 text-[11px] text-slate-400 dark:text-slate-500">
-                        Channels for this plan (leave empty for all)
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {form.channels.map((ch, ci) => {
-                          if (!ch.uri.trim() || !baseSlugFromUri(ch.uri)) return null
-                          const identity = channelIdentities[ci]
-                          if (!identity) return null
-                          const selected = plan.channels.includes(identity.slug)
-                          return (
-                            <button
-                              key={ch.id}
-                              type="button"
-                              onClick={() => {
-                                const updated = [...form.plans]
-                                updated[i] = {
-                                  ...plan,
-                                  channels: selected
-                                    ? plan.channels.filter((c) => c !== identity.slug)
-                                    : [...plan.channels, identity.slug],
-                                }
-                                set('plans', updated)
-                              }}
-                              disabled={saving}
-                              className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                                selected
-                                  ? 'border-[var(--support-border)] bg-[var(--support-muted)] text-[var(--support)]'
-                                  : 'border-slate-200 text-slate-500 hover:border-slate-300 dark:border-slate-700 dark:text-slate-400'
-                              }`}
-                            >
-                              {identity.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              <button
-                type="button"
-                onClick={() => set('plans', [...form.plans, { id: nextId(), name: '', description: '', amount: '', currency: 'USD', frequency: 'monthly', channels: [] }])}
-                disabled={saving}
-                className="flex items-center gap-1.5 text-xs font-medium text-[var(--support)] hover:opacity-80 disabled:opacity-50"
-              >
-                <Plus className="h-3.5 w-3.5" /> Add plan
               </button>
             </div>
 
