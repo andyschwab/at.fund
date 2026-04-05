@@ -277,7 +277,7 @@ export function FundingChannelsSection({ channels, plans }: { channels?: Funding
         className="flex w-full items-center gap-1.5 text-left cursor-pointer"
       >
         <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-          funding.json
+          Funding
         </span>
         <span className="text-[10px] text-slate-400 dark:text-slate-500">
           {linkableChannels.length} channel{linkableChannels.length !== 1 ? 's' : ''}

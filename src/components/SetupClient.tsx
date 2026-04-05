@@ -32,6 +32,8 @@ type DependencyRow = ChipItem
 type ChannelRow = {
   id: string
   uri: string
+  /** User-editable label. Empty = auto-derived from URL. */
+  label: string
   description: string
 }
 
@@ -49,7 +51,7 @@ type PlanRow = {
 // Auto-derive channel slug and type from URL
 // ---------------------------------------------------------------------------
 
-function deriveChannelSlug(uri: string): string {
+function baseSlugFromUri(uri: string): string {
   const trimmed = uri.trim()
   if (!trimmed) return ''
   const platform = detectPlatform(trimmed)
@@ -61,14 +63,7 @@ function deriveChannelSlug(uri: string): string {
   }
 }
 
-function deriveChannelType(uri: string): string {
-  const trimmed = uri.trim()
-  if (!trimmed) return 'other'
-  if (detectPlatform(trimmed)) return 'payment-provider'
-  return 'payment-provider'
-}
-
-function deriveChannelLabel(uri: string): string {
+function baseLabelFromUri(uri: string): string {
   const trimmed = uri.trim()
   if (!trimmed) return ''
   const platform = detectPlatform(trimmed)
@@ -78,6 +73,42 @@ function deriveChannelLabel(uri: string): string {
   } catch {
     return ''
   }
+}
+
+function deriveChannelType(uri: string): string {
+  if (detectPlatform(uri.trim())) return 'payment-provider'
+  return 'payment-provider'
+}
+
+/**
+ * Resolves display labels and unique slugs for all channels.
+ * If a user set a custom label, use it. Otherwise auto-detect and
+ * de-duplicate with numbering (e.g. "GitHub Sponsors", "GitHub Sponsors 2").
+ */
+function resolveChannelIdentities(channels: ChannelRow[]): Array<{ label: string; slug: string }> {
+  const slugCounts = new Map<string, number>()
+  const labelCounts = new Map<string, number>()
+
+  return channels.map((ch) => {
+    const userLabel = ch.label.trim()
+    const autoLabel = baseLabelFromUri(ch.uri)
+    const baseSlug = userLabel
+      ? userLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
+      : baseSlugFromUri(ch.uri)
+
+    // Track how many times we've seen this base slug and label
+    const slugN = (slugCounts.get(baseSlug) ?? 0) + 1
+    slugCounts.set(baseSlug, slugN)
+
+    const displayBase = userLabel || autoLabel
+    const labelN = (labelCounts.get(displayBase) ?? 0) + 1
+    labelCounts.set(displayBase, labelN)
+
+    return {
+      label: displayBase + (labelN > 1 ? ` ${labelN}` : ''),
+      slug: baseSlug + (slugN > 1 ? `-${slugN}` : ''),
+    }
+  })
 }
 
 type FormState = {
@@ -105,6 +136,7 @@ function initialFormState(existing: FundAtResult | null): FormState {
     existing?.channels?.map((ch) => ({
       id: nextId(),
       uri: ch.address,
+      label: '',  // empty = auto-derived from URL
       description: ch.description ?? '',
     })) ?? []
 
@@ -241,7 +273,13 @@ export function SetupClient({ did, handle, existing }: Props) {
     [form.contributeUrl],
   )
 
-  const validChannels = form.channels.filter((ch) => ch.uri.trim() && deriveChannelSlug(ch.uri))
+  const validChannels = form.channels.filter((ch) => ch.uri.trim() && baseSlugFromUri(ch.uri))
+
+  // Resolved labels + slugs for all channels (handles duplicates)
+  const channelIdentities = useMemo(
+    () => resolveChannelIdentities(form.channels),
+    [form.channels],
+  )
 
   const hasErrors = !!contributeUrlError
 
@@ -262,13 +300,20 @@ export function SetupClient({ did, handle, existing }: Props) {
   // Build live preview channels/plans from form state
   const previewChannels: FundingChannel[] | undefined = useMemo(() => {
     if (validChannels.length === 0) return undefined
-    return validChannels.map((ch) => ({
-      guid: deriveChannelSlug(ch.uri),
-      type: deriveChannelType(ch.uri) as 'payment-provider' | 'bank' | 'other',
-      address: ch.uri.trim(),
-      description: ch.description.trim() || undefined,
-    }))
-  }, [validChannels])
+    const result: FundingChannel[] = []
+    for (let i = 0; i < form.channels.length; i++) {
+      const ch = form.channels[i]!
+      if (!ch.uri.trim() || !baseSlugFromUri(ch.uri)) continue
+      const identity = channelIdentities[i]
+      result.push({
+        guid: identity?.slug ?? '',
+        type: deriveChannelType(ch.uri) as FundingChannel['type'],
+        address: ch.uri.trim(),
+        description: ch.description.trim() || undefined,
+      })
+    }
+    return result
+  }, [form.channels, validChannels, channelIdentities])
 
   const previewPlans: FundingPlan[] | undefined = useMemo(() => {
     const valid = form.plans.filter((p) => p.name.trim())
@@ -371,12 +416,16 @@ export function SetupClient({ did, handle, existing }: Props) {
 
     try {
       const channelsPayload = validChannels.length > 0
-        ? validChannels.map((ch) => ({
-            id: deriveChannelSlug(ch.uri),
-            type: deriveChannelType(ch.uri),
-            uri: ch.uri.trim(),
-            ...(ch.description.trim() && { description: ch.description.trim() }),
-          }))
+        ? form.channels.map((ch, i) => {
+            if (!ch.uri.trim() || !baseSlugFromUri(ch.uri)) return null
+            const identity = channelIdentities[i]
+            return {
+              id: identity?.slug ?? '',
+              type: deriveChannelType(ch.uri),
+              uri: ch.uri.trim(),
+              ...(ch.description.trim() && { description: ch.description.trim() }),
+            }
+          }).filter((ch): ch is NonNullable<typeof ch> => ch !== null)
         : undefined
 
       const validPlans = form.plans.filter((p) => p.name.trim())
@@ -517,40 +566,51 @@ export function SetupClient({ did, handle, existing }: Props) {
               </p>
 
               {form.channels.map((ch, i) => {
-                const label = deriveChannelLabel(ch.uri)
+                const identity = channelIdentities[i]
+                const displayLabel = identity?.label ?? ''
                 return (
-                  <div key={ch.id} className="flex items-center gap-2">
-                    {label && (
-                      <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                        {label}
-                      </span>
-                    )}
-                    <input
-                      value={ch.uri}
-                      onChange={(e) => {
-                        const updated = [...form.channels]
-                        updated[i] = { ...ch, uri: e.target.value }
-                        set('channels', updated)
-                      }}
-                      placeholder="https://github.com/sponsors/you"
-                      disabled={saving}
-                      className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => set('channels', form.channels.filter((_, j) => j !== i))}
-                      disabled={saving}
-                      className="shrink-0 text-slate-400 hover:text-red-500 disabled:opacity-50"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                  <div key={ch.id} className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      {ch.uri.trim() && (
+                        <input
+                          value={ch.label}
+                          onChange={(e) => {
+                            const updated = [...form.channels]
+                            updated[i] = { ...ch, label: e.target.value }
+                            set('channels', updated)
+                          }}
+                          placeholder={displayLabel || 'Label'}
+                          disabled={saving}
+                          className="w-36 shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-center text-[11px] font-medium text-emerald-700 placeholder-emerald-500/60 focus:border-emerald-400 focus:outline-none dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:placeholder-emerald-400/40"
+                        />
+                      )}
+                      <input
+                        value={ch.uri}
+                        onChange={(e) => {
+                          const updated = [...form.channels]
+                          updated[i] = { ...ch, uri: e.target.value }
+                          set('channels', updated)
+                        }}
+                        placeholder="https://github.com/sponsors/you"
+                        disabled={saving}
+                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-[var(--support)] focus:outline-none focus:ring-1 focus:ring-[var(--support)]/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => set('channels', form.channels.filter((_, j) => j !== i))}
+                        disabled={saving}
+                        className="shrink-0 text-slate-400 hover:text-red-500 disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 )
               })}
 
               <button
                 type="button"
-                onClick={() => set('channels', [...form.channels, { id: nextId(), uri: '', description: '' }])}
+                onClick={() => set('channels', [...form.channels, { id: nextId(), uri: '', label: '', description: '' }])}
                 disabled={saving}
                 className="flex items-center gap-1.5 text-xs font-medium text-[var(--support)] hover:opacity-80 disabled:opacity-50"
               >
@@ -632,17 +692,18 @@ export function SetupClient({ did, handle, existing }: Props) {
                       <option value="other">Other</option>
                     </select>
                   </div>
-                  {/* Channel picker — only when 2+ channels */}
+                  {/* Channel picker — only when 2+ valid channels */}
                   {validChannels.length >= 2 && (
                     <div className="mt-1">
                       <p className="mb-1 text-[11px] text-slate-400 dark:text-slate-500">
                         Channels for this plan (leave empty for all)
                       </p>
                       <div className="flex flex-wrap gap-1.5">
-                        {validChannels.map((ch) => {
-                          const slug = deriveChannelSlug(ch.uri)
-                          const chLabel = deriveChannelLabel(ch.uri)
-                          const selected = plan.channels.includes(slug)
+                        {form.channels.map((ch, ci) => {
+                          if (!ch.uri.trim() || !baseSlugFromUri(ch.uri)) return null
+                          const identity = channelIdentities[ci]
+                          if (!identity) return null
+                          const selected = plan.channels.includes(identity.slug)
                           return (
                             <button
                               key={ch.id}
@@ -652,8 +713,8 @@ export function SetupClient({ did, handle, existing }: Props) {
                                 updated[i] = {
                                   ...plan,
                                   channels: selected
-                                    ? plan.channels.filter((c) => c !== slug)
-                                    : [...plan.channels, slug],
+                                    ? plan.channels.filter((c) => c !== identity.slug)
+                                    : [...plan.channels, identity.slug],
                                 }
                                 set('plans', updated)
                               }}
@@ -664,7 +725,7 @@ export function SetupClient({ did, handle, existing }: Props) {
                                   : 'border-slate-200 text-slate-500 hover:border-slate-300 dark:border-slate-700 dark:text-slate-400'
                               }`}
                             >
-                              {chLabel || slug}
+                              {identity.label}
                             </button>
                           )
                         })}
