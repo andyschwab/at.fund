@@ -29,13 +29,13 @@ quality — making sure the codebase stays clean as it evolves.
 | 10 | Automate catalog JSON validation in test suite | **done** |
 | — | Decouple all tests from admin-managed catalog data | **done** |
 
-## Phase 3 — Lower Priority (future-proofing)
+## Phase 3 — Lower Priority (future-proofing) ✓
 
 | # | Action | Status |
 |---|--------|--------|
-| 11 | Add Next.js middleware for centralized auth | pending |
-| 12 | Add E2E tests (Playwright) | pending |
-| 13 | Configure test coverage reporting (vitest --coverage) | pending |
+| 11 | Add Next.js proxy for centralized auth | **done** — `src/proxy.ts` guards pages + API routes via `did` cookie |
+| 12 | Add E2E tests (Playwright) | **deferred** — planning doc at `docs/e2e-testing-plan.md` |
+| 13 | Configure test coverage reporting (vitest --coverage) | **done** — v8 provider, `pnpm test:coverage` (baseline: 34% statements) |
 | 14 | ~~Extract shared input style constants~~ | **dropped** — only ~8 medium-length patterns (160–200 chars), not the ~270-char duplication originally estimated; extraction overhead not justified |
 | 15 | ~~Document cache invalidation strategy~~ | **dropped** — `_scanCache` lifecycle is self-evident from code comments; a docstring suffices, not a full doc |
 
@@ -61,9 +61,9 @@ quality — making sure the codebase stays clean as it evolves.
 ### Remaining architecture risks
 
 - **DPoP fetch patch** could break on Next.js upgrades (fragile workaround)
-- **No centralized auth middleware** — protected routes rely on client-side `<RequireSession>` wrappers (4 routes)
-- **No E2E tests** — unit tests cover logic but not user flows (login → scan → results)
-- **No coverage visibility** — tests exist but no metrics to track regression
+- **No E2E tests** — unit tests cover logic but not user flows (see `docs/e2e-testing-plan.md`)
+- ~~No centralized auth~~ — **fixed**: `src/proxy.ts` guards pages + API routes
+- ~~No coverage visibility~~ — **fixed**: `pnpm test:coverage` reports v8 coverage
 
 ### Admin data vs constants
 

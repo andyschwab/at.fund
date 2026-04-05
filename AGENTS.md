@@ -73,10 +73,18 @@ change, tab focus, and 401 response. The DPoP fetch patch in `lib/auth/client.ts
 works around a Next.js ReadableStream issue — do not modify without testing the
 full OAuth flow.
 
+### Centralized auth proxy
+`src/proxy.ts` (Next.js 16 "proxy", formerly "middleware") checks the `did`
+cookie before protected routes. Pages redirect to `/`; API routes get 401.
+This is a lightweight guard — full session validation still happens in route
+handlers via `getSession()`. If you add a new protected page or API route,
+add its path to the matcher in `proxy.ts`.
+
 ## File organization
 
 ```
 src/
+├── proxy.ts          Centralized auth guard (Next.js 16 proxy convention)
 ├── app/              Pages + API routes (Next.js app router)
 ├── components/       React client components ("use client")
 ├── hooks/            Custom React hooks (useScanStream, useTypeahead, useDebounce)
@@ -102,8 +110,9 @@ Tests use **Vitest** with `globals: true` (no explicit imports needed for
 describe/it/expect). Test files are co-located: `foo.test.ts` next to `foo.ts`.
 
 ```bash
-pnpm test          # single run
-pnpm test:watch    # watch mode
+pnpm test            # single run
+pnpm test:watch      # watch mode
+pnpm test:coverage   # run with v8 coverage report
 ```
 
 ### Testing patterns
