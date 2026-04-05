@@ -215,6 +215,15 @@ export function GiveClient() {
   const filterableTagCount = TAG_FILTER_LABELS.filter(({ tag }) => (tagCounts[tag] ?? 0) > 0).length
   const hasStackContent = !!pdsUrl || endorsedEntries.length > 0
 
+  const fundableEntries = useMemo(
+    () => visibleEntries.filter((e) => !!e.contributeUrl),
+    [visibleEntries],
+  )
+  const endorsedFundable = useMemo(
+    () => fundableEntries.filter((e) => isEndorsed(e, endorsedUris)),
+    [fundableEntries, endorsedUris],
+  )
+
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
@@ -283,6 +292,17 @@ export function GiveClient() {
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               My Stack
             </h2>
+            {scanDone && endorsedEntries.length > 0 && meta?.handle && (
+              <a
+                href={`/stack/${meta.handle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto inline-flex items-center gap-1 text-sm text-emerald-600 transition-opacity hover:opacity-75 dark:text-emerald-400"
+              >
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                Share your stack
+              </a>
+            )}
           </div>
           {!hasStackContent && !loading && (
             <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
@@ -358,6 +378,44 @@ export function GiveClient() {
             </div>
           </div>
         </section>
+
+        {/* ── Stats bar ────────────────────────────────────────── */}
+        {scanDone && fundableEntries.length > 0 && (() => {
+          const count = endorsedFundable.length
+          if (count === 0) {
+            return (
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white/60 px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-400">
+                <span>
+                  <strong className="font-semibold text-slate-800 dark:text-slate-200">{fundableEntries.length} project{fundableEntries.length === 1 ? '' : 's'}</strong> in your stack have funding links.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('discover')}
+                  className="shrink-0 text-emerald-600 hover:underline dark:text-emerald-400"
+                >
+                  Start endorsing →
+                </button>
+              </div>
+            )
+          }
+          const shareText = `I've endorsed ${count} project${count === 1 ? '' : 's'} that fund the Atmosphere on @at.fund ❤️${meta?.handle ? `\nhttps://at.fund/stack/${meta.handle}` : ''}`
+          const bskyUrl = `https://bsky.app/intent/compose?text=${encodeURIComponent(shareText)}`
+          return (
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800 shadow-sm dark:border-emerald-800/50 dark:bg-emerald-950/20 dark:text-emerald-300">
+              <span>
+                You&rsquo;ve endorsed <strong className="font-semibold">{count} project{count === 1 ? '' : 's'}</strong> that accept funding.
+              </span>
+              <a
+                href={bskyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 font-medium hover:underline"
+              >
+                Share on Bluesky →
+              </a>
+            </div>
+          )
+        })()}
 
         {error && (
           <p className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">

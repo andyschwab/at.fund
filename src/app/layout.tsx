@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://at.fund"),
   title: "at.fund — We can just pay for things",
   description:
     "No VCs, no ads — just builders getting paid directly for the work you already rely on.",
