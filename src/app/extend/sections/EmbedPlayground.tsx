@@ -14,31 +14,31 @@ const PRESETS: Preset[] = [
   {
     label: 'Default',
     css: `border: none;
-width: 200px;
-height: 60px;`,
+width: 280px;
+height: 120px;`,
   },
   {
     label: 'Card',
     css: `border: 1px solid #e2e8f0;
 border-radius: 12px;
-width: 220px;
-height: 64px;
+width: 300px;
+height: 124px;
 box-shadow: 0 1px 3px rgba(0,0,0,0.08);`,
   },
   {
     label: 'Dark',
     css: `border: 1px solid #334155;
 border-radius: 12px;
-width: 220px;
-height: 64px;
+width: 300px;
+height: 124px;
 background: #0f172a;`,
   },
   {
     label: 'Full width',
     css: `border: none;
 width: 100%;
-max-width: 300px;
-height: 60px;`,
+max-width: 360px;
+height: 120px;`,
   },
 ]
 
