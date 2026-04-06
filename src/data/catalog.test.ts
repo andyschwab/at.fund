@@ -6,6 +6,7 @@ const CATALOG_DIR = join(__dirname, 'catalog')
 const RESOLVER_PATH = join(__dirname, 'resolver-catalog.json')
 
 const ALLOWED_KEYS = new Set([
+  'did',
   'contributeUrl',
   'dependencies',
   'tags',
