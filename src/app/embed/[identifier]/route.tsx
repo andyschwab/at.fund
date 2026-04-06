@@ -50,6 +50,26 @@ function channelLabel(ch: FundingChannel): string {
   try { return new URL(ch.address).hostname } catch { return 'Other' }
 }
 
+function formatAmount(amount: number, currency: string): string {
+  if (amount === 0) return ''
+  try {
+    return new Intl.NumberFormat('en', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)
+  } catch {
+    return `${amount} ${currency}`
+  }
+}
+
+function frequencyLabel(freq: string): string {
+  switch (freq) {
+    case 'one-time': return ''
+    case 'weekly': return '/wk'
+    case 'fortnightly': return '/2wk'
+    case 'monthly': return '/mo'
+    case 'yearly': return '/yr'
+    default: return ''
+  }
+}
+
 function linkableChannels(channels: FundingChannel[]): FundingChannel[] {
   return channels.filter((ch) => { try { new URL(ch.address); return true } catch { return false } })
 }
@@ -63,14 +83,26 @@ export async function GET(
   const buttonLabel = url.searchParams.get('label') || 'Support'
   const profile = await resolveProfile(decodeURIComponent(identifier))
 
-  const handle = profile?.handle ?? decodeURIComponent(identifier)
-  const profileUrl = `https://at.fund/${esc(handle)}`
   const channels = profile ? linkableChannels(profile.channels) : []
 
-  // Build channel pills HTML
-  const channelPillsHtml = channels.map((ch) =>
-    `<a href="${esc(ch.address)}" target="_blank" rel="noreferrer" class="channel-pill">${esc(channelLabel(ch))}</a>`
-  ).join('\n            ')
+  // Index plans by channel GUID
+  const planByChannel = new Map<string, FundingPlan>()
+  for (const plan of profile?.plans ?? []) {
+    if (plan.status !== 'active') continue
+    for (const chRef of plan.channels) {
+      const slug = chRef.includes('/') ? chRef.split('/').pop()! : chRef
+      planByChannel.set(slug, plan)
+    }
+  }
+
+  // Build channel pills with platform label + amount
+  const channelPillsHtml = channels.map((ch) => {
+    const plan = planByChannel.get(ch.guid)
+    const amt = plan && plan.amount > 0 ? formatAmount(plan.amount, plan.currency) : ''
+    const freq = plan ? frequencyLabel(plan.frequency) : ''
+    const amtHtml = amt ? ` <span class="channel-amt">${esc(amt)}${esc(freq)}</span>` : ''
+    return `<a href="${esc(ch.address)}" target="_blank" rel="noreferrer" class="channel-pill">${esc(channelLabel(ch))}${amtHtml}</a>`
+  }).join('\n            ')
 
   const hasChannels = channels.length > 0
 
@@ -79,7 +111,7 @@ export async function GET(
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${esc(buttonLabel)} ${esc(handle)} — at.fund</title>
+  <title>${esc(buttonLabel)} — at.fund</title>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -90,8 +122,7 @@ export async function GET(
       display: inline-flex;
       flex-direction: column;
       align-items: center;
-      gap: 6px;
-      padding: 12px 16px;
+      padding: 8px 12px;
     }
     .button-row {
       display: inline-flex;
@@ -132,17 +163,10 @@ export async function GET(
     .channels-toggle:hover { background: #065f46; }
     .channels-toggle svg { transition: transform 0.15s; }
     .channels-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
-    .handle-link {
-      font-size: 11px;
-      color: #64748b;
-      text-decoration: none;
-      transition: color 0.15s;
-    }
-    .handle-link:hover { color: #059669; text-decoration: underline; }
     .channels-dropdown {
       display: none;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: 5px;
       padding: 8px 0 2px;
       justify-content: center;
     }
@@ -150,6 +174,7 @@ export async function GET(
     .channel-pill {
       display: inline-flex;
       align-items: center;
+      gap: 4px;
       padding: 3px 10px;
       border-radius: 9999px;
       border: 1px solid #a7f3d0;
@@ -162,15 +187,7 @@ export async function GET(
       transition: background 0.15s, border-color 0.15s;
     }
     .channel-pill:hover { background: #d1fae5; border-color: #6ee7b7; }
-    .branding {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      font-size: 9px;
-      color: #94a3b8;
-      letter-spacing: 0.02em;
-      margin-top: 2px;
-    }
+    .channel-amt { color: #059669; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -180,23 +197,18 @@ export async function GET(
         ? `<a href="${esc(profile.contributeUrl)}" target="_blank" rel="noreferrer" class="support-btn">${esc(buttonLabel)}</a>`
         : `<span class="support-btn" style="opacity:0.5;cursor:default">${esc(buttonLabel)}</span>`
       }${hasChannels
-        ? `<button type="button" class="channels-toggle" aria-expanded="false" aria-label="Show funding channels" onclick="var d=this.parentElement.nextElementSibling.nextElementSibling;var open=d.classList.toggle('open');this.setAttribute('aria-expanded',open)">
+        ? `<button type="button" class="channels-toggle" aria-expanded="false" aria-label="Show funding channels" onclick="var d=this.parentElement.nextElementSibling;var open=d.classList.toggle('open');this.setAttribute('aria-expanded',open)">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>`
         : ''
       }
     </div>
-    <a href="${profileUrl}" target="_blank" rel="noreferrer" class="handle-link">@${esc(handle)}</a>
     ${hasChannels
       ? `<div class="channels-dropdown">
             ${channelPillsHtml}
           </div>`
       : ''
     }
-    <div class="branding">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M12 5 9.04 7.96a2.17 2.17 0 0 0 0 3.08c.82.82 2.13.85 3 .07l2.07-1.9a2.82 2.82 0 0 1 3.79 0l2.96 2.66"/><path d="m18 15-2-2"/><path d="m15 18-2-2"/></svg>
-      <span>at.fund</span>
-    </div>
   </div>
 </body>
 </html>`

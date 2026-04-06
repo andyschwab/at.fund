@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { CopyButton } from '../ui'
 
 // ---------------------------------------------------------------------------
-// Presets — sized for the new compact button embed
+// Presets — sized for the compact button-only embed
 // ---------------------------------------------------------------------------
 
 type Preset = { label: string; css: string }
@@ -13,32 +14,31 @@ const PRESETS: Preset[] = [
   {
     label: 'Default',
     css: `border: none;
-width: 220px;
-height: 120px;`,
+width: 200px;
+height: 60px;`,
   },
   {
     label: 'Card',
     css: `border: 1px solid #e2e8f0;
 border-radius: 12px;
-width: 240px;
-height: 124px;
+width: 220px;
+height: 64px;
 box-shadow: 0 1px 3px rgba(0,0,0,0.08);`,
   },
   {
     label: 'Dark',
     css: `border: 1px solid #334155;
 border-radius: 12px;
-width: 240px;
-height: 124px;
-background: #0f172a;
-box-shadow: 0 1px 3px rgba(0,0,0,0.3);`,
+width: 220px;
+height: 64px;
+background: #0f172a;`,
   },
   {
     label: 'Full width',
     css: `border: none;
 width: 100%;
 max-width: 300px;
-height: 120px;`,
+height: 60px;`,
   },
 ]
 
@@ -56,13 +56,47 @@ export function EmbedPlayground() {
   const [customCss, setCustomCss] = useState(PRESETS[0].css)
   const [iframeKey, setIframeKey] = useState(0)
 
+  // Raw steward data
+  const [stewardData, setStewardData] = useState<string | null>(null)
+  const [stewardLoading, setStewardLoading] = useState(false)
+
   function selectPreset(i: number) {
     setActivePreset(i)
     setCustomCss(PRESETS[i].css)
   }
 
-  // Reload iframe when handle or label changes
   const reload = useCallback(() => setIframeKey((k) => k + 1), [])
+
+  // Fetch steward data when handle changes
+  const fetchSteward = useCallback(async (h: string) => {
+    const trimmed = h.trim()
+    if (!trimmed) { setStewardData(null); return }
+    setStewardLoading(true)
+    try {
+      const res = await fetch(`/api/steward?uri=${encodeURIComponent(trimmed)}`)
+      const text = await res.text()
+      try {
+        setStewardData(JSON.stringify(JSON.parse(text), null, 2))
+      } catch {
+        setStewardData(text)
+      }
+    } catch (e) {
+      setStewardData(`Error: ${(e as Error).message}`)
+    } finally {
+      setStewardLoading(false)
+    }
+  }, [])
+
+  // Fetch on initial mount
+  useEffect(() => {
+    void fetchSteward(handle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function handleCommit() {
+    reload()
+    void fetchSteward(handle)
+  }
 
   // Convert textarea CSS to a style object for the iframe
   const iframeStyle: Record<string, string> = {}
@@ -103,8 +137,8 @@ export function EmbedPlayground() {
             type="text"
             value={handle}
             onChange={(e) => setHandle(e.target.value)}
-            onBlur={reload}
-            onKeyDown={(e) => e.key === 'Enter' && reload()}
+            onBlur={handleCommit}
+            onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
             placeholder="handle, DID, or hostname"
             spellCheck={false}
             className={INPUT_CLASS}
@@ -125,6 +159,29 @@ export function EmbedPlayground() {
             className={`${INPUT_CLASS} max-w-[140px]`}
           />
         </div>
+      </div>
+
+      {/* Raw data */}
+      <div>
+        <div className="mb-2 flex items-center gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            Steward data
+          </p>
+          <code className="text-[11px] text-slate-400 dark:text-slate-500">
+            GET /api/steward?uri={handle.trim() || '…'}
+          </code>
+          {stewardLoading && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+        </div>
+        {stewardData && (
+          <div className="group relative">
+            <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
+              <CopyButton text={stewardData} label="Copy" />
+            </div>
+            <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-200">
+              {stewardData}
+            </pre>
+          </div>
+        )}
       </div>
 
       {/* Two-column: controls | preview */}
@@ -192,7 +249,7 @@ export function EmbedPlayground() {
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
             Live preview
           </p>
-          <div className="flex min-h-[180px] items-start justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-6 dark:border-slate-700 dark:bg-slate-800/30">
+          <div className="flex min-h-[120px] items-start justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-6 dark:border-slate-700 dark:bg-slate-800/30">
             {embedSrc ? (
               <iframe
                 key={iframeKey}
