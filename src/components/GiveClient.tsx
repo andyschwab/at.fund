@@ -175,29 +175,22 @@ export function GiveClient() {
   }, [authFetch, entryIndexRef, setEndorsedUris])
 
   const endorseAndFetch = useCallback(async (uri: string) => {
-    await handleEndorse(uri)
     try {
+      // Resolve the entry first to get the canonical DID
       const res = await fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
       if (!res.ok) return
       const data = await res.json() as { entry: StewardEntry; referenced: StewardEntry[] }
       entryIndexRef.current.upsert(data.entry)
-      setEntries(entryIndexRef.current.toArray())
-      if (data.entry.uri !== uri) {
-        setEndorsedUris((prev) => new Set([...prev, data.entry.uri]))
-      }
-      if (data.entry.did && data.entry.did !== uri) {
-        setEndorsedUris((prev) => new Set([...prev, data.entry.did!]))
-      }
       for (const ref of data.referenced) {
         entryIndexRef.current.upsert(ref)
       }
-      if (data.referenced.length > 0) {
-        setEntries(entryIndexRef.current.toArray())
-      }
+      setEntries(entryIndexRef.current.toArray())
+      // Endorse with the canonical DID only — no handle-keyed records
+      await handleEndorse(data.entry.did)
     } catch (e) {
       console.warn('endorseAndFetch failed', e)
     }
-  }, [handleEndorse, entryIndexRef, setEntries, setEndorsedUris])
+  }, [handleEndorse, entryIndexRef, setEntries])
 
   // ── Render helpers ────────────────────────────────────────────────────
 

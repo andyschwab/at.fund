@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
+import { lookupManualStewardRecord } from '@/lib/catalog'
 
 const CATALOG_DIR = join(__dirname, 'catalog')
 const RESOLVER_PATH = join(__dirname, 'resolver-catalog.json')
@@ -50,6 +51,11 @@ describe('catalog entries', () => {
         }
       }
 
+      // DID field required (DID-first invariant)
+      if (typeof data.did !== 'string' || !data.did.startsWith('did:')) {
+        errors.push(`${file}: must have a "did" field starting with "did:"`)
+      }
+
       // contributeUrl format
       if (typeof data.contributeUrl === 'string') {
         try {
@@ -92,6 +98,30 @@ describe('catalog entries', () => {
     if (errors.length > 0) {
       expect.fail(`Catalog validation errors:\n  ${errors.join('\n  ')}`)
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// DID reverse index — lookups by DID find hostname-keyed entries
+// ---------------------------------------------------------------------------
+
+describe('catalog DID reverse index', () => {
+  it('finds a catalog entry by its DID field', () => {
+    // anisota.net has did:plc:lcieujcfkv4jx7gehsvok3pr and dependencies
+    const result = lookupManualStewardRecord('did:plc:lcieujcfkv4jx7gehsvok3pr')
+    expect(result).not.toBeNull()
+    expect(result!.stewardUri).toBe('anisota.net')
+    expect(result!.dependencies).toEqual(['dame.is', 'atpota.to'])
+  })
+
+  it('returns null for an unknown DID', () => {
+    expect(lookupManualStewardRecord('did:plc:unknown000000000000')).toBeNull()
+  })
+
+  it('hostname lookup still works', () => {
+    const result = lookupManualStewardRecord('anisota.net')
+    expect(result).not.toBeNull()
+    expect(result!.stewardUri).toBe('anisota.net')
   })
 })
 

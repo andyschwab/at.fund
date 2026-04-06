@@ -117,10 +117,6 @@ export function SessionProvider({
   const login = useCallback(async (handle: string) => {
     setLoginLoading(true)
     setLoginError(null)
-    const timeout = setTimeout(() => {
-      setLoginError('Login is taking longer than expected. Please try again.')
-      setLoginLoading(false)
-    }, 15_000)
     try {
       const res = await fetch('/oauth/login', {
         method: 'POST',
@@ -133,10 +129,8 @@ export function SessionProvider({
         error?: string
       }
       if (!res.ok) throw new Error(data.detail ?? data.error ?? 'Login failed')
-      clearTimeout(timeout)
       window.location.href = data.redirectUrl!
     } catch (x) {
-      clearTimeout(timeout)
       setLoginError(
         x instanceof Error
           ? x.message === 'Login failed'

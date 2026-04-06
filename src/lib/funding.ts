@@ -12,8 +12,12 @@ import { mergeDeps } from '@/lib/merge-deps'
 // ---------------------------------------------------------------------------
 
 /**
- * Tries the manual catalog by DID, then by extra keys (e.g. tool hostnames).
- * Under DID-first, identity.uri === identity.did, so we only need two lookups.
+ * Tries the manual catalog by DID (using the catalog's DID reverse index),
+ * then by extra keys (e.g. tool hostnames from the gather phase).
+ *
+ * The DID reverse index in catalog.ts means DID lookups find hostname-keyed
+ * entries natively, so extraKeys is only needed for edge cases where the
+ * catalog key differs from both the DID and its indexed hostname.
  */
 export function lookupManualByIdentity(
   identity: Identity,

@@ -63,14 +63,16 @@ their order are documented in `docs/pipeline.md` (Event types section). Adding
 new event types is fine; changing existing event shapes is a breaking change to
 the client parser in `useScanStream`.
 
-### Canonical types
-- `Identity` — resolved presentation (uri, did, handle, displayName, avatar, landingPage)
+### Canonical types (DID-first)
+- `Identity` — resolved presentation. `did` is required; `uri` always equals `did`. Handles and hostnames are display metadata only.
 - `Funding` — how to contribute (source, contributeUrl, dependencies)
 - `StewardEntry` — `Identity & Funding & { tags, capabilities }`
 
 All identity resolution goes through `buildIdentity()` in `steward-model.ts`.
 All funding resolution goes through `resolveFunding()` / `resolveFundingForDep()`
-in `funding.ts`. Do not create ad-hoc resolution logic.
+in `funding.ts`. Do not create ad-hoc resolution logic. The manual catalog is
+indexed by hostname (filename) with a DID reverse index — lookups by DID work
+natively via `lookupManualStewardRecord()`.
 
 ### Auth flow
 OAuth with ATProto DPoP. Session stored in an httpOnly DID cookie + Redis KV
@@ -192,7 +194,7 @@ pnpm test:coverage   # run with v8 coverage report
 1. **Don't mutate ScanContext** — it's `readonly` by design. Thread it through; don't clone or recreate.
 2. **Don't add "use client" to lib/ files** — they run server-side only.
 3. **Don't import server modules from components** — they'll break the client bundle.
-4. **Catalog entries require `displayName`** — all other fields are optional.
+4. **Catalog entries require a `did` field** — all other fields are optional. The DID reverse index relies on this.
 5. **URI normalization matters** — always use `normalizeStewardUri()` from `steward-uri.ts` for user input.
 6. **DID is the dedup key** — `EntryIndex` merges entries by DID. Two entries with different URIs but the same DID will merge.
 7. **fund.at records win over manual catalog** — but manual contributeUrl is used as fallback when fund.at has none.

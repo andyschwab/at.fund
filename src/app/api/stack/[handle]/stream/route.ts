@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { fetchPublicEndorsements } from '@/lib/pipeline/fetch-public-endorsements'
 import { resolveEntry } from '@/lib/pipeline/entry-resolve'
-import { resolveDependencies } from '@/lib/pipeline/dep-resolve'
 import { createScanContext } from '@/lib/scan-context'
 import type { StewardEntry } from '@/lib/steward-model'
 
@@ -30,27 +29,30 @@ export async function GET(
         const urisToResolve = endorsedUris.slice(0, 30)
 
         const sharedCtx = createScanContext()
-        const entries: StewardEntry[] = []
 
         // Resolve primary entries in parallel; emit each as it completes so
-        // the client can render cards progressively.
+        // the client can render cards progressively. resolveEntry() already
+        // resolves dependencies internally, and the shared ScanContext dedupes
+        // dep resolution across parallel calls via its singleflight cache.
+        const seenRefDids = new Set<string>()
+
         await Promise.allSettled(
           urisToResolve.map(async (uri) => {
             try {
               const result = await resolveEntry(uri, sharedCtx)
               if (!result) return // skip entries that don't resolve to a DID
-              entries.push(result.entry)
               emit({ type: 'entry', entry: result.entry })
+
+              // Emit referenced deps (dedup by DID across entries)
+              for (const ref of result.referenced) {
+                if (!seenRefDids.has(ref.did)) {
+                  seenRefDids.add(ref.did)
+                  emit({ type: 'ref', entry: ref })
+                }
+              }
             } catch { /* skip unresolvable entries */ }
           }),
         )
-
-        // Resolve deps for all primary entries together in one BFS pass.
-        // Emit as refs — client adds these to the allEntries lookup only.
-        const refs = await resolveDependencies(entries, undefined, sharedCtx)
-        for (const entry of refs) {
-          emit({ type: 'ref', entry })
-        }
       } catch { /* best-effort; always close cleanly */ }
 
       emit({ type: 'done' })
