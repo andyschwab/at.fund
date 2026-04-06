@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import type { EndorsementCounts } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
@@ -35,7 +35,9 @@ const TAG_FILTER_LABELS: { tag: TagFilter; label: string }[] = [
 ]
 
 function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
-  return uris.has(e.uri) || uris.has(e.did ?? '') || uris.has(e.handle ?? '')
+  return uris.has(e.uri)
+    || (!!e.did && uris.has(e.did))
+    || (!!e.handle && uris.has(e.handle))
 }
 
 // ---------------------------------------------------------------------------
@@ -58,13 +60,15 @@ export function GiveClient() {
   const [activeTab, setActiveTab] = useState<'discover' | 'ecosystem'>('discover')
 
   // Check whether the logged-in user has published fund.at records
-  useState(() => {
+  useEffect(() => {
     if (!sessionDid) return
+    let cancelled = false
     fetch(`/api/entry?uri=${encodeURIComponent(sessionDid)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setHasOwnRecords(!!data?.contributeUrl || !!(data?.dependencies?.length)))
-      .catch(() => setHasOwnRecords(false))
-  })
+      .then((data) => { if (!cancelled) setHasOwnRecords(!!data?.contributeUrl || !!(data?.dependencies?.length)) })
+      .catch(() => { if (!cancelled) setHasOwnRecords(false) })
+    return () => { cancelled = true }
+  }, [sessionDid])
 
   // ── Derived state ─────────────────────────────────────────────────────
 
@@ -187,7 +191,7 @@ export function GiveClient() {
   }, [authFetch, entryIndexRef, setEndorsedUris])
 
   const endorseAndFetch = useCallback(async (uri: string) => {
-    handleEndorse(uri)
+    await handleEndorse(uri)
     try {
       const res = await fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
       if (!res.ok) return

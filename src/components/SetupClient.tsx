@@ -279,7 +279,10 @@ export function SetupClient({ did, handle, existing }: Props) {
     [form.contributeUrl],
   )
 
-  const validRows = form.rows.filter((r) => r.uri.trim() && baseSlugFromUri(r.uri))
+  const validRows = useMemo(
+    () => form.rows.filter((r) => r.uri.trim() && baseSlugFromUri(r.uri)),
+    [form.rows],
+  )
 
   const hasErrors = !!contributeUrlError
 

@@ -4,6 +4,7 @@ import { Client, l } from '@atproto/lex'
 import * as fund from '@/lexicons/fund'
 import { FUND_CONTRIBUTE, FUND_CHANNEL, FUND_PLAN, FUND_DEPENDENCY, deleteWithFallback } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
+import { normalizeStewardUri } from '@/lib/steward-uri'
 import { logger } from '@/lib/logger'
 import { str } from '@/lib/str'
 
@@ -90,8 +91,9 @@ function parsePayload(body: unknown): SetupPayload | null {
   if (Array.isArray(b.dependencies)) {
     for (const item of b.dependencies) {
       if (!item || typeof item !== 'object') continue
-      const uri = str((item as Record<string, unknown>).uri)
+      const rawUri = str((item as Record<string, unknown>).uri)
       const label = str((item as Record<string, unknown>).label)
+      const uri = rawUri ? normalizeStewardUri(rawUri) : null
       if (uri) dependencies.push({ uri, ...(label && { label }) })
     }
   }

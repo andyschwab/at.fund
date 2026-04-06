@@ -17,7 +17,6 @@ export const FUND_ENDORSE = 'fund.at.graph.endorse'
 
 // Legacy NSIDs — used for fallback reads and deletes during migration
 export const LEGACY_CONTRIBUTE = 'fund.at.contribute'
-export const LEGACY_MANIFEST = 'fund.at.manifest'
 export const LEGACY_DEPENDENCY = 'fund.at.dependency'
 export const LEGACY_ENDORSE = 'fund.at.endorse'
 
@@ -188,53 +187,6 @@ function parsePlanRecord(rkey: string, value: Record<string, unknown>): FundingP
   }
 }
 
-/**
- * Parses a legacy fund.at.manifest record into channels + plans.
- * Handles both old field names (id, type) and new ones (channelId, channelType).
- */
-function parseLegacyManifest(
-  value: Record<string, unknown>,
-): { channels: FundingChannel[]; plans: FundingPlan[] } | null {
-  const rawChannels = value.channels as Array<Record<string, unknown>> | undefined
-  if (!Array.isArray(rawChannels) || rawChannels.length === 0) return null
-
-  const channels: FundingChannel[] = rawChannels.map((ch) => ({
-    guid: String(ch.channelId ?? ch.id ?? ''),
-    type: CHANNEL_TYPES.includes((ch.channelType ?? ch.type) as ChannelType)
-      ? ((ch.channelType ?? ch.type) as ChannelType)
-      : 'other',
-    address: String(ch.uri ?? ''),
-    description: ch.description ? String(ch.description) : undefined,
-  }))
-
-  const plans: FundingPlan[] = []
-  if (Array.isArray(value.plans)) {
-    for (const p of value.plans as Array<Record<string, unknown>>) {
-      if (typeof p.name !== 'string') continue
-      plans.push({
-        guid: String(p.planId ?? p.id ?? ''),
-        status: p.status === 'inactive' ? 'inactive' : 'active',
-        name: p.name,
-        description: p.description ? String(p.description) : undefined,
-        amount: typeof p.amount === 'number' ? p.amount / 100 : 0,
-        currency: String(p.currency ?? 'USD'),
-        frequency: FREQUENCIES.includes(p.frequency as Frequency)
-          ? (p.frequency as Frequency)
-          : 'other',
-        channels: Array.isArray(p.channels)
-          ? (p.channels as unknown[]).map((c) =>
-              typeof c === 'object' && c && 'channelId' in c
-                ? String((c as Record<string, unknown>).channelId)
-                : typeof c === 'string' ? c : '',
-            ).filter(Boolean)
-          : [],
-      })
-    }
-  }
-
-  return { channels, plans }
-}
-
 // ---------------------------------------------------------------------------
 // High-level fetch: new NSIDs with legacy fallback
 // ---------------------------------------------------------------------------
@@ -318,7 +270,7 @@ export async function fetchFundAtRecords(
   const dependencies = dependencyResult.deps
   if (contributeResult.legacy || dependencyResult.legacy) needsMigration = true
 
-  // ── Channels + Plans: try new individual records, fall back to legacy manifest ──
+  // ── Channels + Plans: individual records ────────────────────────────────
   let channels: FundingChannel[] | undefined
   let plans: FundingPlan[] | undefined
 
@@ -351,19 +303,6 @@ export async function fetchFundAtRecords(
 
   if (channelRecords.length > 0) channels = channelRecords
   if (planRecords.length > 0) plans = planRecords
-
-  // Fall back to legacy manifest if no individual channels found
-  if (!channels) {
-    try {
-      const res = await readClient.get(fund.at.manifest, { repo })
-      const legacy = parseLegacyManifest(res.value as Record<string, unknown>)
-      if (legacy) {
-        channels = legacy.channels.length > 0 ? legacy.channels : undefined
-        plans = legacy.plans.length > 0 ? legacy.plans : undefined
-        needsMigration = true
-      }
-    } catch { /* no legacy manifest */ }
-  }
 
   if (!contributeUrl && !dependencies && !channels && !plans) return null
   return { contributeUrl, dependencies, channels, plans, needsMigration: needsMigration || undefined }
@@ -493,19 +432,6 @@ export async function fetchOwnFundAtRecords(
 
   if (channelRecords.length > 0) channels = channelRecords
   if (planRecords.length > 0) plans = planRecords
-
-  // Fall back to legacy manifest if no individual channels found
-  if (!channels) {
-    try {
-      const res = await client.get(fund.at.manifest)
-      const legacy = parseLegacyManifest(res.value as Record<string, unknown>)
-      if (legacy) {
-        channels = legacy.channels.length > 0 ? legacy.channels : undefined
-        plans = legacy.plans.length > 0 ? legacy.plans : undefined
-        needsMigration = true
-      }
-    } catch { /* no legacy manifest */ }
-  }
 
   if (!contributeUrl && !dependencies && !channels && !plans) return null
   return { contributeUrl, dependencies, channels, plans, needsMigration: needsMigration || undefined }

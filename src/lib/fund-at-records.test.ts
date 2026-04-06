@@ -7,7 +7,6 @@ import {
   FUND_DEPENDENCY,
   FUND_ENDORSE,
   LEGACY_CONTRIBUTE,
-  LEGACY_MANIFEST,
   LEGACY_DEPENDENCY,
   LEGACY_ENDORSE,
 } from './fund-at-records'
@@ -24,7 +23,6 @@ describe('collection constants', () => {
 
   it('exports correct legacy NSIDs for migration', () => {
     expect(LEGACY_CONTRIBUTE).toBe('fund.at.contribute')
-    expect(LEGACY_MANIFEST).toBe('fund.at.manifest')
     expect(LEGACY_DEPENDENCY).toBe('fund.at.dependency')
     expect(LEGACY_ENDORSE).toBe('fund.at.endorse')
   })

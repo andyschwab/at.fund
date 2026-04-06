@@ -2,14 +2,16 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { Client, l } from '@atproto/lex'
 import * as fund from '@/lexicons/fund'
+import { LEGACY_CONTRIBUTE, LEGACY_DEPENDENCY, LEGACY_ENDORSE } from '@/lib/fund-at-records'
 import { logger } from '@/lib/logger'
 
 /**
  * POST /api/migrate
  *
- * One-time migration: reads legacy fund.at.* records, writes them under
- * the new grouped NSIDs (fund.at.funding.*, fund.at.graph.*), then deletes
- * the legacy records. Also ensures a fund.at.actor.declaration exists.
+ * One-time migration: reads legacy flat-namespace records (fund.at.contribute,
+ * fund.at.dependency, fund.at.endorse), writes them under the new grouped
+ * NSIDs (fund.at.funding.*, fund.at.graph.*), then deletes the legacy records.
+ * Also ensures a fund.at.actor.declaration exists.
  */
 export async function POST() {
   const session = await getSession()
@@ -32,7 +34,7 @@ export async function POST() {
         url: uri(res.value.url),
         createdAt,
       })
-      await client.deleteRecord('fund.at.contribute', 'self')
+      await client.deleteRecord(LEGACY_CONTRIBUTE as `${string}.${string}.${string}`, 'self')
       migrated.push('contribute')
     }
   } catch {
@@ -54,7 +56,7 @@ export async function POST() {
         }, { rkey: legacyUri })
         // Delete legacy record — extract rkey from AT URI
         const rkey = r.uri.split('/').pop()
-        if (rkey) await client.deleteRecord('fund.at.dependency', rkey)
+        if (rkey) await client.deleteRecord(LEGACY_DEPENDENCY as `${string}.${string}.${string}`, rkey)
       } catch (e) {
         errors.push(`dependency ${r.uri}: ${e instanceof Error ? e.message : String(e)}`)
       }
@@ -76,7 +78,7 @@ export async function POST() {
           createdAt,
         }, { rkey: legacyUri })
         const rkey = r.uri.split('/').pop()
-        if (rkey) await client.deleteRecord('fund.at.endorse', rkey)
+        if (rkey) await client.deleteRecord(LEGACY_ENDORSE as `${string}.${string}.${string}`, rkey)
       } catch (e) {
         errors.push(`endorse ${r.uri}: ${e instanceof Error ? e.message : String(e)}`)
       }
@@ -84,70 +86,6 @@ export async function POST() {
     if (res.records.length > 0) migrated.push('endorse')
   } catch {
     // No legacy endorse records — skip
-  }
-
-  // ── Migrate fund.at.manifest → individual channel + plan records ──────
-  try {
-    const res = await client.get(fund.at.manifest)
-    const val = res.value as Record<string, unknown>
-    const channels = val.channels as Array<Record<string, unknown>> | undefined
-    if (Array.isArray(channels) && channels.length > 0) {
-      // Write individual channel records
-      for (const ch of channels) {
-        const rkey = String(ch.channelId ?? ch.id ?? '')
-        if (!rkey) continue
-        try {
-          await client.put(fund.at.funding.channel, {
-            channelType: String(ch.channelType ?? ch.type ?? 'other'),
-            ...(ch.uri ? { uri: uri(String(ch.uri)) } : {}),
-            ...(ch.description ? { description: String(ch.description) } : {}),
-            createdAt,
-          }, { rkey })
-        } catch (e) {
-          errors.push(`channel ${rkey}: ${e instanceof Error ? e.message : String(e)}`)
-        }
-      }
-
-      // Write individual plan records
-      if (Array.isArray(val.plans)) {
-        for (const p of val.plans as Array<Record<string, unknown>>) {
-          const rkey = String(p.planId ?? p.id ?? '')
-          if (!rkey) continue
-          try {
-            await client.put(fund.at.funding.plan, {
-              name: String(p.name ?? ''),
-              ...(p.description ? { description: String(p.description) } : {}),
-              ...(typeof p.amount === 'number' ? { amount: Math.round(p.amount * 100) } : {}),
-              ...(p.currency ? { currency: String(p.currency) } : {}),
-              ...(p.frequency ? { frequency: String(p.frequency) } : {}),
-              ...(Array.isArray(p.channels)
-                ? {
-                    // Legacy channels were channelId refs — convert to AT URIs
-                    // pointing to the same account's new channel records
-                    channels: p.channels.map((c: unknown) => {
-                      const id = typeof c === 'object' && c && 'channelId' in c
-                        ? String((c as Record<string, unknown>).channelId)
-                        : typeof c === 'string' ? c : ''
-                      return id ? l.asStringFormat(
-                        `at://${session.did}/fund.at.funding.channel/${id}`,
-                        'at-uri',
-                      ) : null
-                    }).filter((v): v is NonNullable<typeof v> => v !== null),
-                  }
-                : {}),
-              createdAt,
-            }, { rkey })
-          } catch (e) {
-            errors.push(`plan ${rkey}: ${e instanceof Error ? e.message : String(e)}`)
-          }
-        }
-      }
-
-      await client.deleteRecord('fund.at.manifest', 'self')
-      migrated.push('manifest→channels+plans')
-    }
-  } catch {
-    // No legacy manifest record — skip
   }
 
   // ── Ensure fund.at.actor.declaration exists ───────────────────────────

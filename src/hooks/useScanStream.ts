@@ -102,7 +102,7 @@ export function useScanStream() {
           } else if (event.type === 'status') {
             setScanStatus(event.message)
           } else if (event.type === 'endorsed') {
-            setEndorsedUris(new Set(event.uris))
+            setEndorsedUris((prev) => new Set([...prev, ...event.uris]))
           } else if (event.type === 'entry') {
             entryIndexRef.current.upsert(event.entry)
             setEntries(entryIndexRef.current.toArray())

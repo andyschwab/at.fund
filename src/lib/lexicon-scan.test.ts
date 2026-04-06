@@ -78,7 +78,7 @@ vi.mock('@/lib/fund-at-records', () => ({
   FUND_DEPENDENCY: 'fund.at.graph.dependency',
   FUND_ENDORSE: 'fund.at.graph.endorse',
   LEGACY_CONTRIBUTE: 'fund.at.contribute',
-  LEGACY_MANIFEST: 'fund.at.manifest',
+
   LEGACY_DEPENDENCY: 'fund.at.dependency',
   LEGACY_ENDORSE: 'fund.at.endorse',
   resolveHandleFromDid: vi.fn().mockResolvedValue(undefined),

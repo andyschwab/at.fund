@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth/session'
 import { Client, l } from '@atproto/lex'
 import * as fund from '@/lexicons/fund'
 import { FUND_ENDORSE, deleteWithFallback } from '@/lib/fund-at-records'
+import { normalizeStewardUri } from '@/lib/steward-uri'
 import { logger } from '@/lib/logger'
 import { str } from '@/lib/str'
 
@@ -21,7 +22,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const uri = str((body as Record<string, unknown>)?.uri)
+  const rawUri = str((body as Record<string, unknown>)?.uri)
+  const uri = rawUri ? normalizeStewardUri(rawUri) : null
   if (!uri) {
     return NextResponse.json({ error: 'uri is required' }, { status: 400 })
   }
@@ -63,16 +65,22 @@ export async function DELETE(request: NextRequest) {
   }
 
   const b = body as Record<string, unknown>
-  const uri = str(b?.uri)
+  const rawUri = str(b?.uri)
+  const uri = rawUri ? normalizeStewardUri(rawUri) : null
   if (!uri) {
     return NextResponse.json({ error: 'uri is required' }, { status: 400 })
   }
 
   // Collect all candidate rkeys — the primary uri plus any alternatives
   const candidates = new Set([uri])
+  if (rawUri && rawUri !== uri) candidates.add(rawUri) // keep raw form as fallback
   if (Array.isArray(b?.uris)) {
     for (const u of b.uris) {
-      if (typeof u === 'string' && u.trim()) candidates.add(u.trim())
+      if (typeof u === 'string' && u.trim()) {
+        candidates.add(u.trim())
+        const normalized = normalizeStewardUri(u.trim())
+        if (normalized) candidates.add(normalized)
+      }
     }
   }
 
