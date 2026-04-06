@@ -54,6 +54,41 @@ function linkable(channels: FundingChannel[]): FundingChannel[] {
 }
 
 // ---------------------------------------------------------------------------
+// Theme CSS
+// ---------------------------------------------------------------------------
+
+type Theme = 'light' | 'dark' | 'auto'
+
+function themeStyles(theme: Theme): string {
+  const light = `
+    body{background:transparent;color:#1e293b}
+    .card{border:1px solid #e2e8f0;background:#fff}
+    .avatar-fallback{background:#d1fae5;color:#059669}
+    .handle a:hover{color:#059669}
+    .support-btn{background:#059669;color:#fff}
+    .support-btn:hover{background:#047857}
+    .ch{border-color:#a7f3d0;background:#ecfdf5;color:#047857}
+    .ch:hover{background:#d1fae5;border-color:#6ee7b7}
+    .ch-amt{color:#059669}`
+
+  const dark = `
+    body{background:transparent;color:#e2e8f0}
+    .card{border:1px solid #334155;background:#0f172a}
+    .avatar-fallback{background:#064e3b;color:#6ee7b7}
+    .handle a:hover{color:#6ee7b7}
+    .support-btn{background:#059669;color:#fff}
+    .support-btn:hover{background:#047857}
+    .ch{border-color:#065f46;background:#022c22;color:#6ee7b7}
+    .ch:hover{background:#064e3b;border-color:#059669}
+    .ch-amt{color:#34d399}`
+
+  if (theme === 'light') return light
+  if (theme === 'dark') return dark
+  // auto: use prefers-color-scheme
+  return `${light}\n    @media(prefers-color-scheme:dark){${dark}\n    }`
+}
+
+// ---------------------------------------------------------------------------
 // Route handler
 // ---------------------------------------------------------------------------
 
@@ -65,17 +100,20 @@ export async function GET(
   const identifier = decodeURIComponent(rawId)
   const url = new URL(request.url)
   const buttonLabel = url.searchParams.get('label') || 'Support'
+  const theme = (url.searchParams.get('theme') || 'light') as Theme
+  if (!['light', 'dark', 'auto'].includes(theme)) {
+    // fallback to light for invalid values
+  }
 
   // Resolve identity, then funding
   const identity = await resolveIdentity(identifier)
   const records = identity ? await fetchFundAtRecords(identity.did) : null
 
-  const displayName = identity?.displayName ?? identifier
-  const handle = identity?.handle
+  const handle = identity?.handle ?? identifier
   const avatar = identity?.avatar
   const contributeUrl = records?.contributeUrl
   const channels = linkable(records?.channels ?? [])
-  const profileUrl = `https://at.fund/${esc(handle ?? identifier)}`
+  const bskyUrl = `https://bsky.app/profile/${esc(handle)}`
 
   // Index plans by channel GUID for amount display
   const planByChannel = new Map<string, FundingPlan>()
@@ -99,7 +137,7 @@ export async function GET(
   }).join('\n          ')
 
   // Avatar: real image or initials fallback
-  const initial = displayName.charAt(0).toUpperCase()
+  const initial = handle.charAt(0).toUpperCase()
   const avatarHtml = avatar
     ? `<img src="${esc(avatar)}" alt="" class="avatar" />`
     : `<div class="avatar avatar-fallback">${esc(initial)}</div>`
@@ -109,64 +147,51 @@ export async function GET(
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>${esc(buttonLabel)} ${esc(displayName)} — at.fund</title>
+  <title>${esc(buttonLabel)} @${esc(handle)} — at.fund</title>
   <style>
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:transparent;color:#1e293b}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
     a{color:inherit;text-decoration:none}
 
     .card{
-      display:flex;
-      align-items:flex-start;
-      gap:10px;
-      padding:10px 14px;
+      display:flex;align-items:flex-start;gap:10px;
+      padding:10px 14px;border-radius:12px;
+      box-shadow:0 1px 3px rgba(0,0,0,0.08);
     }
 
-    .avatar{
-      width:36px;height:36px;border-radius:50%;flex-shrink:0;
-      object-fit:cover;
-    }
-    .avatar-fallback{
-      display:flex;align-items:center;justify-content:center;
-      background:#d1fae5;color:#059669;font-weight:700;font-size:14px;
-    }
+    .avatar{width:36px;height:36px;border-radius:50%;flex-shrink:0;object-fit:cover}
+    .avatar-fallback{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
 
     .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
 
-    .name{
-      font-size:13px;font-weight:600;line-height:1.2;
-      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    }
-    .name a:hover{color:#059669}
+    .handle{font-size:13px;font-weight:500;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .handle a{transition:color .15s}
 
     .support-btn{
       display:inline-flex;align-items:center;justify-content:center;
       padding:5px 16px;border-radius:8px;
-      background:#059669;color:#fff;
       font-size:12px;font-weight:600;white-space:nowrap;
-      transition:background .15s;
-      align-self:flex-start;
+      transition:background .15s;align-self:flex-start;
     }
-    .support-btn:hover{background:#047857}
     .support-btn.disabled{opacity:.45;cursor:default}
 
     .channels{display:flex;flex-wrap:wrap;gap:4px}
     .ch{
       display:inline-flex;align-items:center;gap:3px;
       padding:2px 8px;border-radius:9999px;
-      border:1px solid #a7f3d0;background:#ecfdf5;
-      color:#047857;font-size:10px;font-weight:500;white-space:nowrap;
+      font-size:10px;font-weight:500;white-space:nowrap;
       transition:background .15s,border-color .15s;
+      border-width:1px;border-style:solid;
     }
-    .ch:hover{background:#d1fae5;border-color:#6ee7b7}
-    .ch-amt{color:#059669;font-weight:600}
+    .ch-amt{font-weight:600}
+    ${themeStyles(theme)}
   </style>
 </head>
 <body>
   <div class="card">
     ${avatarHtml}
     <div class="body">
-      <div class="name"><a href="${profileUrl}" target="_blank" rel="noreferrer">${esc(displayName)}</a></div>
+      <div class="handle"><a href="${bskyUrl}" target="_blank" rel="noreferrer">@${esc(handle)}</a></div>
       ${contributeUrl
         ? `<a href="${esc(contributeUrl)}" target="_blank" rel="noreferrer" class="support-btn">${esc(buttonLabel)}</a>`
         : `<span class="support-btn disabled">${esc(buttonLabel)}</span>`
