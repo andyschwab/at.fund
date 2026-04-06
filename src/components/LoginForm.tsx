@@ -26,7 +26,7 @@ export function LoginForm({ id }: { id: string }) {
           htmlFor={id}
           className="block text-sm text-slate-600 dark:text-slate-400"
         >
-          Your Bluesky handle
+          Your Atmosphere handle
         </label>
         <div className="flex gap-2">
           <HandleAutocomplete
