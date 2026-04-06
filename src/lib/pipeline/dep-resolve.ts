@@ -78,19 +78,46 @@ export async function resolveDependencies(
 /**
  * Resolves a dependency URI to a StewardEntry. Returns null if the URI
  * cannot be resolved to a DID (DID-first: no unresolved entries).
+ *
+ * Uses ctx.resolvedDeps as a singleflight cache — parallel callers resolving
+ * the same dep URI share a single network round-trip.
  */
 export async function resolveDepEntry(
+  depUri: string,
+  ctx?: ScanContext,
+): Promise<StewardEntry | null> {
+  // Singleflight: if this dep is already being resolved, await the same promise
+  if (ctx?.resolvedDeps.has(depUri)) {
+    return ctx.resolvedDeps.get(depUri)!
+  }
+
+  const promise = resolveDepEntryUncached(depUri, ctx)
+  ctx?.resolvedDeps.set(depUri, promise)
+  return promise
+}
+
+async function resolveDepEntryUncached(
   depUri: string,
   ctx?: ScanContext,
 ): Promise<StewardEntry | null> {
   const did = await resolveRefToDid(depUri)
   if (!did) return null
 
+  // Also cache by resolved DID so a hostname and its DID share the result
+  if (did !== depUri && ctx?.resolvedDeps.has(did)) {
+    return ctx.resolvedDeps.get(did)!
+  }
+
   const identity = buildIdentity({ did })
-
   const funding = await resolveFundingForDep(identity, ctx)
+  const entry: StewardEntry = { ...identity, ...funding, tags: ['dependency'] }
 
-  return { ...identity, ...funding, tags: ['dependency'] }
+  // Store under the resolved DID too for cross-key dedup
+  if (ctx && did !== depUri) {
+    ctx.resolvedDeps.set(did, Promise.resolve(entry))
+  }
+
+  return entry
 }
 
 // ---------------------------------------------------------------------------
