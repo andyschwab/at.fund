@@ -186,6 +186,7 @@ describe('resolveFunding', () => {
       fundAtPrefetch: prefetchMap,
       prefetch: vi.fn(),
       prefetchUnbounded: vi.fn(),
+      resolvedDeps: new Map(),
     }
 
     const result = await resolveFunding(identity(), { ctx })
@@ -253,6 +254,7 @@ describe('resolveFundingForDep', () => {
       fundAtPrefetch: prefetchMap,
       prefetch: vi.fn(),
       prefetchUnbounded: vi.fn(),
+      resolvedDeps: new Map(),
     }
 
     const result = await resolveFundingForDep(identity(), ctx)

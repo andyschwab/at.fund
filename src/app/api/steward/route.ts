@@ -74,38 +74,57 @@ export async function GET(request: NextRequest) {
       ? profileName
       : hostname ?? handle ?? stewardUri
 
+    // DID is required for a valid StewardEntry — if we can't resolve one,
+    // return a minimal response with what we have but no typed entry.
+    if (!stewardDid) {
+      if (manual) {
+        return NextResponse.json({
+          uri: hostname ?? stewardUri,
+          did: hostname ?? stewardUri,
+          displayName,
+          handle,
+          tags: ['tool'],
+          contributeUrl: manual.contributeUrl,
+          dependencies: manual.dependencies,
+          source: 'manual',
+        } satisfies StewardEntry)
+      }
+      return NextResponse.json(
+        { error: 'Could not resolve DID', stewardUri },
+        { status: 404 },
+      )
+    }
+
     const uri = hostname ?? handle ?? stewardUri
 
     const base: Omit<StewardEntry, 'source'> = {
       uri,
-      did: stewardDid ?? undefined,
+      did: stewardDid,
       handle,
       tags: ['tool'],
       displayName,
     }
 
     // Try fund.at records
-    if (stewardDid) {
-      try {
-        const fundAt = await fetchFundAtForStewardDid(stewardDid)
-        if (fundAt) {
-          const entry: StewardEntry = {
-            ...base,
-            contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
-            dependencies: mergeDeps(
-              fundAt.dependencies?.map((d) => d.uri),
-              manual?.dependencies,
-            ),
-            source: 'fund.at',
-          }
-          return NextResponse.json(entry)
+    try {
+      const fundAt = await fetchFundAtForStewardDid(stewardDid)
+      if (fundAt) {
+        const entry: StewardEntry = {
+          ...base,
+          contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
+          dependencies: mergeDeps(
+            fundAt.dependencies?.map((d) => d.uri),
+            manual?.dependencies,
+          ),
+          source: 'fund.at',
         }
-      } catch (e) {
-        logger.warn('steward: fund.at fetch failed', {
-          stewardUri, stewardDid,
-          error: e instanceof Error ? e.message : 'Failed to fetch fund.at records',
-        })
+        return NextResponse.json(entry)
       }
+    } catch (e) {
+      logger.warn('steward: fund.at fetch failed', {
+        stewardUri, stewardDid,
+        error: e instanceof Error ? e.message : 'Failed to fetch fund.at records',
+      })
     }
 
     // Manual catalog fallback

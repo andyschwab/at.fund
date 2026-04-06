@@ -503,8 +503,8 @@ export function ProfileClient({
             onUnendorse={hasSession ? handleUnendorse : undefined}
           />
 
-          {/* Endorse by handle + discover — logged-in owner actions */}
-          {hasSession && (
+          {/* Endorse by handle + discover — owner only */}
+          {hasSession && viewMode === 'owner' && (
             <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/20">
               <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
                 Endorse a project by searching for their handle.

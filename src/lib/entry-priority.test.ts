@@ -4,7 +4,8 @@ import type { StewardEntry } from '@/lib/steward-model'
 
 function entry(overrides: Partial<StewardEntry> = {}): StewardEntry {
   return {
-    uri: 'example.com',
+    uri: 'did:plc:test',
+    did: 'did:plc:test',
     displayName: 'Example',
     source: 'manual',
     tags: ['tool'],
