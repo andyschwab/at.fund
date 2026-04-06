@@ -155,11 +155,11 @@ export async function GET(
 
     .card{
       display:flex;align-items:flex-start;gap:10px;
-      padding:10px 14px;border-radius:12px;
+      padding:10px 12px;border-radius:12px;
       box-shadow:0 1px 3px rgba(0,0,0,0.08);
     }
 
-    .avatar{width:36px;height:36px;border-radius:50%;flex-shrink:0;object-fit:cover}
+    .avatar{width:40px;height:40px;border-radius:50%;flex-shrink:0;object-fit:cover}
     .avatar-fallback{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
 
     .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}

@@ -19,7 +19,7 @@ const INPUT_CLASS =
 
 const IFRAME_CSS = `border: none;
 border-radius: 12px;
-width: 300px;
+width: 260px;
 height: 120px;`
 
 export function EmbedPlayground() {
@@ -174,58 +174,53 @@ export function EmbedPlayground() {
         )}
       </div>
 
-      {/* Two-column: controls | preview */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Left: controls */}
-        <div className="space-y-4">
-          {/* CSS textarea */}
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Iframe styles
-            </p>
-            <textarea
-              rows={5}
-              value={customCss}
-              onChange={(e) => setCustomCss(e.target.value)}
-              spellCheck={false}
-              className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-800 placeholder-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder-slate-500"
+      {/* Live preview — shown first */}
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          Live preview
+        </p>
+        <div className="flex min-h-[140px] items-start justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-6 dark:border-slate-700 dark:bg-slate-800/30">
+          {embedSrc ? (
+            <iframe
+              key={iframeKey}
+              src={embedSrc}
+              style={iframeStyle}
+              title="Support on at.fund"
             />
-          </div>
-
-          {/* Embed code output */}
-          {embedHtml && (
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  Embed code
-                </p>
-                <CopyButton text={embedHtml} label="Copy HTML" />
-              </div>
-              <pre className="overflow-auto rounded-lg bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-300">
-                {embedHtml}
-              </pre>
-            </div>
+          ) : (
+            <p className="text-sm text-slate-400">Enter a handle to see the preview</p>
           )}
         </div>
+      </div>
 
-        {/* Right: live preview */}
+      {/* Two-column: CSS controls | embed code */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-            Live preview
+            Iframe styles
           </p>
-          <div className="flex min-h-[140px] items-start justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-6 dark:border-slate-700 dark:bg-slate-800/30">
-            {embedSrc ? (
-              <iframe
-                key={iframeKey}
-                src={embedSrc}
-                style={iframeStyle}
-                title="Support on at.fund"
-              />
-            ) : (
-              <p className="text-sm text-slate-400">Enter a handle to see the preview</p>
-            )}
-          </div>
+          <textarea
+            rows={5}
+            value={customCss}
+            onChange={(e) => setCustomCss(e.target.value)}
+            spellCheck={false}
+            className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-800 placeholder-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder-slate-500"
+          />
         </div>
+
+        {embedHtml && (
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Embed code
+              </p>
+              <CopyButton text={embedHtml} label="Copy HTML" />
+            </div>
+            <pre className="overflow-auto rounded-lg bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-300">
+              {embedHtml}
+            </pre>
+          </div>
+        )}
       </div>
     </div>
   )
