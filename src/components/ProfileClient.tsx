@@ -441,9 +441,8 @@ export function ProfileClient({
     setEditing(false)
   }, [baseEntry])
 
-  // Endorse + fetch the entry into the shared index so it appears in the list
+  // Resolve entry first, then endorse once with the canonical DID
   const endorseAndFetch = useCallback(async (uri: string) => {
-    void endorse(uri)
     try {
       const res = await fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
       if (!res.ok) return
@@ -452,12 +451,11 @@ export function ProfileClient({
       for (const ref of data.referenced) {
         entryIndexRef.current.upsert(ref)
       }
-      // Also add all known URIs to endorsedUris so the card shows as endorsed
-      if (data.entry.uri !== uri) void endorse(data.entry.uri)
-      if (data.entry.did && data.entry.did !== uri) void endorse(data.entry.did)
+      // Endorse with the canonical DID only — no handle-keyed records
+      void endorse(data.entry.did)
       bumpIndex()
     } catch {
-      // endorsement still went through, entry just won't appear until refresh
+      // resolution failed; don't create a handle-keyed endorsement
     }
   }, [endorse, bumpIndex])
 
