@@ -1,5 +1,7 @@
 import { resolveIdentity } from '@/lib/identity'
+import { lookupAtprotoDid } from '@/lib/atfund-dns'
 import { fetchFundAtRecords } from '@/lib/fund-at-records'
+import { lookupManualStewardRecord } from '@/lib/catalog'
 import { detectPlatform, PLATFORM_LABELS } from '@/lib/funding-manifest'
 import type { FundingChannel, FundingPlan } from '@/lib/funding-manifest'
 
@@ -84,7 +86,6 @@ function themeStyles(theme: Theme): string {
 
   if (theme === 'light') return light
   if (theme === 'dark') return dark
-  // auto: use prefers-color-scheme
   return `${light}\n    @media(prefers-color-scheme:dark){${dark}\n    }`
 }
 
@@ -103,13 +104,25 @@ export async function GET(
   const rawTheme = url.searchParams.get('theme') || 'auto'
   const theme: Theme = ['light', 'dark', 'auto'].includes(rawTheme) ? rawTheme as Theme : 'auto'
 
-  // Resolve identity, then funding
+  // Resolve identity (handle resolution + profile fetch)
   const identity = await resolveIdentity(identifier)
-  const records = identity ? await fetchFundAtRecords(identity.did) : null
+
+  // Resolve DID: try identity resolution first, then DNS for hostnames
+  let did = identity?.did
+  if (!did) {
+    try { did = await lookupAtprotoDid(identifier) ?? undefined } catch { /* best effort */ }
+  }
+
+  // Fetch fund.at records from PDS
+  const records = did ? await fetchFundAtRecords(did) : null
+
+  // Fall back to manual catalog for contributeUrl
+  const manual = lookupManualStewardRecord(identifier)
+    ?? (did ? lookupManualStewardRecord(did) : null)
+  const contributeUrl = records?.contributeUrl ?? manual?.contributeUrl
 
   const handle = identity?.handle ?? identifier
   const avatar = identity?.avatar
-  const contributeUrl = records?.contributeUrl
   const channels = linkable(records?.channels ?? [])
   const bskyUrl = `https://bsky.app/profile/${esc(handle)}`
 
@@ -171,7 +184,7 @@ export async function GET(
       font-size:12px;font-weight:600;white-space:nowrap;
       transition:background .15s;align-self:flex-start;
     }
-    .support-btn.muted{opacity:.65}
+    .support-btn.muted{opacity:.45;cursor:default}
 
     .channels{display:flex;flex-wrap:wrap;gap:4px}
     .ch{
@@ -208,7 +221,7 @@ export async function GET(
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, max-age=300, s-maxage=600',
+      'Cache-Control': 'public, max-age=60, s-maxage=120',
       'X-Frame-Options': 'ALLOWALL',
     },
   })
