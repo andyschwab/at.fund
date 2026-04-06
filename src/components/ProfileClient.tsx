@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   BadgeCheck,
@@ -77,6 +77,7 @@ function ProfileCard({
   bskyShareUrl,
   copyLink,
   copied,
+  allEntries,
   editForm,
 }: {
   entry: StewardEntry
@@ -90,6 +91,8 @@ function ProfileCard({
   bskyShareUrl: string
   copyLink: () => void
   copied: boolean
+  /** All known entries for dependency lookup. */
+  allEntries: StewardEntry[]
   /** When editing, the SetupClient form renders inside the card */
   editForm?: React.ReactNode
 }) {
@@ -248,7 +251,7 @@ function ProfileCard({
           {entry.dependencies && entry.dependencies.length > 0 && (
             <DependenciesSection
               dependencies={entry.dependencies}
-              allEntries={[entry]}
+              allEntries={allEntries}
             />
           )}
         </div>
@@ -285,6 +288,12 @@ export function ProfileClient({
 
   const { bskyShareUrl, copyLink, copied } = useShareActions(handle, viewMode === 'owner')
 
+  // Shared entry store — populated by StackStream as it resolves endorsed entries + deps
+  const [streamEntries, setStreamEntries] = useState<StewardEntry[]>([])
+  const handleStreamEntries = useCallback((entries: StewardEntry[]) => {
+    setStreamEntries(entries)
+  }, [])
+
   // Live entry state — starts from server data, updates from SetupClient form
   const [formOverrides, setFormOverrides] = useState<SetupFormData | null>(null)
 
@@ -302,6 +311,15 @@ export function ProfileClient({
 
   const entryUri = entry?.uri ?? handle
   const isEndorsed = endorsedUris.has(entryUri) || endorsedUris.has(did)
+
+  // Merge all known entries: server entry + stream-resolved + form-resolved
+  const allEntries = useMemo(() => {
+    const entries: StewardEntry[] = []
+    if (entry) entries.push(entry)
+    entries.push(...streamEntries)
+    if (formOverrides?.resolvedDeps) entries.push(...formOverrides.resolvedDeps)
+    return entries
+  }, [entry, streamEntries, formOverrides?.resolvedDeps])
 
   const handleFormChange = useCallback((data: SetupFormData) => {
     setFormOverrides(data)
@@ -343,6 +361,7 @@ export function ProfileClient({
             bskyShareUrl={bskyShareUrl}
             copyLink={copyLink}
             copied={copied}
+            allEntries={allEntries}
             editForm={editForm}
           />
         ) : (
@@ -380,7 +399,7 @@ export function ProfileClient({
               </Link>
             )}
           </div>
-          <StackStream handle={handle} />
+          <StackStream handle={handle} onAllEntriesChange={handleStreamEntries} />
         </div>
 
         {/* Footer */}

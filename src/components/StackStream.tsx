@@ -7,7 +7,14 @@ import { EntryIndex } from '@/lib/steward-merge'
 import type { StackStreamEvent } from '@/app/api/stack/[handle]/stream/route'
 import type { StewardEntry } from '@/lib/steward-model'
 
-export function StackStream({ handle }: { handle: string }) {
+export function StackStream({
+  handle,
+  onAllEntriesChange,
+}: {
+  handle: string
+  /** Called whenever the resolved entries index updates (entries + refs). */
+  onAllEntriesChange?: (entries: StewardEntry[]) => void
+}) {
   const [entries, setEntries] = useState<StewardEntry[]>([])
   const [allEntries, setAllEntries] = useState<StewardEntry[]>([])
   const [done, setDone] = useState(false)
@@ -48,11 +55,17 @@ export function StackStream({ handle }: { handle: string }) {
               lookupRef.current.upsert(event.entry)
               if (!cancelled) {
                 setEntries(primaryRef.current.toArray())
-                setAllEntries(lookupRef.current.toArray())
+                const all = lookupRef.current.toArray()
+                setAllEntries(all)
+                onAllEntriesChange?.(all)
               }
             } else if (event.type === 'ref') {
               lookupRef.current.upsert(event.entry)
-              if (!cancelled) setAllEntries(lookupRef.current.toArray())
+              if (!cancelled) {
+                const all = lookupRef.current.toArray()
+                setAllEntries(all)
+                onAllEntriesChange?.(all)
+              }
             } else if (event.type === 'done') {
               if (!cancelled) setDone(true)
             }
