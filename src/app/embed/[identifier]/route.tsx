@@ -190,7 +190,10 @@ export async function GET(
     ${avatarHtml}
     <div class="body">
       <div class="handle"><a href="${bskyUrl}" target="_blank" rel="noreferrer">@${esc(handle)}</a></div>
-      <a href="${esc(contributeUrl || `https://at.fund/${handle}`)}" target="_blank" rel="noreferrer" class="support-btn${contributeUrl ? '' : ' muted'}">${esc(buttonLabel)}</a>
+      ${contributeUrl
+        ? `<a href="${esc(contributeUrl)}" target="_blank" rel="noreferrer" class="support-btn">${esc(buttonLabel)}</a>`
+        : `<span class="support-btn muted">${esc(buttonLabel)}</span>`
+      }
       ${channels.length > 0
         ? `<div class="channels">
           ${channelLinksHtml}
