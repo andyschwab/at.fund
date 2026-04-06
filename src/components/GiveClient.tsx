@@ -7,8 +7,7 @@ import { entryPriority } from '@/lib/entry-priority'
 import { pdslsRepoUrl } from '@/lib/pdsls'
 import { useSession } from '@/components/SessionContext'
 import { useScanStream } from '@/hooks/useScanStream'
-import { StewardCard } from '@/components/ProjectCards'
-import { CardErrorBoundary } from '@/components/CardErrorBoundary'
+import { StackEntriesList } from '@/components/StackEntriesList'
 import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
   AlertCircle,
@@ -280,32 +279,15 @@ export function GiveClient() {
 
           <div className="flex flex-col gap-3">
             {(pdsEntries.length > 0 || endorsedEntries.length > 0) && (
-              <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-                {pdsEntries.map((entry) => (
-                  <CardErrorBoundary key={entry.uri} uri={entry.uri}>
-                    <StewardCard
-                      entry={entry}
-                      allEntries={entries}
-                    />
-                  </CardErrorBoundary>
-                ))}
-                {endorsedEntries.map((entry) => {
-                  const counts = lookupCounts(entry)
-                  return (
-                    <CardErrorBoundary key={entry.uri} uri={entry.uri}>
-                      <StewardCard
-                        entry={entry}
-                        allEntries={entries}
-                        endorsed
-                        endorsedSet={endorsedUris}
-                        onEndorse={handleEndorse}
-                        onUnendorse={handleUnendorse}
-                        networkEndorsementCount={counts?.networkEndorsementCount}
-                      />
-                    </CardErrorBoundary>
-                  )
-                })}
-              </ul>
+              <StackEntriesList
+                entries={[...pdsEntries, ...endorsedEntries]}
+                allEntries={entries}
+                endorsedSet={endorsedUris}
+                onEndorse={handleEndorse}
+                onUnendorse={handleUnendorse}
+                endorsementCounts={endorsementCounts}
+                active
+              />
             )}
 
             {/* Endorse by handle */}
@@ -474,23 +456,14 @@ export function GiveClient() {
                   )}
 
                   {filteredEntries.length > 0 && (
-                    <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-                      {filteredEntries.map((entry) => {
-                        const counts = lookupCounts(entry)
-                        return (
-                          <CardErrorBoundary key={entry.uri} uri={entry.uri}>
-                            <StewardCard
-                              entry={entry}
-                              allEntries={entries}
-                              endorsedSet={endorsedUris}
-                              onEndorse={handleEndorse}
-                              onUnendorse={handleUnendorse}
-                              networkEndorsementCount={counts?.networkEndorsementCount}
-                            />
-                          </CardErrorBoundary>
-                        )
-                      })}
-                    </ul>
+                    <StackEntriesList
+                      entries={filteredEntries}
+                      allEntries={entries}
+                      endorsedSet={endorsedUris}
+                      onEndorse={handleEndorse}
+                      onUnendorse={handleUnendorse}
+                      endorsementCounts={endorsementCounts}
+                    />
                   )}
                   {filteredEntries.length === 0 && discoveredEntries.length === 0 && loading && (
                     <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
@@ -520,23 +493,14 @@ export function GiveClient() {
                 </p>
               )}
               {visibleEcosystemEntries.length > 0 ? (
-                <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-                  {visibleEcosystemEntries.map((entry) => {
-                    const counts = lookupCounts(entry)
-                    return (
-                      <CardErrorBoundary key={entry.uri} uri={entry.uri}>
-                        <StewardCard
-                          entry={entry}
-                          allEntries={entries}
-                          endorsedSet={endorsedUris}
-                          onEndorse={handleEndorse}
-                          onUnendorse={handleUnendorse}
-                          networkEndorsementCount={counts?.networkEndorsementCount}
-                        />
-                      </CardErrorBoundary>
-                    )
-                  })}
-                </ul>
+                <StackEntriesList
+                  entries={visibleEcosystemEntries}
+                  allEntries={entries}
+                  endorsedSet={endorsedUris}
+                  onEndorse={handleEndorse}
+                  onUnendorse={handleUnendorse}
+                  endorsementCounts={endorsementCounts}
+                />
               ) : scanDone ? (
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   No network endorsements found yet. As more people in your network use at.fund, endorsed projects will appear here.

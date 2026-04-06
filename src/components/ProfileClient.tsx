@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
   BadgeCheck,
   BadgePlus,
@@ -62,6 +63,44 @@ function useShareActions(handle: string, isOwner: boolean) {
 }
 
 // ---------------------------------------------------------------------------
+// Endorse by handle
+// ---------------------------------------------------------------------------
+
+function EndorseByHandle({ onEndorse }: { onEndorse: (uri: string) => void }) {
+  const [value, setValue] = useState('')
+  return (
+    <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/20">
+      <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
+        Endorse a project by searching for their handle.
+      </p>
+      <div className="flex max-w-xl flex-col gap-2 sm:flex-row">
+        <HandleAutocomplete
+          value={value}
+          onChange={setValue}
+          placeholder="Search by handle…"
+          inputClassName="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            const handle = value.trim()
+            if (handle) {
+              onEndorse(handle)
+              setValue('')
+            }
+          }}
+          disabled={!value.trim()}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          <BadgePlus className="h-4 w-4" aria-hidden />
+          Endorse
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Unified profile card
 // ---------------------------------------------------------------------------
 
@@ -72,6 +111,9 @@ function ProfileCard({
   isEndorsed,
   onEndorse,
   onUnendorse,
+  endorsedSet,
+  onEndorseUri,
+  onUnendorseUri,
   editing,
   onEditToggle,
   bskyShareUrl,
@@ -84,16 +126,19 @@ function ProfileCard({
   handle: string
   viewMode: ViewMode
   isEndorsed: boolean
+  /** Endorse/unendorse the profile entry itself. */
   onEndorse: () => void
   onUnendorse: () => void
+  /** Endorsement state and handlers for sub-entries (deps, modals). */
+  endorsedSet?: Set<string>
+  onEndorseUri?: (uri: string) => void
+  onUnendorseUri?: (uri: string) => void
   editing: boolean
   onEditToggle: () => void
   bskyShareUrl: string
   copyLink: () => void
   copied: boolean
-  /** All known entries for dependency lookup. */
   allEntries: StewardEntry[]
-  /** When editing, the SetupClient form renders inside the card */
   editForm?: React.ReactNode
 }) {
   const profileUrl = entry.landingPage ?? (entry.handle ? `https://bsky.app/profile/${entry.handle}` : undefined)
@@ -252,6 +297,9 @@ function ProfileCard({
             <DependenciesSection
               dependencies={entry.dependencies}
               allEntries={allEntries}
+              endorsedSet={endorsedSet}
+              onEndorse={onEndorseUri}
+              onUnendorse={onUnendorseUri}
             />
           )}
         </div>
@@ -356,6 +404,9 @@ export function ProfileClient({
             isEndorsed={isEndorsed}
             onEndorse={() => void endorse(entryUri)}
             onUnendorse={() => void unendorse(entryUri)}
+            endorsedSet={hasSession ? endorsedUris : undefined}
+            onEndorseUri={hasSession ? (uri: string) => void endorse(uri) : undefined}
+            onUnendorseUri={hasSession ? (uri: string) => void unendorse(uri) : undefined}
             editing={editing}
             onEditToggle={() => setEditing(true)}
             bskyShareUrl={bskyShareUrl}
@@ -399,7 +450,16 @@ export function ProfileClient({
               </Link>
             )}
           </div>
-          <StackStream handle={handle} onAllEntriesChange={handleStreamEntries} />
+          <StackStream
+            handle={handle}
+            onAllEntriesChange={handleStreamEntries}
+            endorsedSet={hasSession ? endorsedUris : undefined}
+            onEndorse={hasSession ? (uri: string) => void endorse(uri) : undefined}
+            onUnendorse={hasSession ? (uri: string) => void unendorse(uri) : undefined}
+          />
+
+          {/* Endorse by handle — logged-in users can add endorsements */}
+          {hasSession && <EndorseByHandle onEndorse={(uri) => void endorse(uri)} />}
         </div>
 
         {/* Footer */}

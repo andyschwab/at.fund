@@ -10,10 +10,16 @@ import type { StewardEntry } from '@/lib/steward-model'
 export function StackStream({
   handle,
   onAllEntriesChange,
+  endorsedSet,
+  onEndorse,
+  onUnendorse,
 }: {
   handle: string
   /** Called whenever the resolved entries index updates (entries + refs). */
   onAllEntriesChange?: (entries: StewardEntry[]) => void
+  endorsedSet?: Set<string>
+  onEndorse?: (uri: string) => void
+  onUnendorse?: (uri: string) => void
 }) {
   const [entries, setEntries] = useState<StewardEntry[]>([])
   const [allEntries, setAllEntries] = useState<StewardEntry[]>([])
@@ -112,7 +118,14 @@ export function StackStream({
         {entries.length} project{entries.length === 1 ? '' : 's'} endorsed
         {!done && <span className="ml-2 inline-flex items-center gap-1 text-xs text-slate-400"><RefreshCw className="h-3 w-3 animate-spin" aria-hidden />loading…</span>}
       </p>
-      <StackEntriesList entries={entries} allEntries={allEntries} />
+      <StackEntriesList
+        entries={entries}
+        allEntries={allEntries}
+        endorsedSet={endorsedSet}
+        onEndorse={onEndorse}
+        onUnendorse={onUnendorse}
+        active
+      />
     </div>
   )
 }
