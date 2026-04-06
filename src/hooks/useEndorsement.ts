@@ -38,24 +38,30 @@ export function useEndorsement(initialEndorsed: string[] = []) {
     }
   }, [authFetch, hasSession])
 
-  const unendorse = useCallback(async (uri: string) => {
+  /**
+   * Remove an endorsement. Pass all known identifiers for the entry
+   * (uri, did, handle) so they're all removed from the set and sent
+   * to the API for rkey lookup.
+   */
+  const unendorse = useCallback(async (uri: string, allUris?: string[]) => {
     if (!hasSession) return
+    const removeUris = new Set([uri, ...(allUris ?? [])])
     setEndorsedUris((prev) => {
       const next = new Set(prev)
-      next.delete(uri)
+      for (const u of removeUris) next.delete(u)
       return next
     })
     try {
       const res = await authFetch('/api/endorse', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uri, uris: [uri] }),
+        body: JSON.stringify({ uri, uris: [...removeUris] }),
       })
       if (!res.ok) {
-        setEndorsedUris((prev) => new Set([...prev, uri]))
+        setEndorsedUris((prev) => new Set([...prev, ...removeUris]))
       }
     } catch {
-      setEndorsedUris((prev) => new Set([...prev, uri]))
+      setEndorsedUris((prev) => new Set([...prev, ...removeUris]))
     }
   }, [authFetch, hasSession])
 

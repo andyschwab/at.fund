@@ -331,9 +331,25 @@ export function ProfileClient({
 }: ProfileClientProps) {
   const { hasSession } = useSession()
   const [editing, setEditing] = useState(initialEdit)
-  const { endorsedUris, endorse, unendorse } = useEndorsement(
-    viewMode !== 'public' ? initialEndorsedUris : [],
+
+  // Profile subject's endorsements — always used for display, regardless of viewer.
+  // This is public data from fetchPublicEndorsements().
+  const [profileEndorsedUris] = useState(() => new Set(initialEndorsedUris))
+
+  // Viewer's own endorsement actions (add/remove) — only when logged in.
+  // Seeded with the profile's endorsements when viewing own profile.
+  const { endorsedUris: viewerEndorsedUris, endorse, unendorse } = useEndorsement(
+    viewMode === 'owner' ? initialEndorsedUris : [],
   )
+
+  // Effective endorsed set: profile's endorsements + viewer's additions - viewer's removals
+  const effectiveEndorsedUris = useMemo(() => {
+    if (!hasSession) return profileEndorsedUris
+    // For owner: viewerEndorsedUris IS the live set (seeded from profile, modified by actions)
+    if (viewMode === 'owner') return viewerEndorsedUris
+    // For viewer: start from profile's set (for display), overlay viewer's own actions
+    return profileEndorsedUris
+  }, [hasSession, viewMode, profileEndorsedUris, viewerEndorsedUris])
 
   const { bskyShareUrl, copyLink, copied } = useShareActions(handle, viewMode === 'owner')
 
@@ -353,16 +369,15 @@ export function ProfileClient({
     bumpIndex()
   }, [bumpIndex])
 
-  // Derive endorsed entries from the index filtered by endorsedUris
+  // Derive endorsed entries from the index filtered by effective endorsed set
   const endorsedEntries = useMemo(() => {
-    // Touch indexVersion to re-derive when index changes
     void indexVersion
     return entryIndexRef.current.toArray().filter((e) =>
-      endorsedUris.has(e.uri)
-      || (!!e.did && endorsedUris.has(e.did))
-      || (!!e.handle && endorsedUris.has(e.handle))
+      effectiveEndorsedUris.has(e.uri)
+      || (!!e.did && effectiveEndorsedUris.has(e.did))
+      || (!!e.handle && effectiveEndorsedUris.has(e.handle))
     )
-  }, [indexVersion, endorsedUris])
+  }, [indexVersion, effectiveEndorsedUris])
 
   // Committed entry — starts from server data, updated after successful publish
   const [baseEntry, setBaseEntry] = useState<StewardEntry | null>(serverEntry)
@@ -387,7 +402,7 @@ export function ProfileClient({
     : null
 
   const entryUri = entry?.uri ?? handle
-  const isEndorsed = endorsedUris.has(entryUri) || endorsedUris.has(did)
+  const isEndorsed = effectiveEndorsedUris.has(entryUri) || effectiveEndorsedUris.has(did)
 
   // All entries for dependency lookup (profile entry + everything in the index)
   const allEntries = useMemo(() => {
@@ -446,6 +461,17 @@ export function ProfileClient({
     }
   }, [endorse, bumpIndex])
 
+  // Unendorse with all known identifiers so the entry is fully removed from the set
+  const handleUnendorse = useCallback((uri: string) => {
+    const all = entryIndexRef.current.toArray()
+    const entry = all.find((e) => e.uri === uri || e.did === uri || e.handle === uri)
+    const aliases = [uri]
+    if (entry?.uri) aliases.push(entry.uri)
+    if (entry?.did) aliases.push(entry.did)
+    if (entry?.handle) aliases.push(entry.handle)
+    void unendorse(uri, aliases)
+  }, [unendorse])
+
   const handleCancel = useCallback(() => {
     setEditing(false)
     setFormOverrides(null)
@@ -477,10 +503,10 @@ export function ProfileClient({
             viewMode={viewMode}
             isEndorsed={isEndorsed}
             onEndorse={() => void endorse(entryUri)}
-            onUnendorse={() => void unendorse(entryUri)}
-            endorsedSet={hasSession ? endorsedUris : undefined}
+            onUnendorse={() => handleUnendorse(entryUri)}
+            endorsedSet={effectiveEndorsedUris}
             onEndorseUri={hasSession ? (uri: string) => void endorse(uri) : undefined}
-            onUnendorseUri={hasSession ? (uri: string) => void unendorse(uri) : undefined}
+            onUnendorseUri={hasSession ? handleUnendorse : undefined}
             editing={editing}
             onEditToggle={() => setEditing(true)}
             bskyShareUrl={bskyShareUrl}
@@ -530,9 +556,9 @@ export function ProfileClient({
             allEntries={allEntries}
             onEntry={handleStreamEntry}
             onRef={handleStreamRef}
-            endorsedSet={hasSession ? endorsedUris : undefined}
+            endorsedSet={effectiveEndorsedUris}
             onEndorse={hasSession ? (uri: string) => void endorse(uri) : undefined}
-            onUnendorse={hasSession ? (uri: string) => void unendorse(uri) : undefined}
+            onUnendorse={hasSession ? handleUnendorse : undefined}
           />
 
           {/* Endorse by handle — logged-in users can add endorsements */}
