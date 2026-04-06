@@ -15,17 +15,19 @@ export async function GET() {
     const client = await getOAuthClient()
     const session = await client.restore(did)
     if (!session) {
-      logger.warn('auth/check: session restore returned null, clearing cookie', { did })
+      logger.warn('auth/check: session restore returned null, clearing cookies', { did })
       cookieStore.delete('did')
+      cookieStore.delete('handle')
       return NextResponse.json({ valid: false, did: null })
     }
     return NextResponse.json({ valid: true, did })
   } catch (error) {
-    logger.warn('auth/check: session not restorable, clearing cookie', {
+    logger.warn('auth/check: session not restorable, clearing cookies', {
       did,
       error: error instanceof Error ? error.message : String(error),
     })
     cookieStore.delete('did')
+    cookieStore.delete('handle')
     return NextResponse.json({ valid: false, did: null })
   }
 }

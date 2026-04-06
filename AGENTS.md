@@ -79,6 +79,12 @@ change, tab focus, and 401 response. The DPoP fetch patch in `lib/auth/client.ts
 works around a Next.js ReadableStream issue — do not modify without testing the
 full OAuth flow.
 
+**Cookie-based identity:** The `did` and `handle` cookies are both set at OAuth
+callback time. The root layout reads them synchronously — no `getSession()` call,
+no network I/O. This means every page render is instant regardless of session
+state. `getSession()` is only called when the actual OAuth session object is
+needed (e.g. `fetchOwnFundAtRecords` in the profile page's owner mode).
+
 **Profile page session check:** The `/<identifier>` route uses `getSession()` to
 validate the session before granting owner mode — the `did` cookie alone is not
 enough (it can outlive an expired session). This runs in `Promise.all` alongside
@@ -86,9 +92,9 @@ other data fetches so it doesn't add latency. If the session is stale, the user
 sees the public view.
 
 **SessionContext handle resolution:** The session context includes `handle` in
-addition to `did`. The handle is resolved server-side in `layout.tsx` via
-`getSessionHandle()` and passed as initial state — no client-side fetch needed.
-This enables the "My Profile" nav link to point to `/<handle>` immediately.
+addition to `did`. Both come from cookies set at login time — no client-side
+fetch needed. This enables the "My Profile" nav link to point to `/<handle>`
+immediately on first render.
 
 ### Centralized auth proxy
 `src/proxy.ts` (Next.js 16 "proxy", formerly "middleware") checks the `did`
