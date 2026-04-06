@@ -75,7 +75,7 @@ export async function resolveDependencies(
 // Single dependency resolution: identity + funding
 // ---------------------------------------------------------------------------
 
-async function resolveDepEntry(
+export async function resolveDepEntry(
   depUri: string,
   ctx?: ScanContext,
 ): Promise<StewardEntry> {

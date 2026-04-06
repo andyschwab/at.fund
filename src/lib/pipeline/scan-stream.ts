@@ -10,7 +10,7 @@ import { gatherAccounts } from './account-gather'
 import type { ScanWarning } from './account-gather'
 import { enrichAccounts } from './account-enrich'
 import { attachCapabilities } from './capability-scan'
-import { resolveDependencies } from './dep-resolve'
+import { resolveDependencies, resolveDepEntry } from './dep-resolve'
 import { discoverEcosystem } from './ecosystem-scan'
 import type { EndorsementCounts } from './ecosystem-scan'
 import { logger } from '@/lib/logger'
@@ -43,8 +43,9 @@ export async function scanStreaming(
   const ctx = createScanContext()
 
   // ── Endorsements: fetch early so the client can mark entries ────────────
+  let endorsedUris: string[] = []
   try {
-    const endorsedUris = await fetchOwnEndorsements(session)
+    endorsedUris = await fetchOwnEndorsements(session)
     if (endorsedUris.length > 0) {
       emit({ type: 'endorsed', uris: endorsedUris })
     }
@@ -209,6 +210,31 @@ export async function scanStreaming(
   await resolveDependencies(allEntries, (entry) => {
     emit({ type: 'entry', entry })
   }, ctx)
+
+  // ── Endorsed entries: resolve any endorsed URIs not already discovered ──
+  if (endorsedUris.length > 0) {
+    const knownUris = new Set<string>()
+    for (const e of allEntries) {
+      knownUris.add(e.uri)
+      if (e.did) knownUris.add(e.did)
+      if (e.handle) knownUris.add(e.handle)
+    }
+
+    const missing = endorsedUris.filter((uri) => !knownUris.has(uri))
+    if (missing.length > 0) {
+      emit({ type: 'status', message: `Resolving ${missing.length} endorsed entr${missing.length === 1 ? 'y' : 'ies'}…` })
+      await Promise.all(missing.map(async (uri) => {
+        try {
+          const entry = await resolveDepEntry(uri, ctx)
+          entry.tags = ['endorsed']
+          allEntries.push(entry)
+          emit({ type: 'entry', entry })
+        } catch {
+          // Best-effort — skip entries that can't be resolved
+        }
+      }))
+    }
+  }
 
   // ── Emit endorsement counts for ALL entries (from the single-pass map) ─
   const allCounts: Record<string, EndorsementCounts> = {}
