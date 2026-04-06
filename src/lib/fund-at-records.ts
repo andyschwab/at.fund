@@ -149,7 +149,7 @@ function parsePlanRecord(rkey: string, value: Record<string, unknown>): FundingP
     status: value.status === 'inactive' ? 'inactive' : 'active',
     name: value.name,
     description: typeof value.description === 'string' ? value.description : undefined,
-    amount: typeof value.amount === 'number' ? value.amount : 0,
+    amount: typeof value.amount === 'number' ? value.amount / 100 : 0,
     currency: typeof value.currency === 'string' ? value.currency : 'USD',
     frequency: FREQUENCIES.includes(value.frequency as Frequency)
       ? (value.frequency as Frequency)

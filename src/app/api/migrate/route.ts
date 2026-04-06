@@ -117,7 +117,7 @@ export async function POST() {
             await client.put(fund.at.funding.plan, {
               name: String(p.name ?? ''),
               ...(p.description ? { description: String(p.description) } : {}),
-              ...(typeof p.amount === 'number' ? { amount: p.amount } : {}),
+              ...(typeof p.amount === 'number' ? { amount: Math.round(p.amount * 100) } : {}),
               ...(p.currency ? { currency: String(p.currency) } : {}),
               ...(p.frequency ? { frequency: String(p.frequency) } : {}),
               ...(Array.isArray(p.channels)

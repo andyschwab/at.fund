@@ -260,14 +260,23 @@ function frequencyLabel(freq: FundingPlan['frequency']): string {
 
 export function FundingChannelsSection({ channels, plans }: { channels?: FundingChannel[]; plans?: FundingPlan[] }) {
   const [expanded, setExpanded] = useState(true)
-  const activePlans = (plans ?? []).filter((p) => p.status === 'active' && p.amount > 0)
 
   // Only linkable channels (URLs)
   const linkableChannels = (channels ?? []).filter((ch) => {
     try { new URL(ch.address); return true } catch { return false }
   })
 
-  if (linkableChannels.length === 0 && activePlans.length === 0) return null
+  if (linkableChannels.length === 0) return null
+
+  // Index plans by channel GUID for combined display
+  const planByChannel = new Map<string, FundingPlan>()
+  for (const plan of plans ?? []) {
+    if (plan.status !== 'active') continue
+    for (const chRef of plan.channels) {
+      const slug = chRef.includes('/') ? chRef.split('/').pop()! : chRef
+      planByChannel.set(slug, plan)
+    }
+  }
 
   return (
     <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50/40 px-3 py-2 dark:border-emerald-900/40 dark:bg-emerald-950/20">
@@ -281,7 +290,6 @@ export function FundingChannelsSection({ channels, plans }: { channels?: Funding
         </span>
         <span className="text-[10px] text-slate-400 dark:text-slate-500">
           {linkableChannels.length} channel{linkableChannels.length !== 1 ? 's' : ''}
-          {activePlans.length > 0 && ` · ${activePlans.length} plan${activePlans.length !== 1 ? 's' : ''}`}
         </span>
         <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500">
           {expanded ? '▾' : '▸'}
@@ -289,55 +297,30 @@ export function FundingChannelsSection({ channels, plans }: { channels?: Funding
       </button>
 
       {expanded && (
-        <div className="mt-2 space-y-2">
-          {linkableChannels.length > 0 && (
-            <div>
-              <p className="mb-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                Channels
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {linkableChannels.map((ch) => (
-                  <a
-                    key={ch.guid}
-                    href={ch.address}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center rounded-full border border-emerald-200 bg-white px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50 hover:border-emerald-300 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
-                  >
-                    {channelLabel(ch)}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activePlans.length > 0 && (
-            <div>
-              <p className="mb-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                Plans
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {activePlans.map((plan) => {
-                  const amt = formatAmount(plan.amount, plan.currency)
-                  const freq = frequencyLabel(plan.frequency)
-                  return (
-                    <span
-                      key={plan.guid}
-                      title={plan.description ?? plan.name}
-                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300"
-                    >
-                      <span className="font-medium">{plan.name}</span>
-                      {amt && (
-                        <span className="text-emerald-600 dark:text-emerald-400">
-                          {amt}{freq}
-                        </span>
-                      )}
+        <div className="mt-2">
+          <div className="flex flex-wrap gap-1.5">
+            {linkableChannels.map((ch) => {
+              const plan = planByChannel.get(ch.guid)
+              const amt = plan && plan.amount > 0 ? formatAmount(plan.amount, plan.currency) : ''
+              const freq = plan ? frequencyLabel(plan.frequency) : ''
+              return (
+                <a
+                  key={ch.guid}
+                  href={ch.address}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50 hover:border-emerald-300 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
+                >
+                  {channelLabel(ch)}
+                  {amt && (
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      {amt}{freq}
                     </span>
-                  )
-                })}
-              </div>
-            </div>
-          )}
+                  )}
+                </a>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>
