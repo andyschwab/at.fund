@@ -1,4 +1,5 @@
 {
+  "did": "did:plc:sq6aa2wa32tiiqrbub64vcja",
   "dependencies": [
     "mozzius.dev"
   ]

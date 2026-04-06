@@ -1,4 +1,5 @@
 {
+  "did": "did:plc:dalmbmm5x75vfp3gysgp3vzl",
   "dependencies": [
     "redsolver.dev"
   ]

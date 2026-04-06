@@ -1,4 +1,5 @@
 {
+  "did": "did:plc:4fdwezqvlw4mu2qwn7wqsmej",
   "dependencies": [
     "flo-bit.dev"
   ]

@@ -1,4 +1,7 @@
 {
+  "did": "did:plc:jlnt34kma25je44lu4m4jxwj",
   "contributeUrl": "https://freeourfeeds.com/campaign",
-  "tags": ["ecosystem"]
+  "tags": [
+    "ecosystem"
+  ]
 }

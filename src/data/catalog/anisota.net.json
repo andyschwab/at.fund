@@ -1,3 +1,7 @@
 {
-  "dependencies": ["dame.is", "atpota.to"]
+  "did": "did:plc:lcieujcfkv4jx7gehsvok3pr",
+  "dependencies": [
+    "dame.is",
+    "atpota.to"
+  ]
 }
