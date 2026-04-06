@@ -106,6 +106,8 @@ type Props = {
   initialEntry?: StewardEntry | null
   /** Called on every form change so parent can update a live preview. */
   onFormChange?: (data: SetupFormData) => void
+  /** Called when the user clicks Cancel. */
+  onCancel?: () => void
   /** If true, renders only the form (no page wrapper, no preview). */
   embedded?: boolean
 }
@@ -266,7 +268,7 @@ function TextInput({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function SetupClient({ did, handle, existing, initialEntry, onFormChange, embedded }: Props) {
+export function SetupClient({ did, handle, existing, initialEntry, onFormChange, onCancel, embedded }: Props) {
   const { authFetch } = useSession()
   const [form, setForm] = useState<FormState>(() => initialFormState(existing))
   const [saving, setSaving] = useState(false)
@@ -277,6 +279,11 @@ export function SetupClient({ did, handle, existing, initialEntry, onFormChange,
 
   const uid = useId()
   const f = (name: string) => `${uid}-${name}`
+
+  // Lighter section styling when embedded inside a card
+  const sectionCls = embedded
+    ? 'flex flex-col gap-4 border-b border-slate-100 pb-5 dark:border-slate-800'
+    : 'flex flex-col gap-5 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/60'
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -532,7 +539,7 @@ export function SetupClient({ did, handle, existing, initialEntry, onFormChange,
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
             {/* Contribute URL */}
-            <div className="flex flex-col gap-5 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/60">
+            <div className={sectionCls}>
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                 <Heart className="h-4 w-4 text-[var(--support)]" aria-hidden />
                 How people can support you
@@ -561,7 +568,7 @@ export function SetupClient({ did, handle, existing, initialEntry, onFormChange,
             </div>
 
             {/* Payment channels — combined channel + plan rows */}
-            <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/60">
+            <div className={sectionCls}>
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                 <Wallet className="h-4 w-4 text-[var(--support)]" aria-hidden />
                 Payment channels
@@ -677,7 +684,7 @@ export function SetupClient({ did, handle, existing, initialEntry, onFormChange,
             </div>
 
             {/* Dependencies */}
-            <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/60">
+            <div className={sectionCls}>
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                 <HeartHandshake className="h-4 w-4 text-[var(--support)]" aria-hidden />
                 Your dependencies
@@ -718,6 +725,16 @@ export function SetupClient({ did, handle, existing, initialEntry, onFormChange,
                   <DropletIcon className="h-4 w-4" aria-hidden />
                   {saving ? 'Publishing…' : saved ? 'Publish again' : 'Publish records'}
                 </button>
+                {onCancel && (
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    disabled={saving}
+                    className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                )}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Records are written to your ATProto PDS. They&apos;re public and

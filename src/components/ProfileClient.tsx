@@ -9,7 +9,6 @@ import {
   Copy,
   Pencil,
   Share2,
-  X,
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
 import {
@@ -63,7 +62,7 @@ function useShareActions(handle: string, isOwner: boolean) {
 }
 
 // ---------------------------------------------------------------------------
-// Unified profile card — one component for header + funding + actions
+// Unified profile card
 // ---------------------------------------------------------------------------
 
 function ProfileCard({
@@ -78,6 +77,7 @@ function ProfileCard({
   bskyShareUrl,
   copyLink,
   copied,
+  editForm,
 }: {
   entry: StewardEntry
   handle: string
@@ -90,6 +90,8 @@ function ProfileCard({
   bskyShareUrl: string
   copyLink: () => void
   copied: boolean
+  /** When editing, the SetupClient form renders inside the card */
+  editForm?: React.ReactNode
 }) {
   const profileUrl = entry.landingPage ?? (entry.handle ? `https://bsky.app/profile/${entry.handle}` : undefined)
 
@@ -189,24 +191,21 @@ function ProfileCard({
             </button>
           )}
 
-          {/* Owner edit toggle */}
+          {/* Owner edit button — grayed out while editing */}
           {viewMode === 'owner' && (
             <button
               type="button"
-              onClick={onEditToggle}
-              title={editing ? 'Close editor' : 'Edit your funding profile'}
-              className={`flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-medium cursor-pointer transition-colors ${
+              onClick={editing ? undefined : onEditToggle}
+              disabled={editing}
+              title={editing ? 'Currently editing' : 'Edit your funding profile'}
+              className={`flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-medium transition-colors ${
                 editing
-                  ? 'text-[var(--support)]'
-                  : 'text-slate-400 hover:text-[var(--support)] dark:text-slate-500 dark:hover:text-[var(--support)]'
+                  ? 'text-slate-300 cursor-default dark:text-slate-600'
+                  : 'text-slate-400 cursor-pointer hover:text-[var(--support)] dark:text-slate-500 dark:hover:text-[var(--support)]'
               }`}
             >
-              {editing ? (
-                <X className="h-5 w-5" strokeWidth={1.75} aria-hidden />
-              ) : (
-                <Pencil className="h-5 w-5" strokeWidth={1.75} aria-hidden />
-              )}
-              <span>{editing ? 'Close' : 'Edit'}</span>
+              <Pencil className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+              <span>Edit</span>
             </button>
           )}
 
@@ -237,8 +236,8 @@ function ProfileCard({
         </div>
       </div>
 
-      {/* Expandable detail sections */}
-      {(entry.capabilities?.length || entry.channels || entry.plans || entry.dependencies?.length) && (
+      {/* Detail sections — live from entry data (updates when editing) */}
+      {!editing && (entry.capabilities?.length || entry.channels || entry.plans || entry.dependencies?.length) && (
         <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-800">
           {entry.capabilities && entry.capabilities.length > 0 && (
             <CapabilitiesSection capabilities={entry.capabilities} />
@@ -252,6 +251,13 @@ function ProfileCard({
               allEntries={[entry]}
             />
           )}
+        </div>
+      )}
+
+      {/* Inline edit form — renders inside the card when editing */}
+      {editing && editForm && (
+        <div className="border-t border-[var(--support-border)] px-4 py-4">
+          {editForm}
         </div>
       )}
     </div>
@@ -301,6 +307,24 @@ export function ProfileClient({
     setFormOverrides(data)
   }, [])
 
+  const handleCancel = useCallback(() => {
+    setEditing(false)
+    setFormOverrides(null)
+  }, [])
+
+  // The edit form rendered inside the card
+  const editForm = viewMode === 'owner' && editing ? (
+    <SetupClient
+      did={did}
+      handle={handle}
+      existing={existing ?? null}
+      initialEntry={serverEntry}
+      onFormChange={handleFormChange}
+      onCancel={handleCancel}
+      embedded
+    />
+  ) : null
+
   return (
     <div className="page-wash min-h-full">
       <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8">
@@ -315,10 +339,11 @@ export function ProfileClient({
             onEndorse={() => void endorse(entryUri)}
             onUnendorse={() => void unendorse(entryUri)}
             editing={editing}
-            onEditToggle={() => setEditing((prev) => !prev)}
+            onEditToggle={() => setEditing(true)}
             bskyShareUrl={bskyShareUrl}
             copyLink={copyLink}
             copied={copied}
+            editForm={editForm}
           />
         ) : (
           <div className="rounded-xl border border-slate-200 bg-white/60 p-8 text-center dark:border-slate-700/60 dark:bg-slate-900/40">
@@ -338,18 +363,6 @@ export function ProfileClient({
               </button>
             )}
           </div>
-        )}
-
-        {/* Owner inline edit — form only, card above updates live */}
-        {viewMode === 'owner' && editing && (
-          <SetupClient
-            did={did}
-            handle={handle}
-            existing={existing ?? null}
-            initialEntry={serverEntry}
-            onFormChange={handleFormChange}
-            embedded
-          />
         )}
 
         {/* Endorsements section */}
