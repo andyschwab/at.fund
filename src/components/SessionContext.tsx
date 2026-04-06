@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 type SessionState = {
   hasSession: boolean
   did: string | null
+  handle: string | null
 }
 
 type SessionContextValue = SessionState & {
@@ -57,7 +58,7 @@ export function SessionProvider({
   const invalidateSession = useCallback(async () => {
     // Fire-and-forget logout to clear server cookie
     try { await fetch('/oauth/logout', { method: 'POST' }) } catch {}
-    setState({ hasSession: false, did: null })
+    setState({ hasSession: false, did: null, handle: null })
     // Full reload so SSR re-evaluates session state cleanly
     window.location.href = '/'
   }, [])
@@ -84,6 +85,19 @@ export function SessionProvider({
       await invalidateSession()
     }
   }, [state.hasSession, invalidateSession])
+
+  // One-time mount check: clear stale cookies and confirm session state.
+  // layout.tsx can't delete cookies during SSR render, so a stale `did`
+  // cookie can survive a server restart. This lightweight call (~50ms)
+  // lets the route handler clean it up.
+  useEffect(() => {
+    void checkSession().then((result) => {
+      if (!result.valid && state.hasSession) {
+        void invalidateSession()
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // mount-only
 
   // Validate on route change (client-side navigation)
   useEffect(() => {
@@ -136,7 +150,7 @@ export function SessionProvider({
 
   const logout = useCallback(async () => {
     await fetch('/oauth/logout', { method: 'POST' })
-    setState({ hasSession: false, did: null })
+    setState({ hasSession: false, did: null, handle: null })
     window.location.href = '/'
   }, [])
 

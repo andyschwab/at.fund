@@ -11,7 +11,7 @@ import type { NextRequest } from 'next/server'
  */
 
 /** Page routes that require a session. */
-const PROTECTED_PAGES = ['/give', '/setup', '/admin']
+const PROTECTED_PAGES = ['/give', '/admin']
 
 /** API route prefixes that require a session. */
 const PROTECTED_API = [
@@ -45,7 +45,6 @@ export const config = {
      * Excludes: public pages, OAuth routes, static files, health/entry/steward APIs.
      */
     '/give/:path*',
-    '/setup/:path*',
     '/admin/:path*',
     '/api/setup/:path*',
     '/api/endorse/:path*',

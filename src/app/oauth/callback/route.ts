@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getOAuthClient } from '@/lib/auth/client'
 import { getPublicUrl } from '@/lib/public-url'
+import { getSessionHandle } from '@/lib/auth/session-handle'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
@@ -13,6 +14,9 @@ export async function GET(request: NextRequest) {
 
     logger.info('oauth: callback successful', { did: session.did })
 
+    // Resolve handle once at login — stored in cookie so no subsequent lookups needed
+    const handle = await getSessionHandle(session).catch(() => undefined)
+
     const rawReturnTo = request.cookies.get('returnTo')?.value ?? '/'
     const safePath =
       rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//')
@@ -21,13 +25,18 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(new URL(safePath, publicUrl))
     response.cookies.delete('returnTo')
 
-    response.cookies.set('did', session.did, {
+    const cookieOpts = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'lax' as const,
       maxAge: 60 * 60 * 24 * 7,
       path: '/',
-    })
+    }
+
+    response.cookies.set('did', session.did, cookieOpts)
+    if (handle) {
+      response.cookies.set('handle', handle, cookieOpts)
+    }
 
     return response
   } catch (error) {

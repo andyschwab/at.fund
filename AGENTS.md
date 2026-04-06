@@ -21,17 +21,23 @@ and renders funding cards for each discovered service.
 ```
 Client (React 19)          Server (Next.js app router)
 ─────────────────          ────────────────────────────
-useScanStream hook    ←──  GET /api/lexicons/stream (NDJSON)
-  ↓                           ↓
-EntryIndex (dedup)         scanStreaming() orchestrator
-  ↓                           ↓
-GiveClient + cards         6-phase pipeline:
-                             1. Gather accounts (follows, repo NSIDs, feeds, labelers)
-                             2. Collect network endorsements (single-pass over follows)
-                             3. Discover ecosystem entries (endorsement map lookup)
-                             4. Enrich (fund.at records, manual catalog, profiles)
-                             5. Attach capabilities (feeds, labelers, PDS)
-                             6. Resolve dependencies (breadth-first)
+Profile page               GET /api/stack/[handle]/stream (NDJSON)
+  ProfileClient               resolveEntry() × N endorsed URIs
+  ├── ProfileCard              resolveDependencies() (BFS)
+  ├── StackStream          GET /api/lexicons/stream (NDJSON)
+  │   └── StackEntriesList     scanStreaming() — 6-phase pipeline
+  └── SetupClient (edit)
+
+Give page
+  GiveClient               GET /api/lexicons/stream (NDJSON)
+  ├── StackEntriesList         scanStreaming() orchestrator
+  └── HandleAutocomplete       6-phase pipeline:
+                                 1. Gather accounts (follows, repo NSIDs, feeds, labelers)
+                                 2. Collect network endorsements (single-pass over follows)
+                                 3. Discover ecosystem entries (endorsement map lookup)
+                                 4. Enrich (fund.at records, manual catalog, profiles)
+                                 5. Attach capabilities (feeds, labelers, PDS)
+                                 6. Resolve dependencies (breadth-first)
 ```
 
 All phases receive a `ScanContext` — the single network orchestrator that owns
@@ -73,21 +79,58 @@ change, tab focus, and 401 response. The DPoP fetch patch in `lib/auth/client.ts
 works around a Next.js ReadableStream issue — do not modify without testing the
 full OAuth flow.
 
+**Cookie-based identity:** The `did` and `handle` cookies are both set at OAuth
+callback time. The root layout reads them synchronously — no `getSession()` call,
+no network I/O. This means every page render is instant regardless of session
+state. `getSession()` is only called when the actual OAuth session object is
+needed (e.g. `fetchOwnFundAtRecords` in the profile page's owner mode).
+
+**Profile page session check:** The `/<identifier>` route uses `getSession()` to
+validate the session before granting owner mode — the `did` cookie alone is not
+enough (it can outlive an expired session). This runs in `Promise.all` alongside
+other data fetches so it doesn't add latency. If the session is stale, the user
+sees the public view.
+
+**SessionContext handle resolution:** The session context includes `handle` in
+addition to `did`. Both come from cookies set at login time — no client-side
+fetch needed. This enables the "My Profile" nav link to point to `/<handle>`
+immediately on first render.
+
 ### Centralized auth proxy
 `src/proxy.ts` (Next.js 16 "proxy", formerly "middleware") checks the `did`
 cookie before protected routes. Pages redirect to `/`; API routes get 401.
 This is a lightweight guard — full session validation still happens in route
-handlers via `getSession()`. If you add a new protected page or API route,
-add its path to the matcher in `proxy.ts`.
+handlers via `getSession()`. Protected pages: `/give`, `/admin`. Protected
+API routes: `/api/setup`, `/api/endorse`, `/api/lexicons`, `/api/admin`.
+The `/<identifier>` profile page is **public** — owner mode is determined by
+`getSession()` at render time, not by the proxy.
 
 ## File organization
 
 ```
 src/
 ├── proxy.ts          Centralized auth guard (Next.js 16 proxy convention)
-├── app/              Pages + API routes (Next.js app router)
+├── app/
+│   ├── [identifier]/ Unified profile page (public, viewer, owner modes)
+│   ├── give/         Authenticated scan → discover fundable services
+│   ├── setup/        Redirect → /<handle>?edit=true
+│   ├── embed/        Embeddable funding card (self-contained, inline styles)
+│   ├── lexicon/      Lexicon documentation
+│   ├── dev/          API explorer
+│   └── api/          API routes (stack/stream, entry, steward, endorse, setup, etc.)
 ├── components/       React client components ("use client")
-├── hooks/            Custom React hooks (useScanStream, useTypeahead, useDebounce)
+│   ├── ProfileClient.tsx     Three-mode profile page (public/viewer/owner)
+│   ├── GiveClient.tsx        Scan + discover + endorse page
+│   ├── SetupClient.tsx       Funding config form (standalone or embedded in profile)
+│   ├── StackStream.tsx       Streams endorsed entries via NDJSON
+│   ├── StackEntriesList.tsx  Unified entry list (used everywhere)
+│   ├── ProjectCards.tsx      StewardCard — single entry card
+│   └── card-*.tsx            Card primitives, dependencies, utils
+├── hooks/
+│   ├── useScanStream.ts      Module-cached scan stream (for /give)
+│   ├── useEndorsement.ts     Endorse/unendorse with optimistic updates
+│   ├── useTypeahead.ts       Handle autocomplete
+│   └── useDebounce.ts        Debounce helper
 ├── lib/              Server-side logic — no "use client" here
 │   ├── pipeline/     6 scan phases + orchestrator + entry-resolve
 │   ├── auth/         OAuth client, session, Redis KV store
@@ -95,6 +138,22 @@ src/
 ├── data/             Static JSON catalogs (manual steward records, resolver overrides)
 └── lexicons/         ATProto lexicon schemas
 ```
+
+### Key component patterns
+
+**StackEntriesList** is the single list component used by all entry lists
+(GiveClient, StackStream, profile card deps). It wraps `StewardCard` in
+`CardErrorBoundary` and accepts optional endorsement props (`endorsedSet`,
+`onEndorse`, `onUnendorse`, `endorsementCounts`).
+
+**useEndorsement** provides optimistic endorse/unendorse with rollback.
+Used by ProfileClient for the profile page and available for any context
+that needs endorsement state. GiveClient has its own inline version with
+additional `endorseAndFetch` logic for the scan workflow.
+
+**SetupClient** supports two modes: standalone (full page with preview) and
+embedded (`embedded` prop — form only, emits changes via `onFormChange` for
+live preview in parent, accepts `onCancel` for dismiss).
 
 ### Conventions
 - Server-only code: `src/lib/` — never import from `src/components/` or `src/hooks/`
@@ -138,6 +197,9 @@ pnpm test:coverage   # run with v8 coverage report
 6. **DID is the dedup key** — `EntryIndex` merges entries by DID. Two entries with different URIs but the same DID will merge.
 7. **fund.at records win over manual catalog** — but manual contributeUrl is used as fallback when fund.at has none.
 8. **The endorsement cap is 2500 follows** — by design, to prevent O(n^2) scans.
+9. **Don't use `resolveEntry()` in server components** — it runs a 4-phase sequential pipeline (identity → funding → capabilities → dependencies) that blocks page render. For pages, fetch data in parallel with `batchFetchProfiles` + `fetchFundAtRecords` + `fetchPublicEndorsements` and assemble with `buildIdentity()`. Let StackStream handle the heavy resolution client-side.
+10. **Don't check `did` cookie for owner mode** — use `getSession()` to validate the session. The cookie can outlive an expired OAuth session. Always validate server-side.
+11. **Don't create bespoke entry lists** — use `StackEntriesList` with optional endorsement props. Don't inline `<ul>` + `CardErrorBoundary` + `StewardCard` patterns.
 
 ## Docs reference
 

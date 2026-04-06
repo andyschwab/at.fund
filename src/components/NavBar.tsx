@@ -18,7 +18,6 @@ import { LoginForm } from '@/components/LoginForm'
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
   { href: '/give', label: 'Give' },
-  { href: '/setup', label: 'Receive' },
   { href: '/spec', label: 'Spec' },
   { href: '/dev', label: 'Dev' },
 ] as const
@@ -37,7 +36,7 @@ function Logo() {
 
 export function NavBar() {
   const pathname = usePathname()
-  const { hasSession, logout } = useSession()
+  const { hasSession, handle, did, logout } = useSession()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -75,6 +74,18 @@ export function NavBar() {
                 </Link>
               )
             })}
+            {hasSession && (handle || did) && (
+              <Link
+                href={`/${handle ?? did}`}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  pathname === `/${handle ?? did}`
+                    ? 'bg-[var(--support-muted)] text-[var(--support)]'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
+                }`}
+              >
+                My Profile
+              </Link>
+            )}
             <button
               type="button"
               onClick={openAuthModal}
@@ -139,6 +150,19 @@ export function NavBar() {
                   </Link>
                 )
               })}
+              {hasSession && (handle || did) && (
+                <Link
+                  href={`/${handle ?? did}`}
+                  onClick={() => setMobileOpen(false)}
+                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    pathname === `/${handle ?? did}`
+                      ? 'bg-[var(--support-muted)] text-[var(--support)]'
+                      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  My Profile
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={() => {

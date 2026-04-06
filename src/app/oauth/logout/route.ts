@@ -22,5 +22,6 @@ export async function POST() {
   }
 
   cookieStore.delete('did')
+  cookieStore.delete('handle')
   return NextResponse.json({ success: true })
 }
