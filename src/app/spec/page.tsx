@@ -300,12 +300,12 @@ export default function SpecPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Specification</h1>
           <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-slate-400">
             at.fund is a funding signal layer for the AT Protocol. It publishes
-            metadata &mdash; it never intermediates payments, never holds funds,
-            never takes a cut. Records are DID-signed and live in each
-            steward&apos;s own repository, not on a platform. What sets it apart
-            from every prior funding standard: social context. When people in
+            metadata &mdash; it does not intermediate or handle payments.
+            Records are DID-signed and live in each
+            steward&apos;s own repository, not on a platform. What distinguishes it
+            from prior funding standards: social context. When people in
             your network endorse a project, that signal is cryptographically
-            verifiable and independently auditable. No static file can do that.
+            verifiable and independently auditable.
           </p>
           <p className="mt-3 font-mono text-xs text-slate-400 dark:text-slate-500">
             v0.1.0 (draft) &mdash; April 2026
@@ -361,7 +361,7 @@ export default function SpecPage() {
             </li>
             <li className="flex gap-2">
               <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
-              <span><span className="font-medium text-slate-700 dark:text-slate-300">Protocol-native</span> &mdash; records live in the user&apos;s ATProto repository, not a separate file or platform</span>
+              <span><span className="font-medium text-slate-700 dark:text-slate-300">Protocol-native</span> &mdash; records are stored in the user&apos;s own ATProto repository, cryptographically signed by their identity</span>
             </li>
             <li className="flex gap-2">
               <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
@@ -473,8 +473,8 @@ export default function SpecPage() {
             Identity Layer
           </h3>
           <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-            A participation signal &mdash; its existence means &quot;this account
-            is part of the at.fund ecosystem.&quot; All fields are optional enrichment.
+            A participation signal &mdash; its existence indicates that this account
+            publishes fund.at records. All fields are optional enrichment.
             Singleton per account (<code className="font-mono text-xs">key: literal:self</code>).
           </p>
           <SpecTable
@@ -537,7 +537,7 @@ export default function SpecPage() {
             </div>
             <div>
               <dt className="text-sm font-semibold text-slate-800 dark:text-slate-200">Social context is the differentiator</dt>
-              <dd className="mt-1 text-sm text-slate-600 dark:text-slate-400">&quot;12 people you follow endorse this project&quot; is information no static file can provide.</dd>
+              <dd className="mt-1 text-sm text-slate-600 dark:text-slate-400">&quot;12 people you follow endorse this project&quot; &mdash; social context that emerges from protocol-level records.</dd>
             </div>
           </dl>
         </section>
@@ -601,7 +601,7 @@ export default function SpecPage() {
           <RecordSection
             schema={endorseSchema as unknown as LexSchema}
             keyType="any (rkey = endorsed subject)"
-            summary="A public endorsement of any entity you use or value. The record key is the endorsed subject (a DID or hostname), so each entity can only be endorsed once per account. Unlike contribute and dependency (published by builders), endorse is published by users — a protocol-native signal of trust. Counts are verifiable because endorsements live on each endorser&apos;s PDS, not the endorsed project&apos;s."
+            summary="A public endorsement of any entity you use or value. The record key is the endorsed subject (a DID or hostname), so each entity can only be endorsed once per account. Unlike contribute and dependency (published by builders), endorse is published by users — a protocol-native signal of support. Counts are verifiable because endorsements are stored on each endorser&apos;s PDS, not the endorsed project&apos;s."
           />
         </section>
 
@@ -676,7 +676,7 @@ export default function SpecPage() {
             </li>
             <li className="flex gap-2">
               <span className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>&bull;</span>
-              <span><span className="font-medium text-slate-700 dark:text-slate-300">The ATProto team at Bluesky</span> &mdash; the protocol that makes decentralized, cryptographically-signed records possible</span>
+              <span><span className="font-medium text-slate-700 dark:text-slate-300">The AT Protocol community</span> &mdash; the protocol that makes decentralized, cryptographically-signed records possible</span>
             </li>
           </ul>
         </section>

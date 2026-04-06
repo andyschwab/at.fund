@@ -19,7 +19,7 @@ const NAV_LINKS = [
   { href: '/', label: 'Home' },
   { href: '/give', label: 'Give' },
   { href: '/spec', label: 'Spec' },
-  { href: '/dev', label: 'Dev' },
+  { href: '/extend', label: 'Extend' },
 ] as const
 
 const BUG_REPORT_URL = 'https://github.com/andyschwab/at.fund/issues/new'
