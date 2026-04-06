@@ -345,6 +345,10 @@ export function ProfileClient({
   // Committed entry — starts from server data, updated after successful publish
   const [baseEntry, setBaseEntry] = useState<StewardEntry | null>(serverEntry)
 
+  // Current form seed — starts from server prop, updated after publish so
+  // re-opening the editor shows the last-published values
+  const [currentExisting, setCurrentExisting] = useState<FundAtResult | null>(existing ?? null)
+
   // Live entry state — overlays form edits on top of baseEntry
   const [formOverrides, setFormOverrides] = useState<SetupFormData | null>(null)
 
@@ -387,6 +391,13 @@ export function ProfileClient({
         plans: data.plans,
       })
     }
+    // Update the form seed so re-opening the editor shows published values
+    setCurrentExisting({
+      contributeUrl: data.contributeUrl,
+      dependencies: data.dependencies.map((uri) => ({ uri })),
+      channels: data.channels,
+      plans: data.plans,
+    })
     setFormOverrides(null)
     setEditing(false)
   }, [baseEntry])
@@ -401,7 +412,7 @@ export function ProfileClient({
     <SetupClient
       did={did}
       handle={handle}
-      existing={existing ?? null}
+      existing={currentExisting}
       initialEntry={serverEntry}
       onFormChange={handleFormChange}
       onSaved={handleSaved}
