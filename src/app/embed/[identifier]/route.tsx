@@ -119,12 +119,14 @@ export async function GET(
       background: transparent;
     }
     .embed {
-      display: inline-flex;
-      flex-direction: column;
-      align-items: center;
+      position: relative;
+      display: inline-block;
       padding: 8px 12px;
+      text-align: center;
     }
     .button-row {
+      position: relative;
+      z-index: 2;
       display: inline-flex;
       align-items: stretch;
       border-radius: 10px;
@@ -167,8 +169,10 @@ export async function GET(
       display: none;
       flex-wrap: wrap;
       gap: 5px;
-      padding: 8px 0 2px;
+      padding: 6px 4px;
+      margin-top: 6px;
       justify-content: center;
+      z-index: 1;
     }
     .channels-dropdown.open { display: flex; }
     .channel-pill {
