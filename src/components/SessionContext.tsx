@@ -27,18 +27,18 @@ export function useSession(): SessionContextValue {
   return ctx
 }
 
-async function checkSession(): Promise<{ valid: boolean; did: string | null; handle: string | null }> {
+async function checkSession(): Promise<{ valid: boolean; did: string | null }> {
   try {
     const res = await fetch('/api/auth/check')
     if (!res.ok) {
       console.warn('[auth] session check returned', res.status)
-      return { valid: false, did: null, handle: null }
+      return { valid: false, did: null }
     }
     return await res.json()
   } catch (err) {
     console.warn('[auth] session check network error:', err)
     // Network error — don't invalidate, could be transient
-    return { valid: true, did: null, handle: null }
+    return { valid: true, did: null }
   }
 }
 
@@ -83,18 +83,8 @@ export function SessionProvider({
     if (!result.valid) {
       console.warn('[auth] session invalidated — server could not restore session')
       await invalidateSession()
-    } else if (result.handle && result.handle !== state.handle) {
-      setState((prev) => ({ ...prev, handle: result.handle }))
     }
-  }, [state.hasSession, state.handle, invalidateSession])
-
-  // Resolve handle on initial mount if we have a session but no handle
-  useEffect(() => {
-    if (state.hasSession && !state.handle) {
-      void validateSession()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // intentional mount-only
+  }, [state.hasSession, invalidateSession])
 
   // Validate on route change (client-side navigation)
   useEffect(() => {

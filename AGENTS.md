@@ -86,9 +86,9 @@ other data fetches so it doesn't add latency. If the session is stale, the user
 sees the public view.
 
 **SessionContext handle resolution:** The session context includes `handle` in
-addition to `did`. The handle is resolved lazily via `/api/auth/check` on mount
-and cached in state. This enables the "My Profile" nav link to point to
-`/<handle>` instead of `/<did>`.
+addition to `did`. The handle is resolved server-side in `layout.tsx` via
+`getSessionHandle()` and passed as initial state — no client-side fetch needed.
+This enables the "My Profile" nav link to point to `/<handle>` immediately.
 
 ### Centralized auth proxy
 `src/proxy.ts` (Next.js 16 "proxy", formerly "middleware") checks the `did`

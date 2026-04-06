@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { getSession } from "@/lib/auth/session";
+import { getSessionHandle } from "@/lib/auth/session-handle";
 import { SessionProvider } from "@/components/SessionContext";
 import { NavBar } from "@/components/NavBar";
 
@@ -42,8 +43,11 @@ export default async function RootLayout({
 }>) {
   const session = await getSession();
   const did = session?.did ?? null;
-  // Handle is resolved lazily via auth check — pass null initially
-  const handle: string | null = null;
+  // Resolve handle server-side so it's available immediately on the client.
+  // Best-effort — don't block render if it fails.
+  const handle = session
+    ? (await getSessionHandle(session).catch(() => undefined)) ?? null
+    : null;
 
   return (
     <html
