@@ -69,17 +69,18 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     )
   }
 
-  // ── Step 2: Determine viewer context (local, no network) ────────────
+  // ── Step 2: Determine viewer context ─────────────────────────────────
+  // Use getSession() to validate — a stale cookie alone isn't enough.
   const cookieStore = await cookies()
   const sessionDid = cookieStore.get('did')?.value
-  const isOwner = !!(sessionDid && sessionDid === did)
-  const isViewer = !!(sessionDid && sessionDid !== did)
-  const viewMode: 'public' | 'viewer' | 'owner' = isOwner
-    ? 'owner'
-    : isViewer ? 'viewer' : 'public'
+  const mightBeOwner = !!(sessionDid && sessionDid === did)
+
+  // Validate session in parallel with other fetches (not sequential)
+  const sessionPromise = mightBeOwner
+    ? getSession().catch(() => null)
+    : Promise.resolve(null)
 
   // ── Step 3: Fetch everything in parallel ────────────────────────────
-  // Only resolveHandleFromDid when the URL is a DID (handles are already known)
   const handlePromise = decoded.startsWith('did:')
     ? resolveHandleFromDid(did).catch(() => undefined)
     : Promise.resolve(decoded)
@@ -90,22 +91,27 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const fundingPromise = fetchFundAtRecords(did).catch(() => null)
   const endorsePromise = fetchPublicEndorsements(decoded).catch((): string[] => [])
 
-  // Owner records join the same parallel batch
-  let ownerPromise: Promise<FundAtResult | null> = Promise.resolve(null)
-  if (isOwner) {
-    ownerPromise = getSession()
-      .then((s) => (s ? fetchOwnFundAtRecords(s) : null))
-      .catch(() => null)
-  }
-
-  const [handle, profileMap, fundAtRecords, endorsedUris, existing] =
+  const [handle, profileMap, fundAtRecords, endorsedUris, session] =
     await Promise.all([
       handlePromise,
       profilePromise,
       fundingPromise,
       endorsePromise,
-      ownerPromise,
+      sessionPromise,
     ])
+
+  // Now we know if the session is actually valid
+  const isOwner = !!(session && session.did === did)
+  const isViewer = !!(sessionDid && !isOwner)
+  const viewMode: 'public' | 'viewer' | 'owner' = isOwner
+    ? 'owner'
+    : isViewer ? 'viewer' : 'public'
+
+  // Fetch owner records only if session is confirmed valid
+  let existing: FundAtResult | null = null
+  if (isOwner && session) {
+    existing = await fetchOwnFundAtRecords(session).catch(() => null)
+  }
 
   // ── Step 4: Assemble StewardEntry locally (no network) ─────────────
   const profile = profileMap.get(did)
@@ -140,10 +146,6 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     tags: isTool ? ['tool'] : [],
   }
 
-  // Fall back to public fund.at records for the edit form when the
-  // authenticated fetch returns null (e.g. expired session, stale cookie).
-  const editData = existing ?? fundAtRecords
-
   return (
     <ProfileClient
       viewMode={viewMode}
@@ -151,7 +153,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
       endorsedUris={endorsedUris}
       handle={handle ?? did}
       did={did}
-      existing={editData}
+      existing={existing}
       initialEdit={edit === 'true'}
     />
   )
