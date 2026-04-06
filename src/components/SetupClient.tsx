@@ -350,9 +350,11 @@ export function SetupClient({ did, handle, existing }: Props) {
   // Resolve dependency entries so the preview card can show enriched info
   const [resolvedDeps, setResolvedDeps] = useState<StewardEntry[]>([])
 
+  // Derive directly from form state (stable reference) — NOT from previewModel
+  // which recalculates every render due to unmemoized validRows.
   const depUris = useMemo(
-    () => previewModel.dependencies ?? [],
-    [previewModel.dependencies],
+    () => form.dependencies.filter((d) => d.uri.trim()).map((d) => d.uri.trim()),
+    [form.dependencies],
   )
 
   useEffect(() => {
