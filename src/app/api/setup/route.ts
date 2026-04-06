@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { Client, l } from '@atproto/lex'
 import * as fund from '@/lexicons/fund'
-import { FUND_CONTRIBUTE, FUND_CHANNEL, FUND_PLAN, FUND_DEPENDENCY } from '@/lib/fund-at-records'
+import { FUND_CONTRIBUTE, FUND_CHANNEL, FUND_PLAN, FUND_DEPENDENCY, deleteWithFallback } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
 import { logger } from '@/lib/logger'
 import { str } from '@/lib/str'
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
     } else if (payload.existing?.contributeUrl) {
       // User cleared the contribute URL — delete the record
       try {
-        await client.deleteRecord(FUND_CONTRIBUTE, 'self')
+        await deleteWithFallback(client, FUND_CONTRIBUTE, 'self')
       } catch {
         // Record may already be gone
       }
@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
     for (const prev of payload.existing?.dependencies ?? []) {
       if (!newDepUris.has(prev.uri)) {
         try {
-          await client.deleteRecord(FUND_DEPENDENCY, prev.uri)
+          await deleteWithFallback(client, FUND_DEPENDENCY, prev.uri)
         } catch {
           // Record may already be gone
         }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { Client, l } from '@atproto/lex'
 import * as fund from '@/lexicons/fund'
-import { FUND_ENDORSE } from '@/lib/fund-at-records'
+import { FUND_ENDORSE, deleteWithFallback } from '@/lib/fund-at-records'
 import { logger } from '@/lib/logger'
 import { str } from '@/lib/str'
 
@@ -68,7 +68,7 @@ export async function DELETE(request: NextRequest) {
   const client = new Client(session)
 
   try {
-    await client.deleteRecord(FUND_ENDORSE, uri)
+    await deleteWithFallback(client, FUND_ENDORSE, uri)
     logger.info('endorse: record deleted', { did: session.did, uri })
     return NextResponse.json({ success: true })
   } catch (e) {

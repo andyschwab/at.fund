@@ -15,11 +15,39 @@ export const FUND_PLAN = 'fund.at.funding.plan'
 export const FUND_DEPENDENCY = 'fund.at.graph.dependency'
 export const FUND_ENDORSE = 'fund.at.graph.endorse'
 
-// Legacy NSIDs — used for fallback reads during migration
+// Legacy NSIDs — used for fallback reads and deletes during migration
 export const LEGACY_CONTRIBUTE = 'fund.at.contribute'
 export const LEGACY_MANIFEST = 'fund.at.manifest'
 export const LEGACY_DEPENDENCY = 'fund.at.dependency'
 export const LEGACY_ENDORSE = 'fund.at.endorse'
+
+/** Maps new NSID → legacy NSID for delete fallback. */
+const LEGACY_FALLBACK: Record<string, string> = {
+  [FUND_CONTRIBUTE]: LEGACY_CONTRIBUTE,
+  [FUND_DEPENDENCY]: LEGACY_DEPENDENCY,
+  [FUND_ENDORSE]: LEGACY_ENDORSE,
+}
+
+/**
+ * Delete a record, falling back to the legacy NSID if the new one fails.
+ * Covers the case where a record was written before migration.
+ */
+type Nsid = `${string}.${string}.${string}`
+
+export async function deleteWithFallback(
+  client: Client,
+  nsid: Nsid,
+  rkey: string,
+): Promise<void> {
+  try {
+    await client.deleteRecord(nsid, rkey)
+  } catch {
+    const legacy = LEGACY_FALLBACK[nsid] as Nsid | undefined
+    if (legacy) {
+      await client.deleteRecord(legacy, rkey)
+    }
+  }
+}
 
 const PUBLIC_IDENTITY = 'https://public.api.bsky.app'
 const publicClient = new Client(PUBLIC_IDENTITY)
