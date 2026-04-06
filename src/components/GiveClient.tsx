@@ -323,15 +323,8 @@ export function GiveClient() {
             return (
               <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white/60 px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-400">
                 <span>
-                  <strong className="font-semibold text-slate-800 dark:text-slate-200">{fundableEntries.length} project{fundableEntries.length === 1 ? '' : 's'}</strong> in your stack have funding links.
+                  <strong className="font-semibold text-slate-800 dark:text-slate-200">{fundableEntries.length} project{fundableEntries.length === 1 ? '' : 's'}</strong> in your stack have funding links. Endorse the ones you value below <span className="text-base" aria-hidden>↓</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('discover')}
-                  className="shrink-0 text-emerald-600 hover:underline dark:text-emerald-400"
-                >
-                  Start endorsing →
-                </button>
               </div>
             )
           }

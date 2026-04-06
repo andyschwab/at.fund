@@ -56,43 +56,6 @@ function useShareActions(handle: string) {
   return { copyLink, copied }
 }
 
-// ---------------------------------------------------------------------------
-// Endorse by handle
-// ---------------------------------------------------------------------------
-
-function EndorseByHandle({ onEndorse }: { onEndorse: (handle: string) => void }) {
-  const [value, setValue] = useState('')
-  return (
-    <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/20">
-      <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
-        Endorse a project by searching for their handle.
-      </p>
-      <div className="flex max-w-xl flex-col gap-2 sm:flex-row">
-        <HandleAutocomplete
-          value={value}
-          onChange={setValue}
-          placeholder="Search by handle…"
-          inputClassName="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
-        />
-        <button
-          type="button"
-          onClick={() => {
-            const h = value.trim()
-            if (h) {
-              onEndorse(h)
-              setValue('')
-            }
-          }}
-          disabled={!value.trim()}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          <BadgePlus className="h-4 w-4" aria-hidden />
-          Endorse
-        </button>
-      </div>
-    </div>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Unified profile card
@@ -298,6 +261,7 @@ export function ProfileClient({
 }: ProfileClientProps) {
   const { hasSession } = useSession()
   const [editing, setEditing] = useState(initialEdit)
+  const [endorseHandleValue, setEndorseHandleValue] = useState('')
 
   // Profile subject's endorsements — always used for display, regardless of viewer.
   // This is public data from fetchPublicEndorsements().
@@ -501,18 +465,10 @@ export function ProfileClient({
 
         {/* Endorsements section */}
         <div>
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3">
             <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
               Endorsed projects
             </h2>
-            {viewMode === 'owner' && hasSession && (
-              <Link
-                href="/give"
-                className="text-sm font-medium text-[var(--support)] transition-opacity hover:opacity-80"
-              >
-                Discover builders to fund →
-              </Link>
-            )}
           </div>
           <StackStream
             handle={handle}
@@ -525,8 +481,45 @@ export function ProfileClient({
             onUnendorse={hasSession ? handleUnendorse : undefined}
           />
 
-          {/* Endorse by handle — logged-in users can add endorsements */}
-          {hasSession && <EndorseByHandle onEndorse={endorseAndFetch} />}
+          {/* Endorse by handle + discover — logged-in owner actions */}
+          {hasSession && (
+            <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/20">
+              <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
+                Endorse a project by searching for their handle.
+              </p>
+              <div className="flex max-w-xl flex-col gap-2 sm:flex-row">
+                <HandleAutocomplete
+                  value={endorseHandleValue}
+                  onChange={setEndorseHandleValue}
+                  placeholder="Search by handle…"
+                  inputClassName="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const h = endorseHandleValue.trim()
+                    if (h) {
+                      endorseAndFetch(h)
+                      setEndorseHandleValue('')
+                    }
+                  }}
+                  disabled={!endorseHandleValue.trim()}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  <BadgePlus className="h-4 w-4" aria-hidden />
+                  Endorse
+                </button>
+                {viewMode === 'owner' && (
+                  <Link
+                    href="/give"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--support)] px-4 py-2.5 text-sm font-medium text-[var(--support-foreground)] transition-opacity hover:opacity-90"
+                  >
+                    Discover builders to fund
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
