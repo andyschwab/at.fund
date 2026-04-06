@@ -342,19 +342,22 @@ export function ProfileClient({
     setStreamEntries(entries)
   }, [])
 
-  // Live entry state — starts from server data, updates from SetupClient form
+  // Committed entry — starts from server data, updated after successful publish
+  const [baseEntry, setBaseEntry] = useState<StewardEntry | null>(serverEntry)
+
+  // Live entry state — overlays form edits on top of baseEntry
   const [formOverrides, setFormOverrides] = useState<SetupFormData | null>(null)
 
-  const entry: StewardEntry | null = serverEntry
+  const entry: StewardEntry | null = baseEntry
     ? formOverrides
       ? {
-          ...serverEntry,
+          ...baseEntry,
           contributeUrl: formOverrides.contributeUrl,
           dependencies: formOverrides.dependencies.length > 0 ? formOverrides.dependencies : undefined,
           channels: formOverrides.channels,
           plans: formOverrides.plans,
         }
-      : serverEntry
+      : baseEntry
     : null
 
   const entryUri = entry?.uri ?? handle
@@ -373,6 +376,21 @@ export function ProfileClient({
     setFormOverrides(data)
   }, [])
 
+  const handleSaved = useCallback((data: SetupFormData) => {
+    // Commit the published data as the new baseline
+    if (baseEntry) {
+      setBaseEntry({
+        ...baseEntry,
+        contributeUrl: data.contributeUrl,
+        dependencies: data.dependencies.length > 0 ? data.dependencies : undefined,
+        channels: data.channels,
+        plans: data.plans,
+      })
+    }
+    setFormOverrides(null)
+    setEditing(false)
+  }, [baseEntry])
+
   const handleCancel = useCallback(() => {
     setEditing(false)
     setFormOverrides(null)
@@ -386,6 +404,7 @@ export function ProfileClient({
       existing={existing ?? null}
       initialEntry={serverEntry}
       onFormChange={handleFormChange}
+      onSaved={handleSaved}
       onCancel={handleCancel}
       embedded
     />

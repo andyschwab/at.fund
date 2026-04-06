@@ -108,6 +108,8 @@ type Props = {
   initialEntry?: StewardEntry | null
   /** Called on every form change so parent can update a live preview. */
   onFormChange?: (data: SetupFormData) => void
+  /** Called after a successful publish so parent can commit the changes. */
+  onSaved?: (data: SetupFormData) => void
   /** Called when the user clicks Cancel. */
   onCancel?: () => void
   /** If true, renders only the form (no page wrapper, no preview). */
@@ -270,7 +272,7 @@ function TextInput({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function SetupClient({ did, handle, existing, initialEntry, onFormChange, onCancel, embedded }: Props) {
+export function SetupClient({ did, handle, existing, initialEntry, onFormChange, onSaved, onCancel, embedded }: Props) {
   const { authFetch } = useSession()
   const [form, setForm] = useState<FormState>(() => initialFormState(existing))
   const [saving, setSaving] = useState(false)
@@ -496,6 +498,13 @@ export function SetupClient({ did, handle, existing, initialEntry, onFormChange,
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || data.error || 'Publish failed')
       setSaved(true)
+      onSaved?.({
+        contributeUrl: contributeUrlError ? undefined : form.contributeUrl.trim() || undefined,
+        dependencies: form.dependencies.filter((d) => d.uri.trim()).map((d) => d.uri.trim()),
+        channels: previewChannels,
+        plans: previewPlans,
+        resolvedDeps,
+      })
     } catch (x) {
       setErr(
         x instanceof Error ? x.message : 'Something went wrong. Try again.',
