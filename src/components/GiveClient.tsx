@@ -82,7 +82,7 @@ export function GiveClient() {
       (e) =>
         !e.tags.includes('pds-host') &&
         !isEcosystemOnly(e) &&
-        (e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed' || t === 'dependency') ||
+        (e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') ||
           (e.tags.includes('follow') && !!e.contributeUrl)),
     )
     return included.sort((a, b) => {
@@ -91,10 +91,15 @@ export function GiveClient() {
     })
   }, [entries])
 
-  const endorsedEntries = useMemo(
-    () => visibleEntries.filter((e) => isEndorsed(e, endorsedUris)),
-    [visibleEntries, endorsedUris],
-  )
+  const endorsedEntries = useMemo(() => {
+    const lookup = (uri: string) => entries.find((e) => e.uri === uri)
+    return entries
+      .filter((e) => !e.tags.includes('pds-host') && isEndorsed(e, endorsedUris))
+      .sort((a, b) => {
+        const diff = entryPriority(a, lookup) - entryPriority(b, lookup)
+        return diff !== 0 ? diff : a.uri.localeCompare(b.uri)
+      })
+  }, [entries, endorsedUris])
   const discoveredEntries = useMemo(
     () => visibleEntries.filter((e) => !isEndorsed(e, endorsedUris)),
     [visibleEntries, endorsedUris],
