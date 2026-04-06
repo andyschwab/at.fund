@@ -1,39 +1,42 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { StackEntriesList } from './StackEntriesList'
-import { EntryIndex } from '@/lib/steward-merge'
 import type { StackStreamEvent } from '@/app/api/stack/[handle]/stream/route'
 import type { StewardEntry } from '@/lib/steward-model'
 
 export function StackStream({
   handle,
-  onAllEntriesChange,
+  entries,
+  allEntries,
+  onEntry,
+  onRef,
   endorsedSet,
   onEndorse,
   onUnendorse,
 }: {
   handle: string
-  /** Called whenever the resolved entries index updates (entries + refs). */
-  onAllEntriesChange?: (entries: StewardEntry[]) => void
+  /** Primary entries to display (filtered by parent). */
+  entries: StewardEntry[]
+  /** All known entries for dependency lookup. */
+  allEntries: StewardEntry[]
+  /** Called when a primary entry arrives from the stream. */
+  onEntry: (entry: StewardEntry) => void
+  /** Called when a ref (dependency) entry arrives from the stream. */
+  onRef: (entry: StewardEntry) => void
   endorsedSet?: Set<string>
   onEndorse?: (uri: string) => void
   onUnendorse?: (uri: string) => void
 }) {
-  const [entries, setEntries] = useState<StewardEntry[]>([])
-  const [allEntries, setAllEntries] = useState<StewardEntry[]>([])
   const [done, setDone] = useState(false)
-
-  // Primary entry index (cards to render) — deduped by DID
-  const primaryRef = useRef(new EntryIndex())
-  // Full lookup index (primary + refs) — for dependency sub-icons
-  const lookupRef = useRef(new EntryIndex())
+  const [started, setStarted] = useState(false)
 
   useEffect(() => {
     let cancelled = false
 
     async function run() {
+      setStarted(true)
       try {
         const res = await fetch(`/api/stack/${handle}/stream`)
         if (!res.ok || !res.body) { setDone(true); return }
@@ -57,21 +60,9 @@ export function StackStream({
             catch { continue }
 
             if (event.type === 'entry') {
-              primaryRef.current.upsert(event.entry)
-              lookupRef.current.upsert(event.entry)
-              if (!cancelled) {
-                setEntries(primaryRef.current.toArray())
-                const all = lookupRef.current.toArray()
-                setAllEntries(all)
-                onAllEntriesChange?.(all)
-              }
+              if (!cancelled) onEntry(event.entry)
             } else if (event.type === 'ref') {
-              lookupRef.current.upsert(event.entry)
-              if (!cancelled) {
-                const all = lookupRef.current.toArray()
-                setAllEntries(all)
-                onAllEntriesChange?.(all)
-              }
+              if (!cancelled) onRef(event.entry)
             } else if (event.type === 'done') {
               if (!cancelled) setDone(true)
             }
@@ -86,7 +77,7 @@ export function StackStream({
     return () => { cancelled = true }
   }, [handle])
 
-  if (!done && entries.length === 0) {
+  if (!done && (!started || entries.length === 0)) {
     return (
       <div className="flex flex-col items-center gap-3 py-12 text-center">
         <RefreshCw className="h-5 w-5 animate-spin text-emerald-500" aria-hidden />

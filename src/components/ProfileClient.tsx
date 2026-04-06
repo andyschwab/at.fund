@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
@@ -25,6 +25,7 @@ import type { SetupFormData } from '@/components/SetupClient'
 import { useSession } from '@/components/SessionContext'
 import { useEndorsement } from '@/hooks/useEndorsement'
 import type { StewardEntry } from '@/lib/steward-model'
+import { EntryIndex } from '@/lib/steward-merge'
 import type { FundAtResult } from '@/lib/fund-at-records'
 
 type ViewMode = 'public' | 'viewer' | 'owner'
@@ -66,7 +67,7 @@ function useShareActions(handle: string, isOwner: boolean) {
 // Endorse by handle
 // ---------------------------------------------------------------------------
 
-function EndorseByHandle({ onEndorse }: { onEndorse: (uri: string) => void }) {
+function EndorseByHandle({ onEndorse }: { onEndorse: (handle: string) => void }) {
   const [value, setValue] = useState('')
   return (
     <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/20">
@@ -83,9 +84,9 @@ function EndorseByHandle({ onEndorse }: { onEndorse: (uri: string) => void }) {
         <button
           type="button"
           onClick={() => {
-            const handle = value.trim()
-            if (handle) {
-              onEndorse(handle)
+            const h = value.trim()
+            if (h) {
+              onEndorse(h)
               setValue('')
             }
           }}
@@ -336,11 +337,32 @@ export function ProfileClient({
 
   const { bskyShareUrl, copyLink, copied } = useShareActions(handle, viewMode === 'owner')
 
-  // Shared entry store — populated by StackStream as it resolves endorsed entries + deps
-  const [streamEntries, setStreamEntries] = useState<StewardEntry[]>([])
-  const handleStreamEntries = useCallback((entries: StewardEntry[]) => {
-    setStreamEntries(entries)
-  }, [])
+  // Shared entry index — single source of truth for all resolved entries.
+  // Populated by StackStream (endorsed entries + deps) and endorse-by-handle.
+  const entryIndexRef = useRef(new EntryIndex())
+  const [indexVersion, setIndexVersion] = useState(0)
+  const bumpIndex = useCallback(() => setIndexVersion((v) => v + 1), [])
+
+  const handleStreamEntry = useCallback((entry: StewardEntry) => {
+    entryIndexRef.current.upsert(entry)
+    bumpIndex()
+  }, [bumpIndex])
+
+  const handleStreamRef = useCallback((entry: StewardEntry) => {
+    entryIndexRef.current.upsert(entry)
+    bumpIndex()
+  }, [bumpIndex])
+
+  // Derive endorsed entries from the index filtered by endorsedUris
+  const endorsedEntries = useMemo(() => {
+    // Touch indexVersion to re-derive when index changes
+    void indexVersion
+    return entryIndexRef.current.toArray().filter((e) =>
+      endorsedUris.has(e.uri)
+      || (!!e.did && endorsedUris.has(e.did))
+      || (!!e.handle && endorsedUris.has(e.handle))
+    )
+  }, [indexVersion, endorsedUris])
 
   // Committed entry — starts from server data, updated after successful publish
   const [baseEntry, setBaseEntry] = useState<StewardEntry | null>(serverEntry)
@@ -367,14 +389,16 @@ export function ProfileClient({
   const entryUri = entry?.uri ?? handle
   const isEndorsed = endorsedUris.has(entryUri) || endorsedUris.has(did)
 
-  // Merge all known entries: server entry + stream-resolved + form-resolved
+  // All entries for dependency lookup (profile entry + everything in the index)
   const allEntries = useMemo(() => {
+    void indexVersion
     const entries: StewardEntry[] = []
     if (entry) entries.push(entry)
-    entries.push(...streamEntries)
+    entries.push(...entryIndexRef.current.toArray())
     if (formOverrides?.resolvedDeps) entries.push(...formOverrides.resolvedDeps)
     return entries
-  }, [entry, streamEntries, formOverrides?.resolvedDeps])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indexVersion, entry, formOverrides?.resolvedDeps])
 
   const handleFormChange = useCallback((data: SetupFormData) => {
     setFormOverrides(data)
@@ -401,6 +425,26 @@ export function ProfileClient({
     setFormOverrides(null)
     setEditing(false)
   }, [baseEntry])
+
+  // Endorse + fetch the entry into the shared index so it appears in the list
+  const endorseAndFetch = useCallback(async (uri: string) => {
+    void endorse(uri)
+    try {
+      const res = await fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
+      if (!res.ok) return
+      const data = await res.json() as { entry: StewardEntry; referenced: StewardEntry[] }
+      entryIndexRef.current.upsert(data.entry)
+      for (const ref of data.referenced) {
+        entryIndexRef.current.upsert(ref)
+      }
+      // Also add all known URIs to endorsedUris so the card shows as endorsed
+      if (data.entry.uri !== uri) void endorse(data.entry.uri)
+      if (data.entry.did && data.entry.did !== uri) void endorse(data.entry.did)
+      bumpIndex()
+    } catch {
+      // endorsement still went through, entry just won't appear until refresh
+    }
+  }, [endorse, bumpIndex])
 
   const handleCancel = useCallback(() => {
     setEditing(false)
@@ -482,14 +526,17 @@ export function ProfileClient({
           </div>
           <StackStream
             handle={handle}
-            onAllEntriesChange={handleStreamEntries}
+            entries={endorsedEntries}
+            allEntries={allEntries}
+            onEntry={handleStreamEntry}
+            onRef={handleStreamRef}
             endorsedSet={hasSession ? endorsedUris : undefined}
             onEndorse={hasSession ? (uri: string) => void endorse(uri) : undefined}
             onUnendorse={hasSession ? (uri: string) => void unendorse(uri) : undefined}
           />
 
           {/* Endorse by handle — logged-in users can add endorsements */}
-          {hasSession && <EndorseByHandle onEndorse={(uri) => void endorse(uri)} />}
+          {hasSession && <EndorseByHandle onEndorse={endorseAndFetch} />}
         </div>
 
         {/* Footer */}
