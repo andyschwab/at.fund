@@ -26,21 +26,6 @@ export type EndpointConfig = {
 }
 
 export const ENDPOINTS: EndpointConfig[] = [
-  // ── Public ──────────────────────────────────────────────────────────────
-  {
-    id: 'health',
-    method: 'GET',
-    path: '/api/health',
-    description: 'Health check — confirms the server is reachable.',
-    auth: 'public',
-  },
-  {
-    id: 'auth-check',
-    method: 'GET',
-    path: '/api/auth/check',
-    description: 'Returns current session validity. { valid: bool, did: string | null }',
-    auth: 'public',
-  },
   {
     id: 'steward',
     method: 'GET',
@@ -75,113 +60,13 @@ export const ENDPOINTS: EndpointConfig[] = [
       },
     ],
   },
-  // ── Auth ────────────────────────────────────────────────────────────────
-  {
-    id: 'lexicons',
-    method: 'GET',
-    path: '/api/lexicons',
-    description: 'Non-streaming repo scan for the signed-in user. Accepts optional extra steward URIs to append.',
-    auth: 'auth',
-    params: [
-      {
-        kind: 'query',
-        key: 'extraStewards',
-        label: 'extraStewards',
-        placeholder: 'comma-separated URIs (optional)',
-      },
-    ],
-  },
-  {
-    id: 'lexicons-stream',
-    method: 'GET',
-    path: '/api/lexicons/stream',
-    description:
-      'Streaming NDJSON scan. Each newline-delimited JSON object is a pipeline event: meta, status, entry, referenced, warning, done.',
-    auth: 'auth',
-    params: [
-      {
-        kind: 'query',
-        key: 'extraStewards',
-        label: 'extraStewards',
-        placeholder: 'comma-separated URIs (optional)',
-      },
-    ],
-    streaming: true,
-  },
-  {
-    id: 'lexicons-post',
-    method: 'POST',
-    path: '/api/lexicons',
-    description: 'Repo scan with self-reported steward URIs supplied in the request body.',
-    auth: 'auth',
-    params: [
-      {
-        kind: 'body',
-        label: 'body',
-        placeholder: '{"selfReportedStewards":["bsky.app"]}',
-        default: '{"selfReportedStewards":[]}',
-      },
-    ],
-  },
-  {
-    id: 'endorse',
-    method: 'POST',
-    path: '/api/endorse',
-    description: 'Create a fund.at.endorse record on your PDS. Idempotent — endorsing the same URI twice is a no-op.',
-    auth: 'auth',
-    params: [
-      {
-        kind: 'body',
-        label: 'body',
-        placeholder: '{"uri":"bsky.app"}',
-        default: '{"uri":""}',
-      },
-    ],
-  },
-  {
-    id: 'endorse-delete',
-    method: 'DELETE',
-    path: '/api/endorse',
-    description: 'Remove a fund.at.endorse record from your PDS.',
-    auth: 'auth',
-    params: [
-      {
-        kind: 'body',
-        label: 'body',
-        placeholder: '{"uri":"bsky.app"}',
-        default: '{"uri":""}',
-      },
-    ],
-  },
-  {
-    id: 'setup',
-    method: 'POST',
-    path: '/api/setup',
-    description:
-      'Publish fund.at records to your PDS — writes fund.at.contribute and/or fund.at.dependency records.',
-    auth: 'auth',
-    params: [
-      {
-        kind: 'body',
-        label: 'body',
-        placeholder: '{"contributeUrl":"https://...","dependencies":[{"uri":"bsky.app"}]}',
-        default: '{\n  "contributeUrl": "",\n  "dependencies": []\n}',
-        multiline: true,
-      },
-    ],
-  },
 ]
 
 export const SECTIONS: Array<{ title: string; subtitle: string; ids: string[] }> = [
   {
-    title: 'Public',
+    title: 'Public API',
     subtitle: 'No authentication required',
-    ids: ['health', 'auth-check', 'steward', 'entry'],
-  },
-  {
-    title: 'Authenticated',
-    subtitle: 'Requires an active session — sign in via the navbar first',
-    ids: ['lexicons', 'lexicons-stream', 'lexicons-post', 'endorse', 'endorse-delete', 'setup'],
+    ids: ['steward', 'entry'],
   },
 ]
 
