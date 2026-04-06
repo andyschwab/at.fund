@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { CopyButton } from '../ui'
 
 // ---------------------------------------------------------------------------
-// Presets
+// Presets — sized for the new compact button embed
 // ---------------------------------------------------------------------------
 
 type Preset = { label: string; css: string }
@@ -13,40 +13,32 @@ const PRESETS: Preset[] = [
   {
     label: 'Default',
     css: `border: none;
-width: 320px;
-height: 80px;`,
+width: 220px;
+height: 120px;`,
   },
   {
     label: 'Card',
     css: `border: 1px solid #e2e8f0;
 border-radius: 12px;
-width: 340px;
-height: 84px;
+width: 240px;
+height: 124px;
 box-shadow: 0 1px 3px rgba(0,0,0,0.08);`,
   },
   {
     label: 'Dark',
     css: `border: 1px solid #334155;
 border-radius: 12px;
-width: 340px;
-height: 84px;
+width: 240px;
+height: 124px;
 background: #0f172a;
 box-shadow: 0 1px 3px rgba(0,0,0,0.3);`,
-  },
-  {
-    label: 'Compact',
-    css: `border: none;
-width: 240px;
-height: 80px;
-transform: scale(0.85);
-transform-origin: top left;`,
   },
   {
     label: 'Full width',
     css: `border: none;
 width: 100%;
-max-width: 400px;
-height: 80px;`,
+max-width: 300px;
+height: 120px;`,
   },
 ]
 
@@ -54,15 +46,23 @@ height: 80px;`,
 // Component
 // ---------------------------------------------------------------------------
 
+const INPUT_CLASS =
+  'w-full max-w-xs rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-sm text-slate-800 placeholder-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder-slate-500'
+
 export function EmbedPlayground() {
   const [handle, setHandle] = useState('blacksky.app')
+  const [buttonLabel, setButtonLabel] = useState('Support')
   const [activePreset, setActivePreset] = useState(0)
   const [customCss, setCustomCss] = useState(PRESETS[0].css)
+  const [iframeKey, setIframeKey] = useState(0)
 
   function selectPreset(i: number) {
     setActivePreset(i)
     setCustomCss(PRESETS[i].css)
   }
+
+  // Reload iframe when handle or label changes
+  const reload = useCallback(() => setIframeKey((k) => k + 1), [])
 
   // Convert textarea CSS to a style object for the iframe
   const iframeStyle: Record<string, string> = {}
@@ -78,29 +78,53 @@ export function EmbedPlayground() {
     }
   })
 
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://at.fund'
+  const labelParam = buttonLabel && buttonLabel !== 'Support' ? `?label=${encodeURIComponent(buttonLabel)}` : ''
   const embedSrc = handle.trim()
-    ? `${typeof window !== 'undefined' ? window.location.origin : 'https://at.fund'}/embed/${handle.trim()}`
+    ? `${origin}/embed/${handle.trim()}${labelParam}`
+    : ''
+  const publicSrc = handle.trim()
+    ? `https://at.fund/embed/${handle.trim()}${labelParam}`
     : ''
 
-  const embedHtml = embedSrc
-    ? `<iframe\n  src="${embedSrc}"\n  style="${customCss.split('\n').map((l) => l.trim()).filter(Boolean).join(' ')}"\n  title="Support on at.fund"\n></iframe>`
+  const embedHtml = publicSrc
+    ? `<iframe\n  src="${publicSrc}"\n  style="${customCss.split('\n').map((l) => l.trim()).filter(Boolean).join(' ')}"\n  title="Support on at.fund"\n></iframe>`
     : ''
 
   return (
     <div className="space-y-6">
-      {/* Handle input */}
-      <div className="flex items-center gap-3">
-        <label className="shrink-0 text-sm font-medium text-slate-700 dark:text-slate-300">
-          Handle
-        </label>
-        <input
-          type="text"
-          value={handle}
-          onChange={(e) => setHandle(e.target.value)}
-          placeholder="handle, DID, or hostname"
-          spellCheck={false}
-          className="w-full max-w-xs rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-sm text-slate-800 placeholder-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder-slate-500"
-        />
+      {/* Config inputs */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <label className="shrink-0 text-sm font-medium text-slate-700 dark:text-slate-300">
+            Handle
+          </label>
+          <input
+            type="text"
+            value={handle}
+            onChange={(e) => setHandle(e.target.value)}
+            onBlur={reload}
+            onKeyDown={(e) => e.key === 'Enter' && reload()}
+            placeholder="handle, DID, or hostname"
+            spellCheck={false}
+            className={INPUT_CLASS}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="shrink-0 text-sm font-medium text-slate-700 dark:text-slate-300">
+            Button label
+          </label>
+          <input
+            type="text"
+            value={buttonLabel}
+            onChange={(e) => setButtonLabel(e.target.value)}
+            onBlur={reload}
+            onKeyDown={(e) => e.key === 'Enter' && reload()}
+            placeholder="Support"
+            spellCheck={false}
+            className={`${INPUT_CLASS} max-w-[140px]`}
+          />
+        </div>
       </div>
 
       {/* Two-column: controls | preview */}
@@ -136,7 +160,7 @@ export function EmbedPlayground() {
               Iframe styles
             </p>
             <textarea
-              rows={6}
+              rows={5}
               value={customCss}
               onChange={(e) => {
                 setCustomCss(e.target.value)
@@ -168,10 +192,10 @@ export function EmbedPlayground() {
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
             Live preview
           </p>
-          <div className="flex min-h-[160px] items-start justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-6 dark:border-slate-700 dark:bg-slate-800/30">
+          <div className="flex min-h-[180px] items-start justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-6 dark:border-slate-700 dark:bg-slate-800/30">
             {embedSrc ? (
               <iframe
-                key={handle.trim()}
+                key={iframeKey}
                 src={embedSrc}
                 style={iframeStyle}
                 title="Support on at.fund"

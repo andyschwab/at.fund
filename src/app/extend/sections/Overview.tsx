@@ -1,6 +1,6 @@
 'use client'
 
-import { Code, Frame, Puzzle, BookOpen } from 'lucide-react'
+import { Frame, Puzzle, BookOpen } from 'lucide-react'
 
 const CARDS = [
   {
@@ -15,12 +15,6 @@ const CARDS = [
     description: 'Drop a support button into any page with a single iframe. Customize the styling to match your site.',
     section: 'embeds',
   },
-  {
-    icon: Code,
-    title: 'Code snippets',
-    description: 'Copy-paste examples for common use cases — resolve builders, read streaming scans, fetch lexicon schemas.',
-    section: 'snippets',
-  },
 ] as const
 
 export function Overview({ onNavigate }: { onNavigate: (section: string) => void }) {
@@ -34,7 +28,7 @@ export function Overview({ onNavigate }: { onNavigate: (section: string) => void
         lexicon.
       </p>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {CARDS.map((card) => (
           <button
             key={card.section}

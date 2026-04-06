@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Overview } from './sections/Overview'
 import { ApiExplorer } from './sections/ApiExplorer'
 import { EmbedPlayground } from './sections/EmbedPlayground'
-import { Snippets } from './sections/Snippets'
 
 // ---------------------------------------------------------------------------
 // Section definitions
@@ -14,7 +13,6 @@ const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'api', label: 'API' },
   { id: 'embeds', label: 'Embeds' },
-  { id: 'snippets', label: 'Snippets' },
 ] as const
 
 // ---------------------------------------------------------------------------
@@ -75,8 +73,7 @@ export function ExtendClient() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Extend</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Build with at.fund — APIs, embeds, and code examples to integrate funding discovery into
-          your app.
+          Build with at.fund — APIs and embeds to integrate funding discovery into your app.
         </p>
       </div>
 
@@ -131,15 +128,6 @@ export function ExtendClient() {
           <EmbedPlayground />
         </section>
 
-        <section ref={setRef('snippets')} data-section="snippets" className="scroll-mt-28">
-          <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-200">
-            Code Snippets
-          </h2>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
-            Ready-to-paste examples for common integrations. Hover over any code block to copy.
-          </p>
-          <Snippets />
-        </section>
       </div>
     </div>
   )
