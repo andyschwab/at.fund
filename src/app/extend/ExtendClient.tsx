@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Frame, Puzzle } from 'lucide-react'
 import { Overview } from './sections/Overview'
 import { ApiExplorer } from './sections/ApiExplorer'
 import { EmbedPlayground } from './sections/EmbedPlayground'
@@ -11,8 +12,8 @@ import { EmbedPlayground } from './sections/EmbedPlayground'
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'api', label: 'API' },
   { id: 'embeds', label: 'Embeds' },
+  { id: 'api', label: 'API' },
 ] as const
 
 // ---------------------------------------------------------------------------
@@ -47,7 +48,6 @@ export function ExtendClient() {
       { rootMargin: '-20% 0px -60% 0px', threshold: 0 }
     )
 
-    // Small delay to ensure refs are set
     const timer = setTimeout(() => {
       for (const id of entries) {
         const el = sectionRefs.current[id]
@@ -73,7 +73,7 @@ export function ExtendClient() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Extend</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Build with at.fund — APIs and embeds to integrate funding discovery into your app.
+          Build with at.fund — embeds and APIs to integrate funding discovery into your app.
         </p>
       </div>
 
@@ -98,36 +98,52 @@ export function ExtendClient() {
       </div>
 
       {/* Sections */}
-      <div className="space-y-16">
+      <div className="space-y-12">
         <section ref={setRef('overview')} data-section="overview" className="scroll-mt-28">
-          <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-200">
-            Overview
-          </h2>
           <Overview onNavigate={navigateTo} />
         </section>
 
-        <section ref={setRef('api')} data-section="api" className="scroll-mt-28">
-          <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-200">
-            API Explorer
-          </h2>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
-            Test endpoints inline — fill in parameters and hit Send. Every public endpoint works
-            without authentication.
-          </p>
-          <ApiExplorer />
-        </section>
-
-        <section ref={setRef('embeds')} data-section="embeds" className="scroll-mt-28">
-          <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-200">
-            Embed Playground
-          </h2>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
-            Preview and customize the at.fund support button. Choose a preset or write your own CSS,
-            then copy the embed code.
-          </p>
+        <section
+          ref={setRef('embeds')}
+          data-section="embeds"
+          className="scroll-mt-28 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+        >
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--support-muted)]">
+              <Frame className="h-4.5 w-4.5 text-[var(--support)]" strokeWidth={1.75} aria-hidden />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+                Embed Playground
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Add a support button to any page with a single iframe tag.
+              </p>
+            </div>
+          </div>
           <EmbedPlayground />
         </section>
 
+        <section
+          ref={setRef('api')}
+          data-section="api"
+          className="scroll-mt-28 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+        >
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--support-muted)]">
+              <Puzzle className="h-4.5 w-4.5 text-[var(--support)]" strokeWidth={1.75} aria-hidden />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+                API Explorer
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Test public endpoints inline — resolve any handle, DID, or hostname.
+              </p>
+            </div>
+          </div>
+          <ApiExplorer />
+        </section>
       </div>
     </div>
   )

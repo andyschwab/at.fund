@@ -4,16 +4,16 @@ import { Frame, Puzzle, BookOpen } from 'lucide-react'
 
 const CARDS = [
   {
-    icon: Puzzle,
-    title: 'Query the API',
-    description: 'Resolve any handle, DID, or hostname to get identity, funding, and capabilities. Public endpoints — no auth needed.',
-    section: 'api',
-  },
-  {
     icon: Frame,
     title: 'Embed a button',
     description: 'Drop a support button into any page with a single iframe. Customize the styling to match your site.',
     section: 'embeds',
+  },
+  {
+    icon: Puzzle,
+    title: 'Query the API',
+    description: 'Resolve any handle, DID, or hostname to get identity, funding, and capabilities. Public endpoints — no auth needed.',
+    section: 'api',
   },
 ] as const
 
