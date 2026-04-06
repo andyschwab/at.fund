@@ -1,5 +1,6 @@
 import { getRedisClient } from '@/lib/auth/kv-store'
 import { normalizeStewardUri } from '@/lib/steward-uri'
+import { FUND_ENDORSE, LEGACY_ENDORSE } from '@/lib/fund-at-records'
 import { logger } from '@/lib/logger'
 import { runWithConcurrency } from '@/lib/concurrency'
 
@@ -81,7 +82,7 @@ async function fetchEndorsementsForDid(
   pdsUrl: string,
 ): Promise<string[]> {
   // Try new NSID first, fall back to legacy
-  for (const collection of ['fund.at.graph.endorse', 'fund.at.endorse']) {
+  for (const collection of [FUND_ENDORSE, LEGACY_ENDORSE]) {
     try {
       const params = new URLSearchParams({
         repo: did,

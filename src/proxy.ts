@@ -17,6 +17,7 @@ const PROTECTED_PAGES = ['/give', '/admin']
 const PROTECTED_API = [
   '/api/setup',
   '/api/endorse',
+  '/api/migrate',
   '/api/lexicons',
   '/api/admin',
 ]
@@ -48,6 +49,7 @@ export const config = {
     '/admin/:path*',
     '/api/setup/:path*',
     '/api/endorse/:path*',
+    '/api/migrate/:path*',
     '/api/lexicons/:path*',
     '/api/admin/:path*',
   ],

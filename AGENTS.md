@@ -65,14 +65,24 @@ the client parser in `useScanStream`.
 
 ### Canonical types (DID-first)
 - `Identity` — resolved presentation. `did` is required; `uri` always equals `did`. Handles and hostnames are display metadata only.
-- `Funding` — how to contribute (source, contributeUrl, dependencies)
+- `Funding` — how to contribute (source, contributeUrl, dependencies, channels, plans)
 - `StewardEntry` — `Identity & Funding & { tags, capabilities }`
+- `FundingChannel` / `FundingPlan` — payment channel and tier types from `lib/funding-manifest.ts`
 
 All identity resolution goes through `buildIdentity()` in `steward-model.ts`.
 All funding resolution goes through `resolveFunding()` / `resolveFundingForDep()`
 in `funding.ts`. Do not create ad-hoc resolution logic. The manual catalog is
 indexed by hostname (filename) with a DID reverse index — lookups by DID work
 natively via `lookupManualStewardRecord()`.
+
+### Lexicon NSIDs
+New grouped NSIDs: `fund.at.actor.declaration`, `fund.at.funding.contribute`,
+`fund.at.funding.channel`, `fund.at.funding.plan`, `fund.at.graph.dependency`,
+`fund.at.graph.endorse`. Legacy flat NSIDs (`fund.at.contribute`,
+`fund.at.dependency`, `fund.at.endorse`) are kept for migration reads only.
+Always use the exported constants from `lib/fund-at-records.ts` — never
+hardcode NSID strings. Read paths try new NSIDs first, fall back to legacy.
+Writes always use new NSIDs.
 
 ### Auth flow
 OAuth with ATProto DPoP. Session stored in an httpOnly DID cookie + Redis KV
@@ -106,6 +116,16 @@ handlers via `getSession()`. Protected pages: `/give`, `/admin`. Protected
 API routes: `/api/setup`, `/api/endorse`, `/api/lexicons`, `/api/admin`.
 The `/<identifier>` profile page is **public** — owner mode is determined by
 `getSession()` at render time, not by the proxy.
+
+### Stack page (public)
+`/stack/[handle]` is a public page showing a user's endorsed projects. It
+streams entries via `/api/stack/[handle]/stream` (NDJSON, no auth required).
+Uses `fetchPublicEndorsements()` which tries new then legacy endorse NSIDs.
+
+### Migration route
+`POST /api/migrate` converts legacy flat-namespace records to grouped NSIDs.
+Protected by both the proxy and `getSession()`. Handles contribute, dependency,
+and endorse records. Idempotent — safe to call multiple times.
 
 ## File organization
 
@@ -208,6 +228,9 @@ pnpm test:coverage   # run with v8 coverage report
 | Document | What it covers |
 |----------|---------------|
 | `docs/pipeline.md` | Full 6-phase pipeline, event types, rendering rules, file map |
+| `docs/fund-at-funding-spec.md` | Lexicon specification: channels, plans, grouped NSIDs, cents convention |
+| `docs/funding-json-integration.md` | funding.json as optional enrichment layer for funding data |
+| `docs/contribution-strategy-todo.md` | Open issues: complexity, test coverage, invariant concerns |
 | `docs/architecture-review.md` | Completed refactoring history and canonical type system |
 | `docs/architecture-best-practices.md` | Ongoing improvement tracking (this round) |
 | `docs/atfund-discovery.md` | DNS/HTTPS resolution, record scoping, future acknowledgement signals |
