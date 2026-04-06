@@ -54,7 +54,6 @@ type GatherResult = {
   handle?: string
   pdsUrl?: string
   accounts: Map<string, GatheredAccount>   // DID → stub with tags + hostnames
-  unresolvedServices: UnresolvedService[]  // hostnames that didn't resolve to a DID
   warnings: ScanWarning[]
   feedUris: string[]                       // AT URIs for Phase 5
   labelerDids: string[]                    // DIDs for Phase 5
@@ -67,10 +66,6 @@ A `GatheredAccount` accumulates tags from multiple sources. If the same DID appe
 ### Speculative prefetch
 
 As Phase 1 discovers DIDs, it fires fund.at record prefetches via `ctx.prefetch(did)`. These run with bounded concurrency (20 parallel) in the background while gather continues. By the time Phase 4 (enrich) needs funding data, most prefetch promises have already resolved. See `lib/fund-at-prefetch.ts` and `lib/scan-context.ts`.
-
-### Unresolved services
-
-When a steward URI (hostname) doesn't resolve to a DID via DNS, it becomes an `UnresolvedService`. These are still shown as "discover" cards — the user relies on the service, we just can't identify the ATProto account behind it.
 
 ### Steward URI resolution
 
@@ -118,7 +113,7 @@ Ecosystem URIs are injected into the gathered accounts (with tag `ecosystem`) so
 
 **File:** `src/lib/pipeline/account-enrich.ts`
 
-For each account, resolves funding info by trying **every key type**. This is where the hostname-vs-DID mismatch is handled — we try all keys in one place.
+For each account, resolves identity and funding info. DID is the canonical key throughout — the catalog's DID reverse index means lookups work natively by DID.
 
 ### Resolution order
 
@@ -126,15 +121,15 @@ For each `GatheredAccount`:
 
 1. **Batch profile resolution** — `app.bsky.actor.getProfiles` for all DIDs (batches of 25). Returns handle, displayName, description, avatar.
 2. **fund.at records** — `fetchFundAtForStewardDid(did)` from the steward's PDS
-3. **Manual catalog by DID** — `lookupManualStewardRecord(did)`
-4. **Manual catalog by hostname** — `lookupManualStewardRecord(hostname)` for each associated hostname
-5. **Manual catalog by handle** — `lookupManualStewardRecord(handle)`
-6. **Fallback** — `source: 'unknown'`
+3. **Manual catalog by DID** — `lookupManualStewardRecord(did)` uses the DID reverse index to find hostname-keyed entries
+4. **Fallback** — `source: 'unknown'`
+
+When both fund.at and manual catalog exist, fund.at wins for `contributeUrl` (manual is fallback) and dependencies are unioned.
 
 ### URI and displayName selection
 
-- `uri`: hostname preferred (readable), then handle, then DID
-- `displayName`: profile name preferred (non-DID), then hostname, then handle, then DID
+- `uri`: always the DID (DID-first canonical key)
+- `displayName`: profile name preferred (if human-readable), then handle, then DID
 
 ### Emission
 
@@ -142,7 +137,7 @@ All entries with at least one tag are emitted as `entry` events, including ecosy
 
 ### Output
 
-One `StewardEntry` per account, plus entries for unresolved services.
+One `StewardEntry` per account.
 
 ## Phase 5: Attach capabilities
 
@@ -441,7 +436,7 @@ The user sees partial results with warnings rather than a blank page.
 |-------|-------------|----------|
 | 1. Gather | Follow pagination fails | Emit warning, continue with partial follows |
 | 1. Gather | Repo listRecords fails | Emit warning, skip repo-based tool discovery |
-| 1. Gather | Steward URI DNS fails | Becomes `UnresolvedService` — shown as discover card |
+| 1. Gather | Steward URI DNS fails | Entry dropped (DID-first requires resolved DID) |
 | 2. Endorsements | PDS unreachable for a follow | Skip that follow's endorsements, continue |
 | 2. Endorsements | Redis cache read/write fails | Fall back to in-memory, log warning |
 | 3. Ecosystem | No failures possible | Pure in-memory lookup against endorsement map |
