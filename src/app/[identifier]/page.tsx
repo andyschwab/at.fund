@@ -140,6 +140,10 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     tags: isTool ? ['tool'] : [],
   }
 
+  // Fall back to public fund.at records for the edit form when the
+  // authenticated fetch returns null (e.g. expired session, stale cookie).
+  const editData = existing ?? fundAtRecords
+
   return (
     <ProfileClient
       viewMode={viewMode}
@@ -147,7 +151,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
       endorsedUris={endorsedUris}
       handle={handle ?? did}
       did={did}
-      existing={existing}
+      existing={editData}
       initialEdit={edit === 'true'}
     />
   )
