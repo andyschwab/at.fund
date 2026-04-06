@@ -19,7 +19,7 @@ const INPUT_CLASS =
 
 const DIRECT_PDS_SNIPPET = [
   '// Fetch fund.at data directly from the AT Protocol network.',
-  '// No at.fund dependency — just public PDS endpoints.',
+  '// Uses the Bluesky AppView as a public resolver — any compatible endpoint works.',
   '',
   'async function getFundingInfo(handle) {',
   '  // 1. Resolve handle → DID',
@@ -225,11 +225,11 @@ export function EmbedPlayground() {
       {/* Direct PDS snippet */}
       <div>
         <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-          Without at.fund
+          Direct from the PDS
         </p>
         <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
-          You can fetch fund.at records directly from the ATProto network — no at.fund
-          dependency. Every record lives on the user&apos;s PDS.
+          You can fetch fund.at records directly from the AT Protocol network.
+          Each record is stored on the user&apos;s own PDS.
         </p>
         <CodeBlock code={DIRECT_PDS_SNIPPET} language="javascript" />
       </div>

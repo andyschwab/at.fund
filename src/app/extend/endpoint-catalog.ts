@@ -31,7 +31,7 @@ export const ENDPOINTS: EndpointConfig[] = [
     method: 'GET',
     path: '/api/steward',
     description:
-      'Thin resolution — identity + funding only. No capability discovery or transitive dependency resolution. Use /api/entry for the full pipeline.',
+      'Thin resolution — identity + funding only. No capability discovery or transitive dependency resolution. Use /api/entry for full resolution including capabilities and dependencies.',
     auth: 'public',
     params: [
       {

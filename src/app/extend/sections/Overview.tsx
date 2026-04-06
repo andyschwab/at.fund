@@ -21,8 +21,8 @@ export function Overview({ onNavigate }: { onNavigate: (section: string) => void
   return (
     <div className="space-y-6">
       <p className="text-sm text-slate-600 dark:text-slate-400">
-        at.fund data is open. Every builder, funding link, and endorsement on the network is
-        accessible through our API — no keys, no rate limits. Build integrations, embed support
+        at.fund data is open. Builders, funding links, and endorsements on the network are
+        accessible through our API — no authentication required. Build integrations, embed support
         buttons, or create your own tools on top of the{' '}
         <code className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-800">fund.at.*</code>{' '}
         lexicon.
