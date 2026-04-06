@@ -18,7 +18,7 @@ import { LoginForm } from '@/components/LoginForm'
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
   { href: '/give', label: 'Give' },
-  { href: '/lexicon', label: 'Build' },
+  { href: '/spec', label: 'Spec' },
   { href: '/dev', label: 'Dev' },
 ] as const
 
