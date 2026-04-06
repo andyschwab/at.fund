@@ -331,7 +331,7 @@ export function ProfileClient({
   const { hasSession } = useSession()
   const [editing, setEditing] = useState(initialEdit)
   const { endorsedUris, endorse, unendorse } = useEndorsement(
-    viewMode === 'viewer' ? initialEndorsedUris : [],
+    viewMode !== 'public' ? initialEndorsedUris : [],
   )
 
   const { bskyShareUrl, copyLink, copied } = useShareActions(handle, viewMode === 'owner')
