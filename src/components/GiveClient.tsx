@@ -82,7 +82,7 @@ export function GiveClient() {
       (e) =>
         !e.tags.includes('pds-host') &&
         !isEcosystemOnly(e) &&
-        (e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed') ||
+        (e.tags.some((t) => t === 'tool' || t === 'labeler' || t === 'feed' || t === 'dependency') ||
           (e.tags.includes('follow') && !!e.contributeUrl)),
     )
     return included.sort((a, b) => {
