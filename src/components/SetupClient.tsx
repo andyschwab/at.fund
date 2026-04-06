@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo, useEffect, useId } from 'react'
-import Link from 'next/link'
 import {
   AlertCircle,
   CheckCircle2,
@@ -91,10 +90,24 @@ type FormState = {
   nextSeq: number
 }
 
+/** Form data emitted via onFormChange for live preview. */
+export type SetupFormData = {
+  contributeUrl?: string
+  dependencies: string[]
+  channels?: FundingChannel[]
+  plans?: FundingPlan[]
+}
+
 type Props = {
   did: string
   handle?: string
   existing: FundAtResult | null
+  /** Pre-resolved entry data (avatar, description, tags). Avoids extra fetch. */
+  initialEntry?: StewardEntry | null
+  /** Called on every form change so parent can update a live preview. */
+  onFormChange?: (data: SetupFormData) => void
+  /** If true, renders only the form (no page wrapper, no preview). */
+  embedded?: boolean
 }
 
 function initialFormState(existing: FundAtResult | null): FormState {
@@ -253,7 +266,7 @@ function TextInput({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function SetupClient({ did, handle, existing }: Props) {
+export function SetupClient({ did, handle, existing, initialEntry, onFormChange, embedded }: Props) {
   const { authFetch } = useSession()
   const [form, setForm] = useState<FormState>(() => initialFormState(existing))
   const [saving, setSaving] = useState(false)
@@ -286,10 +299,11 @@ export function SetupClient({ did, handle, existing }: Props) {
 
   const hasErrors = !!contributeUrlError
 
-  // Fetch enriched profile for the user's own entry (avatar, description, etc.)
-  const [enriched, setEnriched] = useState<StewardEntry | null>(null)
+  // Use pre-resolved entry data if provided, otherwise fetch
+  const [enriched, setEnriched] = useState<StewardEntry | null>(initialEntry ?? null)
 
   useEffect(() => {
+    if (initialEntry || enriched) return
     let cancelled = false
     fetch(`/api/entry?uri=${encodeURIComponent(did)}`)
       .then((r) => r.json())
@@ -298,7 +312,7 @@ export function SetupClient({ did, handle, existing }: Props) {
       })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [did])
+  }, [did, initialEntry, enriched])
 
   // Build live preview channels/plans from form state
   const previewChannels: FundingChannel[] | undefined = useMemo(() => {
@@ -349,6 +363,16 @@ export function SetupClient({ did, handle, existing }: Props) {
     }),
     [form, did, handle, contributeUrlError, enriched, previewChannels, previewPlans],
   )
+
+  // Emit form changes to parent for live card preview
+  useEffect(() => {
+    onFormChange?.({
+      contributeUrl: contributeUrlError ? undefined : form.contributeUrl.trim() || undefined,
+      dependencies: form.dependencies.filter((d) => d.uri.trim()).map((d) => d.uri.trim()),
+      channels: previewChannels,
+      plans: previewPlans,
+    })
+  }, [form.contributeUrl, form.dependencies, contributeUrlError, previewChannels, previewPlans, onFormChange])
 
   // Resolve dependency entries so the preview card can show enriched info
   const [resolvedDeps, setResolvedDeps] = useState<StewardEntry[]>([])
@@ -471,23 +495,8 @@ export function SetupClient({ did, handle, existing }: Props) {
     }
   }
 
-  return (
-    <div className="page-wash min-h-full">
-      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8">
-
-        <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          Set up your profile
-        </h1>
-
-        {/* Preview -- sticky at top while scrolling */}
-        <section className="sticky top-12 z-10 -mx-4 border-b border-slate-200/80 bg-[var(--background)]/95 px-4 pb-4 pt-2 backdrop-blur dark:border-slate-800">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Preview — how you appear in others&apos; give lists
-          </p>
-          <ul className="pointer-events-none select-none divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-            <StewardCard entry={previewModel} allEntries={resolvedDeps} />
-          </ul>
-        </section>
+  const formContent = (
+    <>
 
         {/* Migration banner */}
         {existing?.needsMigration && !migrated && (
@@ -709,12 +718,6 @@ export function SetupClient({ did, handle, existing }: Props) {
                   <DropletIcon className="h-4 w-4" aria-hidden />
                   {saving ? 'Publishing…' : saved ? 'Publish again' : 'Publish records'}
                 </button>
-                <Link
-                  href="/give"
-                  className="text-sm text-slate-500 underline underline-offset-2 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                >
-                  Back to your tools
-                </Link>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Records are written to your ATProto PDS. They&apos;re public and
@@ -722,6 +725,30 @@ export function SetupClient({ did, handle, existing }: Props) {
               </p>
             </div>
           </form>
+    </>
+  )
+
+  if (embedded) return formContent
+
+  return (
+    <div className="page-wash min-h-full">
+      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8">
+
+        <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+          Set up your profile
+        </h1>
+
+        {/* Preview -- sticky at top while scrolling */}
+        <section className="sticky top-12 z-10 -mx-4 border-b border-slate-200/80 bg-[var(--background)]/95 px-4 pb-4 pt-2 backdrop-blur dark:border-slate-800">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Preview — how you appear in others&apos; give lists
+          </p>
+          <ul className="pointer-events-none select-none divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
+            <StewardCard entry={previewModel} allEntries={resolvedDeps} />
+          </ul>
+        </section>
+
+        {formContent}
       </div>
     </div>
   )

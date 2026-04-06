@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import Link from 'next/link'
 import {
+  BadgeCheck,
   BadgePlus,
   Check,
   Copy,
@@ -13,7 +14,6 @@ import {
 import { DropletIcon } from '@/components/DropletIcon'
 import {
   ProfileAvatar,
-  HandleBadge,
   TagBadges,
   CapabilitiesSection,
   FundingChannelsSection,
@@ -21,6 +21,7 @@ import {
 import { DependenciesSection } from '@/components/card-dependencies'
 import { StackStream } from '@/components/StackStream'
 import { SetupClient } from '@/components/SetupClient'
+import type { SetupFormData } from '@/components/SetupClient'
 import { useSession } from '@/components/SessionContext'
 import { useEndorsement } from '@/hooks/useEndorsement'
 import type { StewardEntry } from '@/lib/steward-model'
@@ -62,203 +63,195 @@ function useShareActions(handle: string, isOwner: boolean) {
 }
 
 // ---------------------------------------------------------------------------
-// Profile header
+// Unified profile card — one component for header + funding + actions
 // ---------------------------------------------------------------------------
 
-function ProfileHeader({
+function ProfileCard({
   entry,
   handle,
-  bskyShareUrl,
-  copyLink,
-  copied,
-}: {
-  entry: StewardEntry | null
-  handle: string
-  bskyShareUrl: string
-  copyLink: () => void
-  copied: boolean
-}) {
-  const displayName = entry?.displayName ?? handle
-  const description = entry?.description
-
-  return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex items-center gap-4">
-        {entry ? (
-          <ProfileAvatar entry={entry} size="md" />
-        ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-            <span className="text-sm font-semibold">{handle.slice(0, 1).toUpperCase()}</span>
-          </div>
-        )}
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            {displayName}
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">@{handle}</p>
-          {description && (
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{description}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Page-level actions — always visible, stable position */}
-      <div className="flex shrink-0 items-center gap-2">
-        <a
-          href={bskyShareUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#0085ff] px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
-        >
-          <Share2 className="h-4 w-4" aria-hidden />
-          Share
-        </a>
-        <button
-          type="button"
-          onClick={copyLink}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-        >
-          {copied ? (
-            <Check className="h-4 w-4 text-emerald-500" aria-hidden />
-          ) : (
-            <Copy className="h-4 w-4" aria-hidden />
-          )}
-          {copied ? 'Copied' : 'Copy link'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Funding card (profile-page variant of StewardCard)
-// ---------------------------------------------------------------------------
-
-function FundingCard({
-  entry,
   viewMode,
   isEndorsed,
   onEndorse,
   onUnendorse,
-  onEditToggle,
   editing,
+  onEditToggle,
+  bskyShareUrl,
+  copyLink,
+  copied,
 }: {
   entry: StewardEntry
+  handle: string
   viewMode: ViewMode
   isEndorsed: boolean
   onEndorse: () => void
   onUnendorse: () => void
-  onEditToggle: () => void
   editing: boolean
+  onEditToggle: () => void
+  bskyShareUrl: string
+  copyLink: () => void
+  copied: boolean
 }) {
+  const profileUrl = entry.landingPage ?? (entry.handle ? `https://bsky.app/profile/${entry.handle}` : undefined)
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
-      {/* Action buttons */}
-      <div className="flex items-center justify-end gap-1">
-        {/* Fund button */}
-        {entry.contributeUrl ? (
-          <a
-            href={entry.contributeUrl}
-            target="_blank"
-            rel="noreferrer"
-            title="Opens their contribution page"
-            className="flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-medium text-[var(--support)] transition-opacity hover:opacity-75"
-          >
-            <DropletIcon className="h-5 w-5" strokeWidth={1.75} aria-hidden />
-            <span>Fund</span>
-          </a>
-        ) : (
-          <span
-            title="This account hasn't configured a contribution link yet"
-            className="flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600"
-          >
-            <DropletIcon className="h-5 w-5" strokeWidth={1.5} aria-hidden />
-            <span>Fund</span>
-          </span>
-        )}
-
-        {/* Endorse button — adapts by mode */}
-        {viewMode === 'viewer' && (
-          <button
-            type="button"
-            onClick={isEndorsed ? onUnendorse : onEndorse}
-            title={isEndorsed ? 'Remove endorsement' : 'Endorse this builder'}
-            className={`group flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-medium cursor-pointer transition-colors ${
-              isEndorsed
-                ? 'text-[var(--support)] hover:text-red-600 dark:hover:text-red-400'
-                : 'text-slate-400 hover:text-[var(--support)] dark:text-slate-500 dark:hover:text-[var(--support)]'
-            }`}
-          >
-            <BadgePlus className="h-5 w-5" strokeWidth={isEndorsed ? 2 : 1.75} aria-hidden />
-            <span>{isEndorsed ? 'Endorsed' : 'Endorse'}</span>
-          </button>
-        )}
-        {viewMode === 'public' && (
-          <button
-            type="button"
-            onClick={() => {
-              // Open the login modal
-              const dialog = document.querySelector<HTMLDialogElement>('dialog')
-              dialog?.showModal()
-            }}
-            title="Sign in to endorse"
-            className="flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-medium text-slate-300 cursor-pointer transition-colors hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400"
-          >
-            <BadgePlus className="h-5 w-5" strokeWidth={1.5} aria-hidden />
-            <span>Endorse</span>
-          </button>
-        )}
-
-        {/* Owner edit toggle */}
-        {viewMode === 'owner' && (
-          <button
-            type="button"
-            onClick={onEditToggle}
-            title={editing ? 'Close editor' : 'Edit your funding profile'}
-            className={`flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-medium cursor-pointer transition-colors ${
-              editing
-                ? 'text-[var(--support)]'
-                : 'text-slate-400 hover:text-[var(--support)] dark:text-slate-500 dark:hover:text-[var(--support)]'
-            }`}
-          >
-            {editing ? (
-              <X className="h-5 w-5" strokeWidth={1.75} aria-hidden />
-            ) : (
-              <Pencil className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+    <div className={`rounded-xl border bg-white shadow-sm dark:bg-slate-900/60 ${
+      editing
+        ? 'border-[var(--support-border)]'
+        : 'border-slate-200 dark:border-slate-700'
+    }`}>
+      {/* Header row — avatar, name, actions */}
+      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3 min-w-0">
+          <ProfileAvatar entry={entry} size="md" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {profileUrl ? (
+                <a
+                  href={profileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-lg font-semibold text-slate-900 transition-colors hover:text-[var(--support)] dark:text-slate-100"
+                >
+                  {entry.displayName}
+                </a>
+              ) : (
+                <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {entry.displayName}
+                </h1>
+              )}
+              <TagBadges tags={entry.tags} />
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400">@{handle}</p>
+            {entry.description && (
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                {entry.description}
+              </p>
             )}
-            <span>{editing ? 'Close' : 'Edit'}</span>
-          </button>
-        )}
+          </div>
+        </div>
+
+        {/* Actions — top-right, stable position */}
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+          {/* Fund */}
+          {entry.contributeUrl ? (
+            <a
+              href={entry.contributeUrl}
+              target="_blank"
+              rel="noreferrer"
+              title="Opens their contribution page"
+              className="flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-medium text-[var(--support)] transition-opacity hover:opacity-75"
+            >
+              <DropletIcon className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+              <span>Fund</span>
+            </a>
+          ) : (
+            <span
+              title="No contribution link configured"
+              className="flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] font-medium text-slate-300 dark:text-slate-600"
+            >
+              <DropletIcon className="h-5 w-5" strokeWidth={1.5} aria-hidden />
+              <span>Fund</span>
+            </span>
+          )}
+
+          {/* Endorse — adapts by mode */}
+          {viewMode === 'viewer' && (
+            <button
+              type="button"
+              onClick={isEndorsed ? onUnendorse : onEndorse}
+              title={isEndorsed ? 'Remove endorsement' : 'Endorse this builder'}
+              className={`group flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-medium cursor-pointer transition-colors ${
+                isEndorsed
+                  ? 'text-[var(--support)] hover:text-red-600 dark:hover:text-red-400'
+                  : 'text-slate-400 hover:text-[var(--support)] dark:text-slate-500 dark:hover:text-[var(--support)]'
+              }`}
+            >
+              {isEndorsed ? (
+                <BadgeCheck className="h-5 w-5" strokeWidth={2} aria-hidden />
+              ) : (
+                <BadgePlus className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+              )}
+              <span>{isEndorsed ? 'Endorsed' : 'Endorse'}</span>
+            </button>
+          )}
+          {viewMode === 'public' && (
+            <button
+              type="button"
+              onClick={() => {
+                const dialog = document.querySelector<HTMLDialogElement>('dialog')
+                dialog?.showModal()
+              }}
+              title="Sign in to endorse"
+              className="flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-medium text-slate-300 cursor-pointer transition-colors hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400"
+            >
+              <BadgePlus className="h-5 w-5" strokeWidth={1.5} aria-hidden />
+              <span>Endorse</span>
+            </button>
+          )}
+
+          {/* Owner edit toggle */}
+          {viewMode === 'owner' && (
+            <button
+              type="button"
+              onClick={onEditToggle}
+              title={editing ? 'Close editor' : 'Edit your funding profile'}
+              className={`flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-medium cursor-pointer transition-colors ${
+                editing
+                  ? 'text-[var(--support)]'
+                  : 'text-slate-400 hover:text-[var(--support)] dark:text-slate-500 dark:hover:text-[var(--support)]'
+              }`}
+            >
+              {editing ? (
+                <X className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+              ) : (
+                <Pencil className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+              )}
+              <span>{editing ? 'Close' : 'Edit'}</span>
+            </button>
+          )}
+
+          {/* Share + copy */}
+          <div className="ml-1 flex items-center gap-1 border-l border-slate-200 pl-2 dark:border-slate-700">
+            <a
+              href={bskyShareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Share on Bluesky"
+              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#0085ff] dark:hover:bg-slate-800"
+            >
+              <Share2 className="h-4 w-4" aria-hidden />
+            </a>
+            <button
+              type="button"
+              onClick={copyLink}
+              title="Copy link"
+              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-emerald-500" aria-hidden />
+              ) : (
+                <Copy className="h-4 w-4" aria-hidden />
+              )}
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Tags */}
-      {entry.tags && entry.tags.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <TagBadges tags={entry.tags} />
-        </div>
-      )}
-
-      {/* Capabilities */}
-      {entry.capabilities && entry.capabilities.length > 0 && (
-        <div className="mt-3">
-          <CapabilitiesSection capabilities={entry.capabilities} />
-        </div>
-      )}
-
-      {/* Funding channels */}
-      {(entry.channels || entry.plans) && (
-        <div className="mt-3">
-          <FundingChannelsSection channels={entry.channels} plans={entry.plans} />
-        </div>
-      )}
-
-      {/* Dependencies */}
-      {entry.dependencies && entry.dependencies.length > 0 && (
-        <div className="mt-3">
-          <DependenciesSection
-            dependencies={entry.dependencies}
-            allEntries={[entry]}
-          />
+      {/* Expandable detail sections */}
+      {(entry.capabilities?.length || entry.channels || entry.plans || entry.dependencies?.length) && (
+        <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+          {entry.capabilities && entry.capabilities.length > 0 && (
+            <CapabilitiesSection capabilities={entry.capabilities} />
+          )}
+          {(entry.channels || entry.plans) && (
+            <FundingChannelsSection channels={entry.channels} plans={entry.plans} />
+          )}
+          {entry.dependencies && entry.dependencies.length > 0 && (
+            <DependenciesSection
+              dependencies={entry.dependencies}
+              allEntries={[entry]}
+            />
+          )}
         </div>
       )}
     </div>
@@ -271,7 +264,7 @@ function FundingCard({
 
 export function ProfileClient({
   viewMode,
-  entry,
+  entry: serverEntry,
   endorsedUris: initialEndorsedUris,
   handle,
   did,
@@ -286,32 +279,46 @@ export function ProfileClient({
 
   const { bskyShareUrl, copyLink, copied } = useShareActions(handle, viewMode === 'owner')
 
+  // Live entry state — starts from server data, updates from SetupClient form
+  const [formOverrides, setFormOverrides] = useState<SetupFormData | null>(null)
+
+  const entry: StewardEntry | null = serverEntry
+    ? formOverrides
+      ? {
+          ...serverEntry,
+          contributeUrl: formOverrides.contributeUrl,
+          dependencies: formOverrides.dependencies.length > 0 ? formOverrides.dependencies : undefined,
+          channels: formOverrides.channels,
+          plans: formOverrides.plans,
+        }
+      : serverEntry
+    : null
+
   const entryUri = entry?.uri ?? handle
   const isEndorsed = endorsedUris.has(entryUri) || endorsedUris.has(did)
+
+  const handleFormChange = useCallback((data: SetupFormData) => {
+    setFormOverrides(data)
+  }, [])
 
   return (
     <div className="page-wash min-h-full">
       <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8">
 
-        {/* Header */}
-        <ProfileHeader
-          entry={entry}
-          handle={handle}
-          bskyShareUrl={bskyShareUrl}
-          copyLink={copyLink}
-          copied={copied}
-        />
-
-        {/* Funding card */}
+        {/* Unified profile card */}
         {entry ? (
-          <FundingCard
+          <ProfileCard
             entry={entry}
+            handle={handle}
             viewMode={viewMode}
             isEndorsed={isEndorsed}
             onEndorse={() => void endorse(entryUri)}
             onUnendorse={() => void unendorse(entryUri)}
-            onEditToggle={() => setEditing((prev) => !prev)}
             editing={editing}
+            onEditToggle={() => setEditing((prev) => !prev)}
+            bskyShareUrl={bskyShareUrl}
+            copyLink={copyLink}
+            copied={copied}
           />
         ) : (
           <div className="rounded-xl border border-slate-200 bg-white/60 p-8 text-center dark:border-slate-700/60 dark:bg-slate-900/40">
@@ -333,11 +340,16 @@ export function ProfileClient({
           </div>
         )}
 
-        {/* Owner inline edit section */}
+        {/* Owner inline edit — form only, card above updates live */}
         {viewMode === 'owner' && editing && (
-          <div className="rounded-xl border border-[var(--support-border)] bg-white p-1 shadow-sm dark:bg-slate-900/60">
-            <SetupClient did={did} handle={handle} existing={existing ?? null} />
-          </div>
+          <SetupClient
+            did={did}
+            handle={handle}
+            existing={existing ?? null}
+            initialEntry={serverEntry}
+            onFormChange={handleFormChange}
+            embedded
+          />
         )}
 
         {/* Endorsements section */}

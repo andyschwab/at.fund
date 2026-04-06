@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
-import Link from 'next/link'
+import { useState, useMemo, useCallback } from 'react'
 import type { EndorsementCounts } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
 import { entryPriority } from '@/lib/entry-priority'
@@ -13,10 +12,8 @@ import { CardErrorBoundary } from '@/components/CardErrorBoundary'
 import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
   AlertCircle,
-  ArrowRight,
   BadgeCheck,
   BadgePlus,
-  CheckCircle2,
   ExternalLink,
   RefreshCw,
 } from 'lucide-react'
@@ -45,7 +42,7 @@ function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
 // ---------------------------------------------------------------------------
 
 export function GiveClient() {
-  const { did: sessionDid, authFetch } = useSession()
+  const { authFetch } = useSession()
 
   const {
     meta, entries, warnings, endorsedUris, endorsementCounts,
@@ -55,20 +52,8 @@ export function GiveClient() {
   } = useScanStream()
 
   const [selfReport, setSelfReport] = useState('')
-  const [hasOwnRecords, setHasOwnRecords] = useState<boolean | null>(null)
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
   const [activeTab, setActiveTab] = useState<'discover' | 'ecosystem'>('discover')
-
-  // Check whether the logged-in user has published fund.at records
-  useEffect(() => {
-    if (!sessionDid) return
-    let cancelled = false
-    fetch(`/api/entry?uri=${encodeURIComponent(sessionDid)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (!cancelled) setHasOwnRecords(!!data?.contributeUrl || !!(data?.dependencies?.length)) })
-      .catch(() => { if (!cancelled) setHasOwnRecords(false) })
-    return () => { cancelled = true }
-  }, [sessionDid])
 
   // ── Derived state ─────────────────────────────────────────────────────
 
@@ -271,24 +256,6 @@ export function GiveClient() {
               <span>{scanStatus}</span>
             </div>
           )}
-          {!loading && hasOwnRecords === true && (
-            <Link
-              href="/setup"
-              className="ml-auto inline-flex items-center gap-1.5 text-xs text-emerald-600 transition-opacity hover:opacity-80 dark:text-emerald-400"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              Your funding records look good
-            </Link>
-          )}
-          {!loading && hasOwnRecords === false && (
-            <Link
-              href="/setup"
-              className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-[var(--support)] transition-opacity hover:opacity-80"
-            >
-              Set up your funding records
-              <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            </Link>
-          )}
         </div>
 
         {/* ── My Stack ─────────────────────────────────────────── */}
@@ -298,17 +265,6 @@ export function GiveClient() {
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               My Stack
             </h2>
-            {scanDone && endorsedEntries.length > 0 && meta?.handle && (
-              <a
-                href={`/stack/${meta.handle}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-auto inline-flex items-center gap-1 text-sm text-emerald-600 transition-opacity hover:opacity-75 dark:text-emerald-400"
-              >
-                <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                Share your stack
-              </a>
-            )}
           </div>
           {!hasStackContent && !loading && (
             <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
@@ -409,16 +365,6 @@ export function GiveClient() {
               <span>
                 You&rsquo;ve endorsed <strong className="font-semibold">{count} project{count === 1 ? '' : 's'}</strong>.
               </span>
-              {meta?.handle && (
-                <a
-                  href={`/stack/${meta.handle}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 font-medium hover:underline"
-                >
-                  Share on Atmosphere →
-                </a>
-              )}
             </div>
           )
         })()}
