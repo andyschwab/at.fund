@@ -26,7 +26,6 @@ export function EmbedPlayground() {
   const [handle, setHandle] = useState('atprotocol.dev')
   const [buttonLabel, setButtonLabel] = useState('Support')
   const [theme, setTheme] = useState<(typeof THEMES)[number]>('Auto')
-  const [customCss, setCustomCss] = useState(IFRAME_CSS)
   const [iframeKey, setIframeKey] = useState(0)
   const [mounted, setMounted] = useState(false)
 
@@ -69,20 +68,6 @@ export function EmbedPlayground() {
     void fetchSteward(handle)
   }
 
-  // Convert textarea CSS to a style object for the iframe
-  const iframeStyle: Record<string, string> = {}
-  customCss.split('\n').forEach((line) => {
-    const [prop, ...rest] = line.split(':')
-    if (prop && rest.length) {
-      const key = prop
-        .trim()
-        .replace(/;$/, '')
-        .replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
-      const value = rest.join(':').trim().replace(/;$/, '')
-      if (key && value) iframeStyle[key] = value
-    }
-  })
-
   // Build embed path with query params
   const qp = new URLSearchParams()
   if (buttonLabel && buttonLabel !== 'Support') qp.set('label', buttonLabel)
@@ -92,7 +77,7 @@ export function EmbedPlayground() {
   const publicSrc = embedPath ? `https://at.fund${embedPath}` : ''
 
   const embedHtml = publicSrc
-    ? `<iframe\n  src="${publicSrc}"\n  style="${customCss.split('\n').map((l) => l.trim()).filter(Boolean).join(' ')}"\n  title="Support on at.fund"\n></iframe>`
+    ? `<iframe\n  src="${publicSrc}"\n  style="${IFRAME_CSS.split('\n').map((l) => l.trim()).filter(Boolean).join(' ')}"\n  title="Support on at.fund"\n></iframe>`
     : ''
 
   return (
@@ -107,7 +92,7 @@ export function EmbedPlayground() {
             <iframe
               key={iframeKey}
               src={embedPath}
-              style={iframeStyle}
+              style={{ border: 'none', borderRadius: 12, width: 260, height: 120 }}
               title="Support on at.fund"
             />
           ) : (
@@ -196,35 +181,20 @@ export function EmbedPlayground() {
         )}
       </div>
 
-      {/* Two-column: CSS controls | embed code */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      {/* Embed code */}
+      {embedHtml && (
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-            Iframe styles
-          </p>
-          <textarea
-            rows={5}
-            value={customCss}
-            onChange={(e) => setCustomCss(e.target.value)}
-            spellCheck={false}
-            className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-800 placeholder-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder-slate-500"
-          />
-        </div>
-
-        {embedHtml && (
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Embed code
-              </p>
-              <CopyButton text={embedHtml} label="Copy HTML" />
-            </div>
-            <pre className="overflow-auto rounded-lg bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-300">
-              {embedHtml}
-            </pre>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              Embed code
+            </p>
+            <CopyButton text={embedHtml} label="Copy HTML" />
           </div>
-        )}
-      </div>
+          <pre className="overflow-auto rounded-lg bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-300">
+            {embedHtml}
+          </pre>
+        </div>
+      )}
     </div>
   )
 }
