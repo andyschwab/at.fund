@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { CopyButton } from '../ui'
+import { CopyButton, CodeBlock } from '../ui'
 
 // ---------------------------------------------------------------------------
 // Themes
@@ -17,10 +17,37 @@ const THEMES = ['Light', 'Dark', 'Auto'] as const
 const INPUT_CLASS =
   'w-full max-w-xs rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-sm text-slate-800 placeholder-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder-slate-500'
 
-const IFRAME_CSS = `border: none;
-border-radius: 12px;
-width: 260px;
-height: 120px;`
+const DIRECT_PDS_SNIPPET = [
+  '// Fetch fund.at data directly from the AT Protocol network.',
+  '// No at.fund dependency — just public PDS endpoints.',
+  '',
+  'async function getFundingInfo(handle) {',
+  '  // 1. Resolve handle → DID',
+  '  const resolve = await fetch(',
+  '    `https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?handle=${handle}`',
+  '  )',
+  '  const { did } = await resolve.json()',
+  '',
+  '  // 2. Resolve DID → PDS URL (from DID document)',
+  '  const plcRes = await fetch(`https://plc.directory/${did}`)',
+  '  const didDoc = await plcRes.json()',
+  "  const pds = didDoc.service?.find(s => s.id === '#atproto_pds')?.serviceEndpoint",
+  '',
+  '  // 3. Fetch the funding record from their PDS',
+  '  const record = await fetch(',
+  '    `${pds}/xrpc/com.atproto.repo.getRecord?repo=${did}&collection=fund.at.funding.contribute&rkey=self`',
+  '  )',
+  '  const { value } = await record.json()',
+  '',
+  '  return { did, pds, contributeUrl: value?.url }',
+  '}',
+  '',
+  "// Usage",
+  "const info = await getFundingInfo('atprotocol.dev')",
+  'console.log(info.contributeUrl) // "https://..."',
+].join('\n')
+
+const IFRAME_CSS = 'border: none; border-radius: 12px; width: 260px; height: 120px;'
 
 export function EmbedPlayground() {
   const [handle, setHandle] = useState('atprotocol.dev')
@@ -77,7 +104,7 @@ export function EmbedPlayground() {
   const publicSrc = embedPath ? `https://at.fund${embedPath}` : ''
 
   const embedHtml = publicSrc
-    ? `<iframe\n  src="${publicSrc}"\n  style="${IFRAME_CSS.split('\n').map((l) => l.trim()).filter(Boolean).join(' ')}"\n  title="Support on at.fund"\n></iframe>`
+    ? `<iframe\n  src="${publicSrc}"\n  style="${IFRAME_CSS}"\n  title="Support on at.fund"\n></iframe>`
     : ''
 
   return (
@@ -195,6 +222,17 @@ export function EmbedPlayground() {
           </pre>
         </div>
       )}
+      {/* Direct PDS snippet */}
+      <div>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          Without at.fund
+        </p>
+        <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+          You can fetch fund.at records directly from the ATProto network — no at.fund
+          dependency. Every record lives on the user&apos;s PDS.
+        </p>
+        <CodeBlock code={DIRECT_PDS_SNIPPET} language="javascript" />
+      </div>
     </div>
   )
 }

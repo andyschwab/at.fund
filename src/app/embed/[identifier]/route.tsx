@@ -149,7 +149,7 @@ export async function GET(
   <style>
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-    a{color:inherit;text-decoration:none}
+    a{color:inherit;text-decoration:none;cursor:pointer}
 
     .card{
       display:flex;align-items:flex-start;gap:10px;
@@ -171,7 +171,7 @@ export async function GET(
       font-size:12px;font-weight:600;white-space:nowrap;
       transition:background .15s;align-self:flex-start;
     }
-    .support-btn.disabled{opacity:.45;cursor:default}
+    .support-btn.muted{opacity:.65}
 
     .channels{display:flex;flex-wrap:wrap;gap:4px}
     .ch{
@@ -190,10 +190,7 @@ export async function GET(
     ${avatarHtml}
     <div class="body">
       <div class="handle"><a href="${bskyUrl}" target="_blank" rel="noreferrer">@${esc(handle)}</a></div>
-      ${contributeUrl
-        ? `<a href="${esc(contributeUrl)}" target="_blank" rel="noreferrer" class="support-btn">${esc(buttonLabel)}</a>`
-        : `<span class="support-btn disabled">${esc(buttonLabel)}</span>`
-      }
+      <a href="${esc(contributeUrl || `https://at.fund/${handle}`)}" target="_blank" rel="noreferrer" class="support-btn${contributeUrl ? '' : ' muted'}">${esc(buttonLabel)}</a>
       ${channels.length > 0
         ? `<div class="channels">
           ${channelLinksHtml}
