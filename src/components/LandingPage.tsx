@@ -230,10 +230,10 @@ export function LandingPage() {
               </p>
             </div>
             <Link
-              href="/lexicon"
+              href="/spec"
               className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 transition-opacity hover:opacity-80 dark:text-slate-300"
             >
-              Read the guide
+              Read the spec
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[var(--background)] to-transparent" aria-hidden />
