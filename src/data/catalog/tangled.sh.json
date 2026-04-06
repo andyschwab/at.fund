@@ -1,3 +1,6 @@
 {
-  "dependencies": ["skyseed.fund"]
+  "did": "did:plc:wshs7t2adsemcrrd4snkeqli",
+  "dependencies": [
+    "skyseed.fund"
+  ]
 }

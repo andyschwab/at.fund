@@ -39,10 +39,8 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
   const allCaps = [...(base.capabilities ?? []), ...(incoming.capabilities ?? [])]
   const capabilities = deduplicateCapabilities(allCaps)
 
-  // Prefer hostname URI over DID for readability
-  const uri = (!base.uri.startsWith('did:') ? base.uri : null)
-    ?? (!incoming.uri.startsWith('did:') ? incoming.uri : null)
-    ?? base.uri
+  // URI is always the DID (canonical key)
+  const uri = base.did
 
   // Prefer a meaningful displayName over a DID-shaped one
   const displayName =
@@ -54,7 +52,7 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
 
   return {
     uri,
-    did: base.did ?? incoming.did,
+    did: base.did,
     handle: base.handle ?? incoming.handle,
     tags,
     source,
@@ -90,38 +88,18 @@ function deduplicateCapabilities(caps: Capability[]): Capability[] | undefined {
 
 export class EntryIndex {
   private byDid = new Map<string, StewardEntry>()
-  private byUri = new Map<string, StewardEntry>()
 
   upsert(entry: StewardEntry) {
-    if (entry.did) {
-      const existing = this.byDid.get(entry.did)
-      if (existing) {
-        const merged = mergeEntries(existing, entry)
-        this.byDid.set(entry.did, merged)
-        if (this.byUri.get(existing.uri) === existing) this.byUri.set(existing.uri, merged)
-        if (merged.uri !== existing.uri) this.byUri.set(merged.uri, merged)
-        return
-      }
+    const existing = this.byDid.get(entry.did)
+    if (existing) {
+      this.byDid.set(entry.did, mergeEntries(existing, entry))
+      return
     }
-    // No DID match — try to find by URI (handles entries without a resolved DID)
-    if (!entry.did) {
-      const existing = this.byUri.get(entry.uri)
-      if (existing) {
-        const merged = mergeEntries(existing, entry)
-        this.byUri.set(entry.uri, merged)
-        if (merged.did) this.byDid.set(merged.did, merged)
-        return
-      }
-    }
-    if (entry.did) this.byDid.set(entry.did, entry)
-    this.byUri.set(entry.uri, entry)
+    this.byDid.set(entry.did, entry)
   }
 
   toArray(): StewardEntry[] {
-    const seen = new Set<StewardEntry>()
-    for (const e of this.byDid.values()) seen.add(e)
-    for (const e of this.byUri.values()) seen.add(e)
-    return [...seen]
+    return [...this.byDid.values()]
   }
 }
 

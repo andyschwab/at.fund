@@ -37,9 +37,10 @@ export async function GET(
         await Promise.allSettled(
           urisToResolve.map(async (uri) => {
             try {
-              const { entry } = await resolveEntry(uri, sharedCtx)
-              entries.push(entry)
-              emit({ type: 'entry', entry })
+              const result = await resolveEntry(uri, sharedCtx)
+              if (!result) return // skip entries that don't resolve to a DID
+              entries.push(result.entry)
+              emit({ type: 'entry', entry: result.entry })
             } catch { /* skip unresolvable entries */ }
           }),
         )

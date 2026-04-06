@@ -17,7 +17,7 @@ export async function attachCapabilities(
   const publicClient = new Client(PUBLIC_API)
   const entryByDid = new Map<string, StewardEntry>()
   for (const e of entries) {
-    if (e.did) entryByDid.set(e.did, e)
+    entryByDid.set(e.did, e)
   }
 
   await Promise.all([

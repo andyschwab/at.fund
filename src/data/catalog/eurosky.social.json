@@ -1,3 +1,6 @@
 {
-  "dependencies": ["freeourfeeds.com"]
+  "did": "did:plc:ooensn4mr5mhznzypvxelfa3",
+  "dependencies": [
+    "freeourfeeds.com"
+  ]
 }

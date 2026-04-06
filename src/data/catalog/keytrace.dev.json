@@ -1,4 +1,5 @@
 {
+  "did": "did:plc:hcwfdlmprcc335oixyfsw7u3",
   "dependencies": [
     "orta.io"
   ]

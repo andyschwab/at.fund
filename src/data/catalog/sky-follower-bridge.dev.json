@@ -1,3 +1,6 @@
 {
-  "dependencies": ["kawamataryo.bsky.social"]
+  "did": "did:plc:l3nkrpivwuvwuqduk3illkvf",
+  "dependencies": [
+    "kawamataryo.bsky.social"
+  ]
 }

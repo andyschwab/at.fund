@@ -125,7 +125,6 @@ async function resolveSubscriptionEntry(
   ctx: ScanContext,
 ): Promise<StewardEntry> {
   const identity = buildIdentity({
-    ref: fallback?.handle ?? did,
     did,
     handle: fallback?.handle,
     displayName: fallback?.displayName,

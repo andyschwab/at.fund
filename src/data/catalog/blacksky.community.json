@@ -1,5 +1,8 @@
 {
+  "did": "did:plc:tkpi67nipaoa4ocw5cn24ukg",
   "contributeUrl": "https://opencollective.com/blacksky",
-  "tags": ["ecosystem"],
+  "tags": [
+    "ecosystem"
+  ],
   "atprotoHandle": "move.blacksky.community"
 }

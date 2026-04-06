@@ -116,21 +116,18 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   // ── Step 4: Assemble StewardEntry locally (no network) ─────────────
   const profile = profileMap.get(did)
   const manual = lookupManualByIdentity({
-    uri: handle ?? did,
+    uri: did,
     did,
     handle,
     displayName: profile?.displayName ?? handle ?? did,
   })
-  const isTool = !decoded.startsWith('did:') && !!manual
 
   const identity = buildIdentity({
-    ref: decoded,
     did,
     handle,
     displayName: profile?.displayName,
     description: profile?.description,
     avatar: profile?.avatar,
-    isTool,
   })
 
   const entry: StewardEntry = {
@@ -143,7 +140,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     ),
     channels: fundAtRecords?.channels,
     plans: fundAtRecords?.plans,
-    tags: isTool ? ['tool'] : [],
+    tags: [],
   }
 
   return (
