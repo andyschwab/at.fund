@@ -35,7 +35,7 @@ const TAG_FILTER_LABELS: { tag: TagFilter; label: string }[] = [
 ]
 
 function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
-  return uris.has(e.uri) || uris.has(e.did ?? '') || uris.has(e.handle ?? '') || e.tags.includes('endorsed')
+  return uris.has(e.uri) || uris.has(e.did ?? '') || uris.has(e.handle ?? '')
 }
 
 // ---------------------------------------------------------------------------

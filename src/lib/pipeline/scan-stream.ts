@@ -211,7 +211,10 @@ export async function scanStreaming(
     emit({ type: 'entry', entry })
   }, ctx)
 
-  // ── Endorsed entries: resolve any endorsed URIs not already discovered ──
+  // ── Endorsed entries: resolve any endorsed URIs not already discovered,
+  // then re-emit the endorsed set with resolved canonical identifiers so
+  // the client can match entries by uri/did regardless of how the original
+  // endorsement was stored (hostname, handle, DID).
   if (endorsedUris.length > 0) {
     const knownUris = new Set<string>()
     for (const e of allEntries) {
@@ -226,7 +229,6 @@ export async function scanStreaming(
       await Promise.all(missing.map(async (uri) => {
         try {
           const entry = await resolveDepEntry(uri, ctx)
-          entry.tags = ['endorsed']
           allEntries.push(entry)
           emit({ type: 'entry', entry })
         } catch {
@@ -234,6 +236,19 @@ export async function scanStreaming(
         }
       }))
     }
+
+    // Re-emit endorsed set expanded with resolved identifiers
+    const resolvedEndorsed = new Set(endorsedUris)
+    for (const uri of endorsedUris) {
+      const entry = allEntries.find((e) =>
+        e.uri === uri || e.did === uri || e.handle === uri
+      )
+      if (entry) {
+        resolvedEndorsed.add(entry.uri)
+        if (entry.did) resolvedEndorsed.add(entry.did)
+      }
+    }
+    emit({ type: 'endorsed', uris: [...resolvedEndorsed] })
   }
 
   // ── Emit endorsement counts for ALL entries (from the single-pass map) ─
