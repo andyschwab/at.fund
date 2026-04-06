@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   BadgeCheck,
@@ -77,6 +77,7 @@ function ProfileCard({
   bskyShareUrl,
   copyLink,
   copied,
+  allEntries,
   editForm,
 }: {
   entry: StewardEntry
@@ -90,6 +91,8 @@ function ProfileCard({
   bskyShareUrl: string
   copyLink: () => void
   copied: boolean
+  /** All known entries for dependency lookup (names, icons, funding state). */
+  allEntries: StewardEntry[]
   /** When editing, the SetupClient form renders inside the card */
   editForm?: React.ReactNode
 }) {
@@ -248,7 +251,7 @@ function ProfileCard({
           {entry.dependencies && entry.dependencies.length > 0 && (
             <DependenciesSection
               dependencies={entry.dependencies}
-              allEntries={[entry]}
+              allEntries={allEntries}
             />
           )}
         </div>
@@ -312,6 +315,42 @@ export function ProfileClient({
     setFormOverrides(null)
   }, [])
 
+  // Resolve dependency entries on initial load so the card can show names/icons
+  const [initialDeps, setInitialDeps] = useState<StewardEntry[]>([])
+  const serverDepUris = serverEntry?.dependencies
+  useEffect(() => {
+    if (!serverDepUris?.length) return
+    let cancelled = false
+    Promise.allSettled(
+      serverDepUris.map((uri) =>
+        fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
+          .then((r) => r.json())
+          .then((data: { entry?: StewardEntry; referenced?: StewardEntry[] }) => {
+            const entries: StewardEntry[] = []
+            if (data.entry) entries.push(data.entry)
+            if (data.referenced) entries.push(...data.referenced)
+            return entries
+          })
+          .catch(() => [] as StewardEntry[]),
+      ),
+    ).then((results) => {
+      if (!cancelled) {
+        setInitialDeps(results.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])))
+      }
+    })
+    return () => { cancelled = true }
+  }, [serverDepUris])
+
+  // Merge all known entries for dependency lookup
+  const allEntries = useMemo(() => {
+    const entries: StewardEntry[] = []
+    if (entry) entries.push(entry)
+    // Prefer form-resolved deps when editing, otherwise use initial deps
+    const deps = formOverrides?.resolvedDeps ?? initialDeps
+    entries.push(...deps)
+    return entries
+  }, [entry, formOverrides?.resolvedDeps, initialDeps])
+
   // The edit form rendered inside the card
   const editForm = viewMode === 'owner' && editing ? (
     <SetupClient
@@ -343,6 +382,7 @@ export function ProfileClient({
             bskyShareUrl={bskyShareUrl}
             copyLink={copyLink}
             copied={copied}
+            allEntries={allEntries}
             editForm={editForm}
           />
         ) : (

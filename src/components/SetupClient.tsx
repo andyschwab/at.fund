@@ -96,6 +96,8 @@ export type SetupFormData = {
   dependencies: string[]
   channels?: FundingChannel[]
   plans?: FundingPlan[]
+  /** Resolved dependency entries for display (avatars, names, funding state). */
+  resolvedDeps?: StewardEntry[]
 }
 
 type Props = {
@@ -371,16 +373,6 @@ export function SetupClient({ did, handle, existing, initialEntry, onFormChange,
     [form, did, handle, contributeUrlError, enriched, previewChannels, previewPlans],
   )
 
-  // Emit form changes to parent for live card preview
-  useEffect(() => {
-    onFormChange?.({
-      contributeUrl: contributeUrlError ? undefined : form.contributeUrl.trim() || undefined,
-      dependencies: form.dependencies.filter((d) => d.uri.trim()).map((d) => d.uri.trim()),
-      channels: previewChannels,
-      plans: previewPlans,
-    })
-  }, [form.contributeUrl, form.dependencies, contributeUrlError, previewChannels, previewPlans, onFormChange])
-
   // Resolve dependency entries so the preview card can show enriched info
   const [resolvedDeps, setResolvedDeps] = useState<StewardEntry[]>([])
 
@@ -420,6 +412,17 @@ export function SetupClient({ did, handle, existing, initialEntry, onFormChange,
 
     return () => { cancelled = true }
   }, [depUris])
+
+  // Emit form changes to parent for live card preview
+  useEffect(() => {
+    onFormChange?.({
+      contributeUrl: contributeUrlError ? undefined : form.contributeUrl.trim() || undefined,
+      dependencies: form.dependencies.filter((d) => d.uri.trim()).map((d) => d.uri.trim()),
+      channels: previewChannels,
+      plans: previewPlans,
+      resolvedDeps,
+    })
+  }, [form.contributeUrl, form.dependencies, contributeUrlError, previewChannels, previewPlans, resolvedDeps, onFormChange])
 
   async function handleMigrate() {
     setMigrating(true)
