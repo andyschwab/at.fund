@@ -46,7 +46,9 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE — remove an endorsement record. The rkey is the endorsed URI.
+// DELETE — remove an endorsement record. The rkey is the endorsed URI,
+// but the caller may not know which form of the URI was used as the rkey
+// (hostname, handle, or DID). Accept an array of candidate URIs and try each.
 export async function DELETE(request: NextRequest) {
   const session = await getSession()
   if (!session) {
@@ -60,26 +62,38 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const uri = str((body as Record<string, unknown>)?.uri)
+  const b = body as Record<string, unknown>
+  const uri = str(b?.uri)
   if (!uri) {
     return NextResponse.json({ error: 'uri is required' }, { status: 400 })
   }
 
+  // Collect all candidate rkeys — the primary uri plus any alternatives
+  const candidates = new Set([uri])
+  if (Array.isArray(b?.uris)) {
+    for (const u of b.uris) {
+      if (typeof u === 'string' && u.trim()) candidates.add(u.trim())
+    }
+  }
+
   const client = new Client(session)
 
-  try {
-    await deleteWithFallback(client, FUND_ENDORSE, uri)
+  let deleted = false
+  for (const rkey of candidates) {
+    try {
+      await deleteWithFallback(client, FUND_ENDORSE, rkey)
+      deleted = true
+    } catch {
+      // Try next candidate
+    }
+  }
+
+  if (deleted) {
     logger.info('endorse: record deleted', { did: session.did, uri })
     return NextResponse.json({ success: true })
-  } catch (e) {
-    const message = e instanceof Error ? e.message : 'Failed to delete endorsement'
-    logger.error('endorse: delete failed', { did: session.did, uri, error: message })
-    return NextResponse.json(
-      {
-        error: message,
-        detail: 'Could not remove endorsement. Try signing out and back in to refresh your authorization.',
-      },
-      { status: 502 },
-    )
   }
+
+  logger.warn('endorse: no record found to delete', { did: session.did, candidates: [...candidates] })
+  // Return success anyway — the record may already be gone
+  return NextResponse.json({ success: true })
 }

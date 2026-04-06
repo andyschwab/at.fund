@@ -172,10 +172,11 @@ export function GiveClient() {
       return next
     })
     try {
+      // Send all known identifiers so the endpoint can try each as rkey
       const res = await authFetch('/api/endorse', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uri }),
+        body: JSON.stringify({ uri, uris: [...removeUris] }),
       })
       if (!res.ok) {
         setEndorsedUris((prev) => new Set([...prev, ...removeUris]))
