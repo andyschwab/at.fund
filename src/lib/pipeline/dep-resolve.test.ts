@@ -6,10 +6,10 @@ import type { StewardEntry } from '@/lib/steward-model'
 // ---------------------------------------------------------------------------
 
 vi.mock('@/lib/identity', () => ({
-  buildIdentity: vi.fn(({ ref, did }: { ref: string; did?: string }) => ({
-    uri: ref,
+  buildIdentity: vi.fn(({ did }: { did: string }) => ({
+    uri: did,
     did,
-    displayName: ref,
+    displayName: did,
   })),
   resolveRefToDid: vi.fn(),
   batchFetchProfiles: vi.fn(),
@@ -33,7 +33,8 @@ const mockProfiles = vi.mocked(batchFetchProfiles)
 
 function entry(overrides: Partial<StewardEntry> = {}): StewardEntry {
   return {
-    uri: 'primary.com',
+    uri: 'did:plc:primary',
+    did: 'did:plc:primary',
     displayName: 'Primary',
     source: 'fund.at',
     tags: ['tool'],
@@ -71,13 +72,13 @@ describe('resolveDependencies', () => {
     ])
 
     expect(result).toHaveLength(1)
-    expect(result[0].uri).toBe('dep.com')
+    expect(result[0].did).toBe('did:plc:dep')
     expect(result[0].tags).toEqual(['dependency'])
   })
 
-  it('skips dependencies that are already known entries', async () => {
+  it('skips dependencies that are already known entries (by DID)', async () => {
     const entries = [
-      entry({ uri: 'primary.com', did: 'did:plc:primary', dependencies: ['primary.com'] }),
+      entry({ did: 'did:plc:primary', dependencies: ['did:plc:primary'] }),
     ]
 
     const result = await resolveDependencies(entries)
@@ -85,21 +86,24 @@ describe('resolveDependencies', () => {
     expect(mockResolveRef).not.toHaveBeenCalled()
   })
 
-  it('skips dependencies whose DID matches a known entry', async () => {
-    const entries = [
-      entry({ uri: 'primary.com', did: 'did:plc:primary', dependencies: ['did:plc:primary'] }),
-    ]
+  it('skips dependencies that cannot resolve to a DID', async () => {
+    mockResolveRef.mockResolvedValue(undefined)
 
-    const result = await resolveDependencies(entries)
+    const result = await resolveDependencies([
+      entry({ dependencies: ['unknown.com'] }),
+    ])
+
     expect(result).toEqual([])
   })
 
   it('resolves transitive dependencies (multi-level)', async () => {
-    mockResolveRef.mockResolvedValue(undefined)
+    mockResolveRef
+      .mockResolvedValueOnce('did:plc:dep')
+      .mockResolvedValueOnce('did:plc:deep')
     mockFunding
       .mockResolvedValueOnce({
         source: 'fund.at',
-        dependencies: ['deep.com'], // sub-dep discovered
+        dependencies: ['deep.com'],
       })
       .mockResolvedValueOnce({ source: 'unknown' })
 
@@ -108,23 +112,27 @@ describe('resolveDependencies', () => {
     ])
 
     expect(result).toHaveLength(2)
-    expect(result.map((r) => r.uri)).toEqual(['dep.com', 'deep.com'])
+    expect(result.map((r) => r.did)).toEqual(['did:plc:dep', 'did:plc:deep'])
   })
 
   it('deduplicates dependencies across entries', async () => {
+    mockResolveRef.mockResolvedValue('did:plc:shared')
     mockFunding.mockResolvedValue({ source: 'unknown' })
 
     const entries = [
-      entry({ uri: 'a.com', dependencies: ['shared.com'] }),
-      entry({ uri: 'b.com', dependencies: ['shared.com'] }),
+      entry({ uri: 'did:plc:a', did: 'did:plc:a', dependencies: ['shared.com'] }),
+      entry({ uri: 'did:plc:b', did: 'did:plc:b', dependencies: ['shared.com'] }),
     ]
 
     const result = await resolveDependencies(entries)
     expect(result).toHaveLength(1)
-    expect(result[0].uri).toBe('shared.com')
+    expect(result[0].did).toBe('did:plc:shared')
   })
 
   it('calls onReferenced callback for each resolved dep', async () => {
+    mockResolveRef
+      .mockResolvedValueOnce('did:plc:dep-a')
+      .mockResolvedValueOnce('did:plc:dep-b')
     mockFunding.mockResolvedValue({ source: 'unknown' })
     const onRef = vi.fn()
 
@@ -133,14 +141,13 @@ describe('resolveDependencies', () => {
       onRef,
     )
 
-    // Called once during resolution + potentially again after profile backfill
     expect(onRef).toHaveBeenCalled()
-    const uris = onRef.mock.calls.map((c) => c[0].uri)
-    expect(uris).toContain('dep-a.com')
-    expect(uris).toContain('dep-b.com')
+    const dids = onRef.mock.calls.map((c) => c[0].did)
+    expect(dids).toContain('did:plc:dep-a')
+    expect(dids).toContain('did:plc:dep-b')
   })
 
-  it('backfills profiles for entries with DID but no avatar', async () => {
+  it('backfills profiles for entries without avatar', async () => {
     mockResolveRef.mockResolvedValue('did:plc:dep')
     mockFunding.mockResolvedValue({ source: 'unknown' })
     mockProfiles.mockResolvedValue(
@@ -165,12 +172,11 @@ describe('resolveDependencies', () => {
   })
 
   it('does not overwrite existing handle during profile backfill', async () => {
-    // buildIdentity mock returns the ref as handle if provided
     vi.mocked(await import('@/lib/identity')).buildIdentity.mockReturnValue({
-      uri: 'dep.com',
+      uri: 'did:plc:dep',
       did: 'did:plc:dep',
       handle: 'existing.handle',
-      displayName: 'dep.com',
+      displayName: 'did:plc:dep',
     })
     mockResolveRef.mockResolvedValue('did:plc:dep')
     mockFunding.mockResolvedValue({ source: 'unknown' })

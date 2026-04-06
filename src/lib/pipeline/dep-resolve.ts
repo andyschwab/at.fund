@@ -21,10 +21,9 @@ export async function resolveDependencies(
   onReferenced?: (entry: StewardEntry) => void,
   ctx?: ScanContext,
 ): Promise<StewardEntry[]> {
-  const knownUris = new Set<string>()
+  const knownDids = new Set<string>()
   for (const e of entries) {
-    knownUris.add(e.uri)
-    if (e.did) knownUris.add(e.did)
+    knownDids.add(e.did)
   }
 
   const referenced: StewardEntry[] = []
@@ -34,23 +33,24 @@ export async function resolveDependencies(
   const queue: string[] = []
   for (const entry of entries) {
     for (const depUri of entry.dependencies ?? []) {
-      if (!knownUris.has(depUri)) queue.push(depUri)
+      if (!knownDids.has(depUri)) queue.push(depUri)
     }
   }
 
   // Process the queue, adding sub-deps as we discover them
   while (queue.length > 0) {
     const depUri = queue.shift()!
-    if (resolved.has(depUri) || knownUris.has(depUri)) continue
+    if (resolved.has(depUri) || knownDids.has(depUri)) continue
     resolved.add(depUri)
 
     const refEntry = await resolveDepEntry(depUri, ctx)
+    if (!refEntry) continue
     referenced.push(refEntry)
     onReferenced?.(refEntry)
 
     // Enqueue sub-deps for next-level resolution
     for (const subDep of refEntry.dependencies ?? []) {
-      if (!resolved.has(subDep) && !knownUris.has(subDep)) {
+      if (!resolved.has(subDep) && !knownDids.has(subDep)) {
         queue.push(subDep)
       }
     }
@@ -75,22 +75,18 @@ export async function resolveDependencies(
 // Single dependency resolution: identity + funding
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolves a dependency URI to a StewardEntry. Returns null if the URI
+ * cannot be resolved to a DID (DID-first: no unresolved entries).
+ */
 export async function resolveDepEntry(
   depUri: string,
   ctx?: ScanContext,
-): Promise<StewardEntry> {
+): Promise<StewardEntry | null> {
   const did = await resolveRefToDid(depUri)
+  if (!did) return null
 
-  const identity = buildIdentity({
-    ref: depUri,
-    did,
-    // Hostname refs are tools: preserves the hostname as the canonical URI so
-    // that lookup(depUri) in DependenciesSection finds the entry. Without this,
-    // buildIdentity falls through to uri = did, which doesn't match the hostname
-    // stored in entry.dependencies.
-    isTool: !depUri.startsWith('did:'),
-    // No profile data yet — backfillProfiles handles that later
-  })
+  const identity = buildIdentity({ did })
 
   const funding = await resolveFundingForDep(identity, ctx)
 
@@ -102,14 +98,14 @@ export async function resolveDepEntry(
 // ---------------------------------------------------------------------------
 
 async function backfillProfiles(entries: StewardEntry[]): Promise<void> {
-  const needsProfile = entries.filter((e) => e.did && !e.avatar)
+  const needsProfile = entries.filter((e) => !e.avatar)
   if (needsProfile.length === 0) return
 
-  const dids = needsProfile.map((e) => e.did!)
+  const dids = needsProfile.map((e) => e.did)
   const profileMap = await batchFetchProfiles(dids)
 
   for (const entry of needsProfile) {
-    const p = profileMap.get(entry.did!)
+    const p = profileMap.get(entry.did)
     if (!p) continue
     if (p.avatar) entry.avatar = p.avatar
     if (p.handle && !entry.handle) entry.handle = p.handle

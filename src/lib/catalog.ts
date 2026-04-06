@@ -4,6 +4,8 @@ import resolverJson from '@/data/resolver-catalog.json'
 import { normalizeStewardUri } from '@/lib/steward-uri'
 
 type ManualRecord = {
+  /** Resolved DID for this steward (when known). */
+  did?: string
   contributeUrl?: string
   dependencies?: string[]
   tags?: string[]
@@ -107,6 +109,7 @@ export function resolveStewardUri(observedKey: string): string | null {
 
 export type ManualStewardRecord = {
   stewardUri: string
+  did?: string
   contributeUrl?: string
   dependencies?: string[]
   tags?: string[]
@@ -133,6 +136,7 @@ export function lookupManualStewardRecord(
 
   return {
     stewardUri: key,
+    did: record.did,
     contributeUrl: record.contributeUrl,
     dependencies: record.dependencies,
     tags: record.tags,

@@ -23,7 +23,6 @@ async function resolveFollowEntry(
   ctx: ScanContext,
 ): Promise<StewardEntry | null> {
   const identity = buildIdentity({
-    ref: follow.handle ?? follow.did,
     did: follow.did,
     handle: follow.handle,
     displayName: follow.displayName,

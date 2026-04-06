@@ -58,54 +58,43 @@ describe('isHumanReadableName', () => {
 // ---------------------------------------------------------------------------
 
 describe('buildIdentity', () => {
-  it('uses hostname as URI for tools', () => {
-    const id = buildIdentity({ ref: 'example.com', did: 'did:plc:abc', isTool: true })
-    expect(id.uri).toBe('example.com')
+  it('uses DID as URI (canonical key)', () => {
+    const id = buildIdentity({ did: 'did:plc:abc' })
+    expect(id.uri).toBe('did:plc:abc')
   })
 
-  it('uses handle as URI for non-tools', () => {
-    const id = buildIdentity({ ref: 'example.com', did: 'did:plc:abc', handle: 'alice.bsky.social' })
-    expect(id.uri).toBe('alice.bsky.social')
-  })
-
-  it('falls back to DID when no handle', () => {
-    const id = buildIdentity({ ref: 'did:plc:abc', did: 'did:plc:abc' })
+  it('always uses DID as URI regardless of handle', () => {
+    const id = buildIdentity({ did: 'did:plc:abc', handle: 'alice.bsky.social' })
     expect(id.uri).toBe('did:plc:abc')
   })
 
   it('uses profile displayName when human-readable', () => {
-    const id = buildIdentity({ ref: 'example.com', displayName: 'Alice' })
+    const id = buildIdentity({ did: 'did:plc:abc', displayName: 'Alice' })
     expect(id.displayName).toBe('Alice')
   })
 
-  it('falls back displayName to hostname for tools', () => {
-    const id = buildIdentity({ ref: 'example.com', isTool: true, displayName: 'did:plc:abc' })
-    expect(id.displayName).toBe('example.com')
-  })
-
   it('falls back displayName to handle when name is DID-like', () => {
-    const id = buildIdentity({ ref: 'did:plc:abc', handle: 'alice.bsky.social', displayName: 'did:plc:abc' })
+    const id = buildIdentity({ did: 'did:plc:abc', handle: 'alice.bsky.social', displayName: 'did:plc:abc' })
     expect(id.displayName).toBe('alice.bsky.social')
   })
 
-  it('generates landingPage for non-tools with a handle', () => {
-    const id = buildIdentity({ ref: 'some.ref', handle: 'alice.bsky.social' })
+  it('falls back displayName to DID when no handle', () => {
+    const id = buildIdentity({ did: 'did:plc:abc' })
+    expect(id.displayName).toBe('did:plc:abc')
+  })
+
+  it('generates landingPage with a handle', () => {
+    const id = buildIdentity({ did: 'did:plc:abc', handle: 'alice.bsky.social' })
     expect(id.landingPage).toBe('https://bsky.app/profile/alice.bsky.social')
   })
 
-  it('does not generate landingPage for tools', () => {
-    const id = buildIdentity({ ref: 'example.com', handle: 'alice.bsky.social', isTool: true })
-    expect(id.landingPage).toBeUndefined()
-  })
-
   it('does not generate landingPage without handle', () => {
-    const id = buildIdentity({ ref: 'example.com' })
+    const id = buildIdentity({ did: 'did:plc:abc' })
     expect(id.landingPage).toBeUndefined()
   })
 
   it('passes through optional fields', () => {
     const id = buildIdentity({
-      ref: 'example.com',
       did: 'did:plc:abc',
       description: 'A cool project',
       avatar: 'https://cdn.example.com/avatar.jpg',

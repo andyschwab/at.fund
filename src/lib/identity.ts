@@ -76,29 +76,26 @@ export async function resolveRefToDid(ref: string): Promise<string | undefined> 
 
 /**
  * Resolves a single ref (DID, handle, or hostname) into a fully-populated
- * Identity with profile data. Convenience composition of resolveRefToDid +
- * batchFetchProfiles + buildIdentity.
+ * Identity with profile data. Returns null if the ref cannot be resolved to a DID.
+ *
+ * Convenience composition of resolveRefToDid + batchFetchProfiles + buildIdentity.
  */
 export async function resolveIdentity(
   ref: string,
-  options?: { isTool?: boolean },
-): Promise<Identity> {
+): Promise<Identity | null> {
   const { buildIdentity } = await import('@/lib/steward-model')
   const did = await resolveRefToDid(ref)
 
-  let profile: ProfileData | undefined
-  if (did) {
-    const profiles = await batchFetchProfiles([did])
-    profile = profiles.get(did)
-  }
+  if (!did) return null
+
+  const profiles = await batchFetchProfiles([did])
+  const profile = profiles.get(did)
 
   return buildIdentity({
-    ref,
     did,
     handle: profile?.handle,
     displayName: profile?.displayName,
     description: profile?.description,
     avatar: profile?.avatar,
-    isTool: options?.isTool,
   })
 }

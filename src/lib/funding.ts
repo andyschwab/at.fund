@@ -12,25 +12,15 @@ import { mergeDeps } from '@/lib/merge-deps'
 // ---------------------------------------------------------------------------
 
 /**
- * Tries the manual catalog with every known key for an identity:
- * DID → URI (hostname) → handle → extra keys.
+ * Tries the manual catalog by DID, then by extra keys (e.g. tool hostnames).
+ * Under DID-first, identity.uri === identity.did, so we only need two lookups.
  */
 export function lookupManualByIdentity(
   identity: Identity,
   extraKeys?: string[],
 ) {
-  if (identity.did) {
-    const r = lookupManualStewardRecord(identity.did)
-    if (r) return r
-  }
-  if (identity.uri !== identity.did) {
-    const r = lookupManualStewardRecord(identity.uri)
-    if (r) return r
-  }
-  if (identity.handle) {
-    const r = lookupManualStewardRecord(identity.handle)
-    if (r) return r
-  }
+  const r = lookupManualStewardRecord(identity.did)
+  if (r) return r
   for (const key of extraKeys ?? []) {
     const r = lookupManualStewardRecord(key)
     if (r) return r
@@ -71,46 +61,42 @@ export async function resolveFunding(
   identity: Identity,
   options?: ResolveFundingOptions,
 ): Promise<ResolveFundingResult> {
-  // 1. Try fund.at records
-  if (identity.did) {
-    try {
-      let fundAt
-      if (options?.session && identity.did === options.session.did) {
-        const own = await fetchOwnFundAtRecords(options.session)
-        fundAt = own ? { stewardDid: identity.did, ...own } : null
-      } else if (options?.ctx?.fundAtPrefetch.has(identity.did)) {
-        // Use the prefetched promise from Phase 1
-        const result = await options.ctx.fundAtPrefetch.get(identity.did)!
-        fundAt = result ? { stewardDid: identity.did, ...result } : null
-      } else {
-        fundAt = await fetchFundAtForStewardDid(identity.did)
-      }
-      if (fundAt) {
-        const manual = lookupManualByIdentity(identity, options?.extraCatalogKeys)
-        return {
-          funding: {
-            source: 'fund.at',
-            contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
-            dependencies: mergeDeps(
-              fundAt.dependencies?.map((d) => d.uri),
-              manual?.dependencies,
-            ),
-            channels: fundAt.channels,
-            plans: fundAt.plans,
-          },
-        }
-      }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'fund.at fetch failed'
-      logger.warn('funding: fund.at fetch failed', {
-        uri: identity.uri,
-        did: identity.did,
-        error: message,
-      })
+  // 1. Try fund.at records (DID is always present)
+  try {
+    let fundAt
+    if (options?.session && identity.did === options.session.did) {
+      const own = await fetchOwnFundAtRecords(options.session)
+      fundAt = own ? { stewardDid: identity.did, ...own } : null
+    } else if (options?.ctx?.fundAtPrefetch.has(identity.did)) {
+      const result = await options.ctx.fundAtPrefetch.get(identity.did)!
+      fundAt = result ? { stewardDid: identity.did, ...result } : null
+    } else {
+      fundAt = await fetchFundAtForStewardDid(identity.did)
+    }
+    if (fundAt) {
+      const manual = lookupManualByIdentity(identity, options?.extraCatalogKeys)
       return {
-        ...(await resolveFundingFallback(identity, options?.extraCatalogKeys)),
-        warning: { step: 'fund-at-fetch', message },
+        funding: {
+          source: 'fund.at',
+          contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
+          dependencies: mergeDeps(
+            fundAt.dependencies?.map((d) => d.uri),
+            manual?.dependencies,
+          ),
+          channels: fundAt.channels,
+          plans: fundAt.plans,
+        },
       }
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'fund.at fetch failed'
+    logger.warn('funding: fund.at fetch failed', {
+      did: identity.did,
+      error: message,
+    })
+    return {
+      ...(await resolveFundingFallback(identity, options?.extraCatalogKeys)),
+      warning: { step: 'fund-at-fetch', message },
     }
   }
 
@@ -126,34 +112,31 @@ export async function resolveFundingForDep(
   identity: Identity,
   ctx?: ScanContext,
 ): Promise<Funding> {
-  if (identity.did) {
-    try {
-      let fundAt
-      if (ctx?.fundAtPrefetch.has(identity.did)) {
-        fundAt = await ctx.fundAtPrefetch.get(identity.did)!
-      } else {
-        fundAt = await fetchFundAtRecords(identity.did)
-      }
-      if (fundAt) {
-        const manual = lookupManualByIdentity(identity)
-        return {
-          source: 'fund.at',
-          contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
-          dependencies: mergeDeps(
-            fundAt.dependencies?.map((d) => d.uri),
-            manual?.dependencies,
-          ),
-          channels: fundAt.channels,
-          plans: fundAt.plans,
-        }
-      }
-    } catch (e) {
-      logger.warn('funding: dep fund.at fetch failed', {
-        uri: identity.uri,
-        did: identity.did,
-        error: e instanceof Error ? e.message : String(e),
-      })
+  try {
+    let fundAt
+    if (ctx?.fundAtPrefetch.has(identity.did)) {
+      fundAt = await ctx.fundAtPrefetch.get(identity.did)!
+    } else {
+      fundAt = await fetchFundAtRecords(identity.did)
     }
+    if (fundAt) {
+      const manual = lookupManualByIdentity(identity)
+      return {
+        source: 'fund.at',
+        contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
+        dependencies: mergeDeps(
+          fundAt.dependencies?.map((d) => d.uri),
+          manual?.dependencies,
+        ),
+        channels: fundAt.channels,
+        plans: fundAt.plans,
+      }
+    }
+  } catch (e) {
+    logger.warn('funding: dep fund.at fetch failed', {
+      did: identity.did,
+      error: e instanceof Error ? e.message : String(e),
+    })
   }
 
   return (await resolveFundingFallback(identity)).funding

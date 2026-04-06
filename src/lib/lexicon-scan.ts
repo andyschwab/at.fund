@@ -40,12 +40,11 @@ export async function scanRepo(
   const enriched = await enrichAccounts(
     session,
     gathered.accounts,
-    gathered.unresolvedServices,
     undefined,
     ctx,
   )
 
-  const allEntries = [...enriched.entries, ...enriched.unresolvedEntries]
+  const allEntries = [...enriched.entries]
   const warnings: ScanWarning[] = [...gathered.warnings, ...enriched.warnings]
 
   // ── Phase 3: Capabilities ───────────────────────────────────────────
@@ -60,23 +59,25 @@ export async function scanRepo(
   // ── Phase 4: Dependencies ───────────────────────────────────────────
   const referencedEntries = await resolveDependencies(allEntries, undefined, ctx)
 
-  // ── PDS host entry ──────────────────────────────────────────────────
+  // ── PDS host entry (only if operator resolves to a DID) ─────────────
   let pdsEntry: StewardEntry | undefined
   if (gathered.pdsUrl) {
     try {
       const pdsHostname = new URL(gathered.pdsUrl).hostname
       const funding = (await fetchFundingForUriLike(gathered.pdsUrl)) ?? undefined
-      const entryway = funding?.pdsEntryway ?? pdsHostname
-      pdsEntry = {
-        uri: funding?.pdsStewardUri ?? entryway,
-        did: funding?.stewardDid,
-        handle: funding?.pdsStewardHandle,
-        tags: ['tool', 'pds-host'],
-        displayName: funding?.pdsStewardUri ?? entryway,
-        contributeUrl: funding?.contributeUrl,
-        dependencies: funding?.dependencies?.map((d) => d.uri),
-        source: funding ? 'fund.at' : 'unknown',
-        capabilities: [{ type: 'pds', name: entryway, hostname: entryway, landingPage: `https://${entryway}` }],
+      if (funding?.stewardDid) {
+        const entryway = funding.pdsEntryway ?? pdsHostname
+        pdsEntry = {
+          uri: funding.stewardDid,
+          did: funding.stewardDid,
+          handle: funding.pdsStewardHandle,
+          tags: ['tool', 'pds-host'],
+          displayName: funding.pdsStewardUri ?? entryway,
+          contributeUrl: funding.contributeUrl,
+          dependencies: funding.dependencies?.map((d) => d.uri),
+          source: 'fund.at',
+          capabilities: [{ type: 'pds', name: entryway, hostname: entryway, landingPage: `https://${entryway}` }],
+        }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'PDS host lookup failed'
@@ -88,10 +89,10 @@ export async function scanRepo(
   // ── Sort and return ─────────────────────────────────────────────────
   const entries = pdsEntry ? [pdsEntry, ...allEntries] : allEntries
 
-  const lookup = (uri: string) => entries.find((e) => e.uri === uri)
+  const lookup = (uri: string) => entries.find((e) => e.did === uri || e.uri === uri)
   entries.sort((a, b) => {
     const diff = entryPriority(a, lookup) - entryPriority(b, lookup)
-    return diff !== 0 ? diff : a.uri.localeCompare(b.uri)
+    return diff !== 0 ? diff : a.did.localeCompare(b.did)
   })
 
   logger.info('scan: completed', {
