@@ -86,6 +86,19 @@ export function SessionProvider({
     }
   }, [state.hasSession, invalidateSession])
 
+  // One-time mount check: clear stale cookies and confirm session state.
+  // layout.tsx can't delete cookies during SSR render, so a stale `did`
+  // cookie can survive a server restart. This lightweight call (~50ms)
+  // lets the route handler clean it up.
+  useEffect(() => {
+    void checkSession().then((result) => {
+      if (!result.valid && state.hasSession) {
+        void invalidateSession()
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // mount-only
+
   // Validate on route change (client-side navigation)
   useEffect(() => {
     if (pathname !== lastValidatedPath.current) {
