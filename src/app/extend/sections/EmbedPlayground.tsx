@@ -25,15 +25,18 @@ height: 120px;`
 export function EmbedPlayground() {
   const [handle, setHandle] = useState('atprotocol.dev')
   const [buttonLabel, setButtonLabel] = useState('Support')
-  const [theme, setTheme] = useState<(typeof THEMES)[number]>('Light')
+  const [theme, setTheme] = useState<(typeof THEMES)[number]>('Auto')
   const [customCss, setCustomCss] = useState(IFRAME_CSS)
   const [iframeKey, setIframeKey] = useState(0)
+  const [mounted, setMounted] = useState(false)
 
   // Raw steward data
   const [stewardData, setStewardData] = useState<string | null>(null)
   const [stewardLoading, setStewardLoading] = useState(false)
 
   const reload = useCallback(() => setIframeKey((k) => k + 1), [])
+
+  useEffect(() => { setMounted(true) }, [])
 
   // Fetch steward data when handle changes
   const fetchSteward = useCallback(async (h: string) => {
@@ -80,14 +83,12 @@ export function EmbedPlayground() {
     }
   })
 
-  // Build embed URL with params
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://at.fund'
+  // Build embed path with query params
   const qp = new URLSearchParams()
   if (buttonLabel && buttonLabel !== 'Support') qp.set('label', buttonLabel)
-  if (theme !== 'Light') qp.set('theme', theme.toLowerCase())
+  if (theme !== 'Auto') qp.set('theme', theme.toLowerCase())
   const qs = qp.toString()
   const embedPath = handle.trim() ? `/embed/${handle.trim()}${qs ? `?${qs}` : ''}` : ''
-  const embedSrc = embedPath ? `${origin}${embedPath}` : ''
   const publicSrc = embedPath ? `https://at.fund${embedPath}` : ''
 
   const embedHtml = publicSrc
@@ -96,6 +97,27 @@ export function EmbedPlayground() {
 
   return (
     <div className="space-y-6">
+      {/* Live preview — shown first */}
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          Live preview
+        </p>
+        <div className="flex min-h-[140px] items-start justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-6 dark:border-slate-700 dark:bg-slate-800/30">
+          {mounted && embedPath ? (
+            <iframe
+              key={iframeKey}
+              src={embedPath}
+              style={iframeStyle}
+              title="Support on at.fund"
+            />
+          ) : (
+            <p className="text-sm text-slate-400">
+              {embedPath ? 'Loading preview…' : 'Enter a handle to see the preview'}
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* Config inputs */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
@@ -151,7 +173,7 @@ export function EmbedPlayground() {
         </div>
       </div>
 
-      {/* Raw data */}
+      {/* Steward data */}
       <div>
         <div className="mb-2 flex items-center gap-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
@@ -172,25 +194,6 @@ export function EmbedPlayground() {
             </pre>
           </div>
         )}
-      </div>
-
-      {/* Live preview — shown first */}
-      <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-          Live preview
-        </p>
-        <div className="flex min-h-[140px] items-start justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-6 dark:border-slate-700 dark:bg-slate-800/30">
-          {embedSrc ? (
-            <iframe
-              key={iframeKey}
-              src={embedSrc}
-              style={iframeStyle}
-              title="Support on at.fund"
-            />
-          ) : (
-            <p className="text-sm text-slate-400">Enter a handle to see the preview</p>
-          )}
-        </div>
       </div>
 
       {/* Two-column: CSS controls | embed code */}

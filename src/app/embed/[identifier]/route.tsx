@@ -100,10 +100,8 @@ export async function GET(
   const identifier = decodeURIComponent(rawId)
   const url = new URL(request.url)
   const buttonLabel = url.searchParams.get('label') || 'Support'
-  const theme = (url.searchParams.get('theme') || 'light') as Theme
-  if (!['light', 'dark', 'auto'].includes(theme)) {
-    // fallback to light for invalid values
-  }
+  const rawTheme = url.searchParams.get('theme') || 'auto'
+  const theme: Theme = ['light', 'dark', 'auto'].includes(rawTheme) ? rawTheme as Theme : 'auto'
 
   // Resolve identity, then funding
   const identity = await resolveIdentity(identifier)
