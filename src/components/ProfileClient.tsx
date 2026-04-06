@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
@@ -290,6 +290,26 @@ export function ProfileClient({
   const [indexVersion, setIndexVersion] = useState(0)
   const bumpIndex = useCallback(() => setIndexVersion((v) => v + 1), [])
 
+  // Resolve a URI via /api/entry and upsert the result + referenced entries
+  // into the shared index. Used on mount (profile subject) and after save.
+  const resolveIntoIndex = useCallback(async (uri: string) => {
+    try {
+      const res = await fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
+      if (!res.ok) return
+      const data = await res.json() as { entry: StewardEntry; referenced: StewardEntry[] }
+      entryIndexRef.current.upsert(data.entry)
+      for (const ref of data.referenced) {
+        entryIndexRef.current.upsert(ref)
+      }
+      bumpIndex()
+    } catch { /* best-effort */ }
+  }, [bumpIndex])
+
+  // Resolve the profile subject's dependencies on mount
+  useEffect(() => {
+    void resolveIntoIndex(did)
+  }, [did, resolveIntoIndex])
+
   const handleStreamEntry = useCallback((entry: StewardEntry) => {
     entryIndexRef.current.upsert(entry)
     bumpIndex()
@@ -370,7 +390,9 @@ export function ProfileClient({
     })
     setFormOverrides(null)
     setEditing(false)
-  }, [baseEntry])
+    // Re-resolve to pick up newly saved dependencies
+    void resolveIntoIndex(did)
+  }, [baseEntry, did, resolveIntoIndex])
 
   // Resolve entry first, then endorse once with the canonical DID
   const endorseAndFetch = useCallback(async (uri: string) => {
@@ -382,9 +404,9 @@ export function ProfileClient({
       for (const ref of data.referenced) {
         entryIndexRef.current.upsert(ref)
       }
+      bumpIndex()
       // Endorse with the canonical DID only — no handle-keyed records
       void endorse(data.entry.did)
-      bumpIndex()
     } catch {
       // resolution failed; don't create a handle-keyed endorsement
     }
