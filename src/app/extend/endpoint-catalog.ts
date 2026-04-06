@@ -74,7 +74,6 @@ export const ENDPOINTS: EndpointConfig[] = [
         default: 'blacksky.app',
       },
     ],
-    note: 'Use this to test PDS catalog entries. Try: blacksky.app · eurosky.social · tngl.sh · roomy.chat',
   },
   // ── Auth ────────────────────────────────────────────────────────────────
   {
@@ -171,24 +170,6 @@ export const ENDPOINTS: EndpointConfig[] = [
       },
     ],
   },
-  // ── Admin ───────────────────────────────────────────────────────────────
-  {
-    id: 'pds-platforms',
-    method: 'POST',
-    path: '/api/admin/pds-platforms',
-    description:
-      'Fingerprint PDS hosts via com.atproto.server.describeServer. Detects platform (atproto, picopds, nginx, …). Returns summary + per-host fingerprints.',
-    auth: 'admin',
-    params: [
-      {
-        kind: 'body',
-        label: 'body',
-        placeholder: '{"hosts":"blacksky.app\\neurosky.social"}',
-        default: '{"hosts":"blacksky.app\\neurosky.social\\ntngl.sh\\nroomy.chat"}',
-        multiline: true,
-      },
-    ],
-  },
 ]
 
 export const SECTIONS: Array<{ title: string; subtitle: string; ids: string[] }> = [
@@ -201,11 +182,6 @@ export const SECTIONS: Array<{ title: string; subtitle: string; ids: string[] }>
     title: 'Authenticated',
     subtitle: 'Requires an active session — sign in via the navbar first',
     ids: ['lexicons', 'lexicons-stream', 'lexicons-post', 'endorse', 'endorse-delete', 'setup'],
-  },
-  {
-    title: 'Admin',
-    subtitle: 'Requires admin handle',
-    ids: ['pds-platforms'],
   },
 ]
 
