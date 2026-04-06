@@ -13,6 +13,8 @@ Usage:
   python3 scripts/resolve-catalog-dids.py --remove  # also remove unresolvable entries
 """
 
+from __future__ import annotations
+
 import json
 import os
 import sys
