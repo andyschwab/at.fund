@@ -1,42 +1,73 @@
 import { ImageResponse } from 'next/og'
 import { Client } from '@atproto/lex'
 import { xrpcQuery } from '@/lib/xrpc'
+import { resolveDidFromIdentifier } from '@/lib/fund-at-records'
 import { fetchPublicEndorsements } from '@/lib/pipeline/fetch-public-endorsements'
+import { fetchFundAtRecords } from '@/lib/fund-at-records'
 
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
-// Cache for 24 hours; stale-while-revalidate in the background
 export const revalidate = 86400
 
 const PUBLIC_API = 'https://public.api.bsky.app'
 
 type Props = {
-  params: Promise<{ handle: string }>
+  params: Promise<{ identifier: string }>
 }
 
 export default async function Image({ params }: Props) {
-  const { handle } = await params
+  const { identifier } = await params
+  const decoded = decodeURIComponent(identifier)
 
-  // Run profile fetch and endorsement count lookup in parallel
+  // Resolve identity
+  let handle = decoded
+  let did: string | undefined
+  if (decoded.startsWith('did:')) {
+    did = decoded
+  } else {
+    did = await resolveDidFromIdentifier(decoded)
+  }
+
   let displayName = `@${handle}`
   let avatar: string | undefined
-  let count = 0
+  let endorsementCount = 0
+  let hasFunding = false
 
-  const [profileResult, endorsedUris] = await Promise.allSettled([
-    xrpcQuery<{
-      profiles?: Array<{ handle?: string; displayName?: string; avatar?: string }>
-    }>(new Client(PUBLIC_API), 'app.bsky.actor.getProfiles', { actors: [handle] }),
-    fetchPublicEndorsements(handle),
-  ])
+  const fetches: Promise<unknown>[] = []
+
+  // Profile fetch
+  const profileFetch = xrpcQuery<{
+    profiles?: Array<{ handle?: string; displayName?: string; avatar?: string }>
+  }>(new Client(PUBLIC_API), 'app.bsky.actor.getProfiles', { actors: [did ?? handle] })
+  fetches.push(profileFetch)
+
+  // Endorsements
+  const endorseFetch = fetchPublicEndorsements(handle)
+  fetches.push(endorseFetch)
+
+  // Funding records
+  if (did) {
+    const fundingFetch = fetchFundAtRecords(did)
+    fetches.push(fundingFetch)
+  }
+
+  const [profileResult, endorseResult, fundingResult] = await Promise.allSettled(fetches)
 
   if (profileResult.status === 'fulfilled') {
-    const profile = profileResult.value.profiles?.[0]
+    const data = profileResult.value as { profiles?: Array<{ handle?: string; displayName?: string; avatar?: string }> }
+    const profile = data.profiles?.[0]
     if (profile?.displayName) displayName = profile.displayName
+    if (profile?.handle) handle = profile.handle
     if (profile?.avatar) avatar = profile.avatar
   }
 
-  if (endorsedUris.status === 'fulfilled') {
-    count = endorsedUris.value.length
+  if (endorseResult.status === 'fulfilled') {
+    endorsementCount = (endorseResult.value as string[]).length
+  }
+
+  if (fundingResult?.status === 'fulfilled') {
+    const records = fundingResult.value as { contributeUrl?: string } | null
+    hasFunding = !!records?.contributeUrl
   }
 
   return new ImageResponse(
@@ -131,18 +162,23 @@ export default async function Image({ params }: Props) {
           </div>
         </div>
 
-        {/* Endorsement count */}
+        {/* Status line */}
         <div
           style={{
-            fontSize: 40,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 32,
+            fontSize: 32,
             fontWeight: 600,
             color: 'rgba(255,255,255,0.9)',
             letterSpacing: '-0.01em',
           }}
         >
-          {count === 0
-            ? 'No endorsed projects yet'
-            : `${count} project${count === 1 ? '' : 's'} endorsed`}
+          {hasFunding && <span>Accepting support</span>}
+          {hasFunding && endorsementCount > 0 && <span style={{ color: 'rgba(255,255,255,0.5)' }}>·</span>}
+          {endorsementCount > 0
+            ? `${endorsementCount} project${endorsementCount === 1 ? '' : 's'} endorsed`
+            : !hasFunding && 'at.fund profile'}
         </div>
       </div>
     ),

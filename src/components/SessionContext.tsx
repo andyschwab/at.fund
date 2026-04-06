@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 type SessionState = {
   hasSession: boolean
   did: string | null
+  handle: string | null
 }
 
 type SessionContextValue = SessionState & {
@@ -26,18 +27,18 @@ export function useSession(): SessionContextValue {
   return ctx
 }
 
-async function checkSession(): Promise<{ valid: boolean; did: string | null }> {
+async function checkSession(): Promise<{ valid: boolean; did: string | null; handle: string | null }> {
   try {
     const res = await fetch('/api/auth/check')
     if (!res.ok) {
       console.warn('[auth] session check returned', res.status)
-      return { valid: false, did: null }
+      return { valid: false, did: null, handle: null }
     }
     return await res.json()
   } catch (err) {
     console.warn('[auth] session check network error:', err)
     // Network error — don't invalidate, could be transient
-    return { valid: true, did: null }
+    return { valid: true, did: null, handle: null }
   }
 }
 
@@ -57,7 +58,7 @@ export function SessionProvider({
   const invalidateSession = useCallback(async () => {
     // Fire-and-forget logout to clear server cookie
     try { await fetch('/oauth/logout', { method: 'POST' }) } catch {}
-    setState({ hasSession: false, did: null })
+    setState({ hasSession: false, did: null, handle: null })
     // Full reload so SSR re-evaluates session state cleanly
     window.location.href = '/'
   }, [])
@@ -82,8 +83,18 @@ export function SessionProvider({
     if (!result.valid) {
       console.warn('[auth] session invalidated — server could not restore session')
       await invalidateSession()
+    } else if (result.handle && result.handle !== state.handle) {
+      setState((prev) => ({ ...prev, handle: result.handle }))
     }
-  }, [state.hasSession, invalidateSession])
+  }, [state.hasSession, state.handle, invalidateSession])
+
+  // Resolve handle on initial mount if we have a session but no handle
+  useEffect(() => {
+    if (state.hasSession && !state.handle) {
+      void validateSession()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentional mount-only
 
   // Validate on route change (client-side navigation)
   useEffect(() => {
@@ -136,7 +147,7 @@ export function SessionProvider({
 
   const logout = useCallback(async () => {
     await fetch('/oauth/logout', { method: 'POST' })
-    setState({ hasSession: false, did: null })
+    setState({ hasSession: false, did: null, handle: null })
     window.location.href = '/'
   }, [])
 

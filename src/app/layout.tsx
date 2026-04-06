@@ -42,6 +42,8 @@ export default async function RootLayout({
 }>) {
   const session = await getSession();
   const did = session?.did ?? null;
+  // Handle is resolved lazily via auth check — pass null initially
+  const handle: string | null = null;
 
   return (
     <html
@@ -49,7 +51,7 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background font-sans text-foreground">
-        <SessionProvider initial={{ hasSession: !!session, did }}>
+        <SessionProvider initial={{ hasSession: !!session, did, handle }}>
           <NavBar />
           {children}
         </SessionProvider>

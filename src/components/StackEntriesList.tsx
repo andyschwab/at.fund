@@ -19,7 +19,6 @@ export function StackEntriesList({
             entry={entry}
             allEntries={allEntries}
             active
-            onEndorse={() => { window.location.href = '/give' }}
           />
         </CardErrorBoundary>
       ))}
