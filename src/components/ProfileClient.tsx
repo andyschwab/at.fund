@@ -9,7 +9,6 @@ import {
   Check,
   Copy,
   Pencil,
-  Share2,
 } from 'lucide-react'
 import { DropletIcon } from '@/components/DropletIcon'
 import {
@@ -44,15 +43,9 @@ type ProfileClientProps = {
 // Share helpers
 // ---------------------------------------------------------------------------
 
-function useShareActions(handle: string, isOwner: boolean) {
+function useShareActions(handle: string) {
   const [copied, setCopied] = useState(false)
   const profileUrl = `https://at.fund/${handle}`
-
-  const shareText = isOwner
-    ? `Support the tools I build on the Atmosphere\n${profileUrl}`
-    : `Check out @${handle} on at.fund\n${profileUrl}`
-
-  const bskyShareUrl = `https://bsky.app/intent/compose?text=${encodeURIComponent(shareText)}`
 
   function copyLink() {
     void navigator.clipboard.writeText(profileUrl)
@@ -60,7 +53,7 @@ function useShareActions(handle: string, isOwner: boolean) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  return { bskyShareUrl, copyLink, copied }
+  return { copyLink, copied }
 }
 
 // ---------------------------------------------------------------------------
@@ -117,7 +110,6 @@ function ProfileCard({
   onUnendorseUri,
   editing,
   onEditToggle,
-  bskyShareUrl,
   copyLink,
   copied,
   allEntries,
@@ -136,7 +128,6 @@ function ProfileCard({
   onUnendorseUri?: (uri: string) => void
   editing: boolean
   onEditToggle: () => void
-  bskyShareUrl: string
   copyLink: () => void
   copied: boolean
   allEntries: StewardEntry[]
@@ -225,21 +216,6 @@ function ProfileCard({
               <span>{isEndorsed ? 'Endorsed' : 'Endorse'}</span>
             </button>
           )}
-          {viewMode === 'public' && (
-            <button
-              type="button"
-              onClick={() => {
-                const dialog = document.querySelector<HTMLDialogElement>('dialog')
-                dialog?.showModal()
-              }}
-              title="Sign in to endorse"
-              className="flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-medium text-slate-300 cursor-pointer transition-colors hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400"
-            >
-              <BadgePlus className="h-5 w-5" strokeWidth={1.5} aria-hidden />
-              <span>Endorse</span>
-            </button>
-          )}
-
           {/* Owner edit button — grayed out while editing */}
           {viewMode === 'owner' && (
             <button
@@ -258,17 +234,8 @@ function ProfileCard({
             </button>
           )}
 
-          {/* Share + copy */}
-          <div className="ml-1 flex items-center gap-1 border-l border-slate-200 pl-2 dark:border-slate-700">
-            <a
-              href={bskyShareUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Share on Bluesky"
-              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#0085ff] dark:hover:bg-slate-800"
-            >
-              <Share2 className="h-4 w-4" aria-hidden />
-            </a>
+          {/* Copy link */}
+          <div className="ml-1 flex items-center border-l border-slate-200 pl-2 dark:border-slate-700">
             <button
               type="button"
               onClick={copyLink}
@@ -351,7 +318,7 @@ export function ProfileClient({
     return profileEndorsedUris
   }, [hasSession, viewMode, profileEndorsedUris, viewerEndorsedUris])
 
-  const { bskyShareUrl, copyLink, copied } = useShareActions(handle, viewMode === 'owner')
+  const { copyLink, copied } = useShareActions(handle)
 
   // Shared entry index — single source of truth for all resolved entries.
   // Populated by StackStream (endorsed entries + deps) and endorse-by-handle.
@@ -507,7 +474,6 @@ export function ProfileClient({
             onUnendorseUri={hasSession ? handleUnendorse : undefined}
             editing={editing}
             onEditToggle={() => setEditing(true)}
-            bskyShareUrl={bskyShareUrl}
             copyLink={copyLink}
             copied={copied}
             allEntries={allEntries}

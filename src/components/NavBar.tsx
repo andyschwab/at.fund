@@ -9,14 +9,12 @@ import {
   LogIn,
   LogOut,
   Menu,
-  User,
   X,
 } from 'lucide-react'
 import { useSession } from '@/components/SessionContext'
 import { LoginForm } from '@/components/LoginForm'
 
 const NAV_LINKS = [
-  { href: '/', label: 'Home' },
   { href: '/give', label: 'Give' },
   { href: '/spec', label: 'Spec' },
   { href: '/extend', label: 'Extend' },
@@ -58,6 +56,18 @@ export function NavBar() {
 
           {/* Desktop links */}
           <div className="hidden items-center gap-1 sm:flex">
+            {hasSession && (handle || did) && (
+              <Link
+                href={`/${handle ?? did}`}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  pathname === `/${handle ?? did}`
+                    ? 'bg-[var(--support-muted)] text-[var(--support)]'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
+                }`}
+              >
+                My Profile
+              </Link>
+            )}
             {NAV_LINKS.map(({ href, label }) => {
               const active = pathname === href
               return (
@@ -74,35 +84,25 @@ export function NavBar() {
                 </Link>
               )
             })}
-            {hasSession && (handle || did) && (
-              <Link
-                href={`/${handle ?? did}`}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  pathname === `/${handle ?? did}`
-                    ? 'bg-[var(--support-muted)] text-[var(--support)]'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
-                }`}
+            {hasSession ? (
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="ml-2 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
               >
-                My Profile
-              </Link>
+                <LogOut className="h-4 w-4" aria-hidden />
+                Sign Out
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={openAuthModal}
+                className="ml-2 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+              >
+                <LogIn className="h-4 w-4" aria-hidden />
+                Login
+              </button>
             )}
-            <button
-              type="button"
-              onClick={openAuthModal}
-              className="ml-2 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-            >
-              {hasSession ? (
-                <>
-                  <User className="h-4 w-4" aria-hidden />
-                  Account
-                </>
-              ) : (
-                <>
-                  <LogIn className="h-4 w-4" aria-hidden />
-                  Login
-                </>
-              )}
-            </button>
             <a
               href={BUG_REPORT_URL}
               target="_blank"
@@ -133,6 +133,19 @@ export function NavBar() {
         {mobileOpen && (
           <div className="border-t border-slate-200/80 px-4 py-3 sm:hidden dark:border-slate-800">
             <div className="flex flex-col gap-1">
+              {hasSession && (handle || did) && (
+                <Link
+                  href={`/${handle ?? did}`}
+                  onClick={() => setMobileOpen(false)}
+                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    pathname === `/${handle ?? did}`
+                      ? 'bg-[var(--support-muted)] text-[var(--support)]'
+                      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  My Profile
+                </Link>
+              )}
               {NAV_LINKS.map(({ href, label }) => {
                 const active = pathname === href
                 return (
@@ -150,39 +163,31 @@ export function NavBar() {
                   </Link>
                 )
               })}
-              {hasSession && (handle || did) && (
-                <Link
-                  href={`/${handle ?? did}`}
-                  onClick={() => setMobileOpen(false)}
-                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    pathname === `/${handle ?? did}`
-                      ? 'bg-[var(--support-muted)] text-[var(--support)]'
-                      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
-                  }`}
+              {hasSession ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false)
+                    void logout()
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 >
-                  My Profile
-                </Link>
+                  <LogOut className="h-4 w-4" aria-hidden />
+                  Sign Out
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false)
+                    openAuthModal()
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                >
+                  <LogIn className="h-4 w-4" aria-hidden />
+                  Login
+                </button>
               )}
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileOpen(false)
-                  openAuthModal()
-                }}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-              >
-                {hasSession ? (
-                  <>
-                    <User className="h-4 w-4" aria-hidden />
-                    Account
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="h-4 w-4" aria-hidden />
-                    Login
-                  </>
-                )}
-              </button>
               <a
                 href={BUG_REPORT_URL}
                 target="_blank"
@@ -207,7 +212,7 @@ export function NavBar() {
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
           <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            {hasSession ? 'Your session' : 'Sign in'}
+            Sign in
           </p>
           <button
             type="button"
@@ -220,39 +225,7 @@ export function NavBar() {
         </div>
 
         <div className="p-5">
-          {hasSession ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <span
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--support-muted)] text-sm font-semibold text-[var(--support)]"
-                  aria-hidden
-                >
-                  <User className="h-5 w-5" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                    Signed in
-                  </p>
-                  <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                    Session active
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  closeAuthModal()
-                  void logout()
-                }}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                <LogOut className="h-4 w-4" aria-hidden />
-                Sign out
-              </button>
-            </div>
-          ) : (
-            <LoginForm id="nav-handle-input" />
-          )}
+          <LoginForm id="nav-handle-input" />
         </div>
       </dialog>
     </>

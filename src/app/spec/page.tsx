@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import type { Metadata } from 'next'
 import declarationSchema from '../../../lexicon/fund.at.actor.declaration.json'
 import contributeSchema from '../../../lexicon/fund.at.funding.contribute.json'
@@ -287,10 +286,6 @@ export default function SpecPage() {
   return (
     <div className="page-wash min-h-screen">
       <div className="mx-auto max-w-2xl px-6 py-12">
-
-        <Link href="/" className="text-sm text-sky-700 underline dark:text-sky-400">
-          &larr; Back
-        </Link>
 
         {/* ── Section 1: Hero / Vision ──────────────────────────── */}
         <div className="mt-10">

@@ -702,9 +702,8 @@ export function SetupClient({ did, handle, existing, initialEntry, onFormChange,
                 Your dependencies
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Projects yours depends on -- so contributions can flow through the
-                chain. Use handles (alice.bsky.social), domains (example.com), or
-                DIDs (did:plc:...).
+                Projects yours depends on — so contributions can flow through the
+                chain.
               </p>
 
               <HandleChipInput
