@@ -65,6 +65,8 @@ function mergeEntries(base: StewardEntry, incoming: StewardEntry): StewardEntry 
     contributeUrl,
     dependencies,
     capabilities,
+    channels: preferred.channels ?? other.channels,
+    plans: preferred.plans ?? other.plans,
   }
 }
 

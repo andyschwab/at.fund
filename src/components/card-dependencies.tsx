@@ -18,6 +18,7 @@ import {
   HandleBadge,
   TagBadges,
   CapabilitiesSection,
+  FundingChannelsSection,
   websiteFallbackForUri,
   profileUrlFor,
 } from '@/components/card-primitives'
@@ -191,6 +192,10 @@ function ModalCardContent({
 
       {entry.capabilities && entry.capabilities.length > 0 && (
         <CapabilitiesSection capabilities={entry.capabilities} />
+      )}
+
+      {(entry.channels || entry.plans) && (
+        <FundingChannelsSection channels={entry.channels} plans={entry.plans} />
       )}
 
       {entry.dependencies && entry.dependencies.length > 0 && (
