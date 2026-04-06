@@ -1,8 +1,16 @@
 import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
-import { resolveDidFromIdentifier, resolveHandleFromDid, fetchFundAtRecords, fetchOwnFundAtRecords } from '@/lib/fund-at-records'
+import {
+  resolveDidFromIdentifier,
+  resolveHandleFromDid,
+  fetchFundAtRecords,
+  fetchOwnFundAtRecords,
+} from '@/lib/fund-at-records'
 import { fetchPublicEndorsements } from '@/lib/pipeline/fetch-public-endorsements'
-import { resolveEntry } from '@/lib/pipeline/entry-resolve'
+import { batchFetchProfiles } from '@/lib/identity'
+import { buildIdentity } from '@/lib/steward-model'
+import { lookupManualByIdentity } from '@/lib/funding'
+import { mergeDeps } from '@/lib/merge-deps'
 import { getSession } from '@/lib/auth/session'
 import { ProfileClient } from '@/components/ProfileClient'
 import type { StewardEntry } from '@/lib/steward-model'
@@ -13,28 +21,13 @@ type Props = {
   searchParams: Promise<{ edit?: string }>
 }
 
-async function resolveProfile(identifier: string) {
-  // Resolve DID from handle, DID, or hostname
-  let did: string | undefined
-  if (identifier.startsWith('did:')) {
-    did = identifier
-  } else {
-    did = await resolveDidFromIdentifier(identifier)
-  }
-  if (!did) return null
-
-  const handle = identifier.startsWith('did:')
-    ? await resolveHandleFromDid(did).catch(() => undefined)
-    : identifier
-
-  return { did, handle }
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { identifier } = await params
   const decoded = decodeURIComponent(identifier)
-  const profile = await resolveProfile(decoded)
-  const displayName = profile?.handle ?? decoded
+  // Use the identifier directly as the display name — no extra network calls
+  const displayName = decoded.startsWith('did:')
+    ? decoded.slice(0, 24) + '…'
+    : decoded
 
   return {
     title: `${displayName} — at.fund`,
@@ -53,8 +46,15 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const { edit } = await searchParams
   const decoded = decodeURIComponent(identifier)
 
-  const profile = await resolveProfile(decoded)
-  if (!profile) {
+  // ── Step 1: Resolve DID (the one required sequential call) ──────────
+  let did: string | undefined
+  if (decoded.startsWith('did:')) {
+    did = decoded
+  } else {
+    did = await resolveDidFromIdentifier(decoded)
+  }
+
+  if (!did) {
     return (
       <div className="page-wash min-h-full">
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-4 px-4 py-16 text-center">
@@ -69,33 +69,76 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     )
   }
 
-  const { did, handle } = profile
-
-  // Determine viewer context
+  // ── Step 2: Determine viewer context (local, no network) ────────────
   const cookieStore = await cookies()
   const sessionDid = cookieStore.get('did')?.value
   const isOwner = !!(sessionDid && sessionDid === did)
   const isViewer = !!(sessionDid && sessionDid !== did)
-  const viewMode: 'public' | 'viewer' | 'owner' = isOwner ? 'owner' : isViewer ? 'viewer' : 'public'
+  const viewMode: 'public' | 'viewer' | 'owner' = isOwner
+    ? 'owner'
+    : isViewer ? 'viewer' : 'public'
 
-  // Fetch public data in parallel
-  const [entryResult, endorsedUris] = await Promise.all([
-    resolveEntry(handle ?? did).catch((): { entry: StewardEntry; referenced: StewardEntry[] } | null => null),
-    fetchPublicEndorsements(handle ?? did).catch((): string[] => []),
-  ])
+  // ── Step 3: Fetch everything in parallel ────────────────────────────
+  // Only resolveHandleFromDid when the URL is a DID (handles are already known)
+  const handlePromise = decoded.startsWith('did:')
+    ? resolveHandleFromDid(did).catch(() => undefined)
+    : Promise.resolve(decoded)
 
-  // For owner mode, also fetch existing records for editing
-  let existing: FundAtResult | null = null
+  const profilePromise = batchFetchProfiles([did]).catch(
+    () => new Map() as Awaited<ReturnType<typeof batchFetchProfiles>>,
+  )
+  const fundingPromise = fetchFundAtRecords(did).catch(() => null)
+  const endorsePromise = fetchPublicEndorsements(decoded).catch((): string[] => [])
+
+  // Owner records join the same parallel batch
+  let ownerPromise: Promise<FundAtResult | null> = Promise.resolve(null)
   if (isOwner) {
-    try {
-      const session = await getSession()
-      if (session) {
-        existing = await fetchOwnFundAtRecords(session).catch(() => null)
-      }
-    } catch { /* best-effort */ }
+    ownerPromise = getSession()
+      .then((s) => (s ? fetchOwnFundAtRecords(s) : null))
+      .catch(() => null)
   }
 
-  const entry = entryResult?.entry ?? null
+  const [handle, profileMap, fundAtRecords, endorsedUris, existing] =
+    await Promise.all([
+      handlePromise,
+      profilePromise,
+      fundingPromise,
+      endorsePromise,
+      ownerPromise,
+    ])
+
+  // ── Step 4: Assemble StewardEntry locally (no network) ─────────────
+  const profile = profileMap.get(did)
+  const manual = lookupManualByIdentity({
+    uri: handle ?? did,
+    did,
+    handle,
+    displayName: profile?.displayName ?? handle ?? did,
+  })
+  const isTool = !decoded.startsWith('did:') && !!manual
+
+  const identity = buildIdentity({
+    ref: decoded,
+    did,
+    handle,
+    displayName: profile?.displayName,
+    description: profile?.description,
+    avatar: profile?.avatar,
+    isTool,
+  })
+
+  const entry: StewardEntry = {
+    ...identity,
+    source: fundAtRecords ? 'fund.at' : manual ? 'manual' : 'unknown',
+    contributeUrl: fundAtRecords?.contributeUrl ?? manual?.contributeUrl,
+    dependencies: mergeDeps(
+      fundAtRecords?.dependencies?.map((d) => d.uri),
+      manual?.dependencies,
+    ),
+    channels: fundAtRecords?.channels,
+    plans: fundAtRecords?.plans,
+    tags: isTool ? ['tool'] : [],
+  }
 
   return (
     <ProfileClient
