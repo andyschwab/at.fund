@@ -5,6 +5,7 @@ import * as fund from '@/lexicons/fund'
 import { FUND_CONTRIBUTE, FUND_CHANNEL, FUND_PLAN, FUND_DEPENDENCY, deleteWithFallback } from '@/lib/fund-at-records'
 import { validateUrl } from '@/lib/validate'
 import { normalizeStewardUri } from '@/lib/steward-uri'
+import { resolveRefToDid } from '@/lib/identity'
 import { logger } from '@/lib/logger'
 import { str } from '@/lib/str'
 
@@ -172,6 +173,24 @@ export async function POST(request: NextRequest) {
       },
       { status: 400 },
     )
+  }
+
+  // ── Resolve dependency URIs to DIDs before writing ───────────────────
+  if (payload.dependencies) {
+    const resolved: Array<{ uri: string; label?: string }> = []
+    for (const dep of payload.dependencies) {
+      if (dep.uri.startsWith('did:')) {
+        resolved.push(dep)
+      } else {
+        const did = await resolveRefToDid(dep.uri)
+        if (did) {
+          resolved.push({ ...dep, uri: did })
+        } else {
+          logger.warn('setup: could not resolve dependency to DID, skipping', { uri: dep.uri })
+        }
+      }
+    }
+    payload.dependencies = resolved
   }
 
   const client = new Client(session)

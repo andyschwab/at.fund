@@ -52,7 +52,7 @@ export function HandleChipInput({ chips, onChange, disabled }: Props) {
   }
 
   function pick(actor: Actor) {
-    addChip(actor.handle, actor.displayName ?? '')
+    addChip(actor.did, actor.displayName ?? actor.handle)
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
