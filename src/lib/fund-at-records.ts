@@ -4,11 +4,49 @@ import type { OAuthSession } from '@atproto/oauth-client'
 import { Client } from '@atproto/lex'
 import type { AtIdentifierString } from '@atproto/lex-client'
 import * as fund from '@/lexicons/fund'
+import type { FundingChannel, FundingPlan } from '@/lib/funding-manifest'
 import { xrpcQuery } from '@/lib/xrpc'
 
-export const FUND_CONTRIBUTE = 'fund.at.contribute'
-export const FUND_DEPENDENCY = 'fund.at.dependency'
-export const FUND_ENDORSE = 'fund.at.endorse'
+// New grouped NSIDs
+export const FUND_DECLARATION = 'fund.at.actor.declaration'
+export const FUND_CONTRIBUTE = 'fund.at.funding.contribute'
+export const FUND_CHANNEL = 'fund.at.funding.channel'
+export const FUND_PLAN = 'fund.at.funding.plan'
+export const FUND_DEPENDENCY = 'fund.at.graph.dependency'
+export const FUND_ENDORSE = 'fund.at.graph.endorse'
+
+// Legacy NSIDs — used for fallback reads and deletes during migration
+export const LEGACY_CONTRIBUTE = 'fund.at.contribute'
+export const LEGACY_DEPENDENCY = 'fund.at.dependency'
+export const LEGACY_ENDORSE = 'fund.at.endorse'
+
+/** Maps new NSID → legacy NSID for delete fallback. */
+const LEGACY_FALLBACK: Record<string, string> = {
+  [FUND_CONTRIBUTE]: LEGACY_CONTRIBUTE,
+  [FUND_DEPENDENCY]: LEGACY_DEPENDENCY,
+  [FUND_ENDORSE]: LEGACY_ENDORSE,
+}
+
+/**
+ * Delete a record, falling back to the legacy NSID if the new one fails.
+ * Covers the case where a record was written before migration.
+ */
+type Nsid = `${string}.${string}.${string}`
+
+export async function deleteWithFallback(
+  client: Client,
+  nsid: Nsid,
+  rkey: string,
+): Promise<void> {
+  try {
+    await client.deleteRecord(nsid, rkey)
+  } catch {
+    const legacy = LEGACY_FALLBACK[nsid] as Nsid | undefined
+    if (legacy) {
+      await client.deleteRecord(legacy, rkey)
+    }
+  }
+}
 
 const PUBLIC_IDENTITY = 'https://public.api.bsky.app'
 const publicClient = new Client(PUBLIC_IDENTITY)
@@ -22,6 +60,12 @@ const didDocCache = (gDid.__didDocCache ??= new Map())
 export type FundAtResult = {
   contributeUrl?: string
   dependencies?: Array<{ uri: string; label?: string }>
+  /** Payment channels from fund.at.funding.channel records. */
+  channels?: FundingChannel[]
+  /** Funding plans/tiers from fund.at.funding.plan records. */
+  plans?: FundingPlan[]
+  /** True if any records were found using legacy NSIDs (migration needed). */
+  needsMigration?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +150,45 @@ export async function resolvePdsUrl(stewardDid: string): Promise<URL | null> {
 }
 
 // ---------------------------------------------------------------------------
-// High-level fetch: fund.at.contribute + fund.at.dependency from one PDS
+// ATProto record → FundingChannel/FundingPlan conversion helpers
+// ---------------------------------------------------------------------------
+
+const CHANNEL_TYPES = ['bank', 'payment-provider', 'cheque', 'cash', 'other'] as const
+type ChannelType = (typeof CHANNEL_TYPES)[number]
+
+function parseChannelRecord(rkey: string, value: Record<string, unknown>): FundingChannel {
+  const rawType = value.channelType as string | undefined
+  return {
+    guid: rkey,
+    type: CHANNEL_TYPES.includes(rawType as ChannelType) ? (rawType as ChannelType) : 'other',
+    address: typeof value.uri === 'string' ? value.uri : '',
+    description: typeof value.description === 'string' ? value.description : undefined,
+  }
+}
+
+const FREQUENCIES = ['one-time', 'weekly', 'fortnightly', 'monthly', 'yearly', 'other'] as const
+type Frequency = (typeof FREQUENCIES)[number]
+
+function parsePlanRecord(rkey: string, value: Record<string, unknown>): FundingPlan | null {
+  if (typeof value.name !== 'string') return null
+  return {
+    guid: rkey,
+    status: value.status === 'inactive' ? 'inactive' : 'active',
+    name: value.name,
+    description: typeof value.description === 'string' ? value.description : undefined,
+    amount: typeof value.amount === 'number' ? value.amount / 100 : 0,
+    currency: typeof value.currency === 'string' ? value.currency : 'USD',
+    frequency: FREQUENCIES.includes(value.frequency as Frequency)
+      ? (value.frequency as Frequency)
+      : 'other',
+    channels: Array.isArray(value.channels)
+      ? value.channels.filter((c): c is string => typeof c === 'string')
+      : [],
+  }
+}
+
+// ---------------------------------------------------------------------------
+// High-level fetch: new NSIDs with legacy fallback
 // ---------------------------------------------------------------------------
 
 async function getClientForDid(
@@ -119,6 +201,7 @@ async function getClientForDid(
 
 /**
  * Fetches fund.at.* records for a DID from its PDS.
+ * Tries new grouped NSIDs first, falls back to legacy flat NSIDs.
  * Returns null when no records exist.
  *
  * When `pdsUrl` is provided, skips the DID document fetch (saves one round-trip).
@@ -137,18 +220,36 @@ export async function fetchFundAtRecords(
   if (!readClient) return null
 
   const repo = stewardDid as AtIdentifierString
+  let needsMigration = false
 
-  // Run contribute + dependency fetches in parallel
-  const [contributeUrl, dependencies] = await Promise.all([
-    (async (): Promise<string | undefined> => {
+  // Run contribute + dependency fetches in parallel (new NSIDs, then legacy fallback)
+  const [contributeResult, dependencyResult] = await Promise.all([
+    (async (): Promise<{ url?: string; legacy: boolean }> => {
       try {
-        const res = await readClient.get(fund.at.contribute, { repo })
-        return res.value.url || undefined
+        const res = await readClient.get(fund.at.funding.contribute, { repo })
+        return { url: res.value.url || undefined, legacy: false }
       } catch {
-        return undefined
+        try {
+          const res = await readClient.get(fund.at.contribute, { repo })
+          return { url: res.value.url || undefined, legacy: !!res.value.url }
+        } catch {
+          return { legacy: false }
+        }
       }
     })(),
-    (async (): Promise<Array<{ uri: string; label?: string }> | undefined> => {
+    (async (): Promise<{ deps?: Array<{ uri: string; label?: string }>; legacy: boolean }> => {
+      try {
+        const res = await readClient.list(fund.at.graph.dependency, { repo, limit: 100 })
+        const deps: Array<{ uri: string; label?: string }> = []
+        for (const r of res.records) {
+          const subject = (r.value as Record<string, unknown>).subject as string | undefined
+          const uri = subject?.trim()
+          if (!uri) continue
+          const label = ((r.value as Record<string, unknown>).label as string)?.trim() || undefined
+          deps.push({ uri, label })
+        }
+        if (deps.length > 0) return { deps, legacy: false }
+      } catch { /* try legacy */ }
       try {
         const res = await readClient.list(fund.at.dependency, { repo, limit: 100 })
         const deps: Array<{ uri: string; label?: string }> = []
@@ -158,15 +259,53 @@ export async function fetchFundAtRecords(
           const label = r.value.label?.trim() || undefined
           deps.push({ uri, label })
         }
-        return deps.length > 0 ? deps : undefined
+        return { deps: deps.length > 0 ? deps : undefined, legacy: deps.length > 0 }
       } catch {
-        return undefined
+        return { legacy: false }
       }
     })(),
   ])
 
-  if (!contributeUrl && !dependencies) return null
-  return { contributeUrl, dependencies }
+  const contributeUrl = contributeResult.url
+  const dependencies = dependencyResult.deps
+  if (contributeResult.legacy || dependencyResult.legacy) needsMigration = true
+
+  // ── Channels + Plans: individual records ────────────────────────────────
+  let channels: FundingChannel[] | undefined
+  let plans: FundingPlan[] | undefined
+
+  const [channelRecords, planRecords] = await Promise.all([
+    (async (): Promise<FundingChannel[]> => {
+      try {
+        const res = await readClient.list(fund.at.funding.channel, { repo, limit: 50 })
+        return res.records.map((r) => {
+          const rkey = r.uri.split('/').pop() ?? ''
+          return parseChannelRecord(rkey, r.value as Record<string, unknown>)
+        })
+      } catch {
+        return []
+      }
+    })(),
+    (async (): Promise<FundingPlan[]> => {
+      try {
+        const res = await readClient.list(fund.at.funding.plan, { repo, limit: 50 })
+        return res.records
+          .map((r) => {
+            const rkey = r.uri.split('/').pop() ?? ''
+            return parsePlanRecord(rkey, r.value as Record<string, unknown>)
+          })
+          .filter((p): p is FundingPlan => p !== null)
+      } catch {
+        return []
+      }
+    })(),
+  ])
+
+  if (channelRecords.length > 0) channels = channelRecords
+  if (planRecords.length > 0) plans = planRecords
+
+  if (!contributeUrl && !dependencies && !channels && !plans) return null
+  return { contributeUrl, dependencies, channels, plans, needsMigration: needsMigration || undefined }
 }
 
 // ---------------------------------------------------------------------------
@@ -175,12 +314,28 @@ export async function fetchFundAtRecords(
 // ---------------------------------------------------------------------------
 
 /**
- * Fetches the user's own fund.at.endorse records — returns the endorsed URIs.
+ * Fetches the user's own fund.at.graph.endorse records — returns the endorsed subjects.
+ * Falls back to legacy fund.at.endorse.
  */
 export async function fetchOwnEndorsements(
   session: OAuthSession,
 ): Promise<string[]> {
   const client = new Client(session)
+
+  // Try new NSID first
+  try {
+    const res = await client.list(fund.at.graph.endorse, { limit: 100 })
+    const uris = res.records
+      .map((r) => {
+        const val = r.value as Record<string, unknown>
+        const subject = (val.subject ?? val.uri) as string | undefined
+        return typeof subject === 'string' ? subject.trim() : ''
+      })
+      .filter(Boolean)
+    if (uris.length > 0) return uris
+  } catch { /* optional */ }
+
+  // Fall back to legacy
   try {
     const res = await client.list(fund.at.endorse, { limit: 100 })
     return res.records
@@ -195,30 +350,89 @@ export async function fetchOwnFundAtRecords(
   session: OAuthSession,
 ): Promise<FundAtResult | null> {
   const client = new Client(session)
+  let needsMigration = false
 
+  // ── Contribute URL ────────────────────────────────────────────────────
   let contributeUrl: string | undefined
   try {
-    const res = await client.get(fund.at.contribute)
+    const res = await client.get(fund.at.funding.contribute)
     if (res.value.url) contributeUrl = res.value.url
   } catch {
-    // optional
+    try {
+      const res = await client.get(fund.at.contribute)
+      if (res.value.url) {
+        contributeUrl = res.value.url
+        needsMigration = true
+      }
+    } catch { /* neither exists */ }
   }
 
+  // ── Dependencies ──────────────────────────────────────────────────────
   let dependencies: Array<{ uri: string; label?: string }> | undefined
   try {
-    const res = await client.list(fund.at.dependency, { limit: 100 })
+    const res = await client.list(fund.at.graph.dependency, { limit: 100 })
     const deps: Array<{ uri: string; label?: string }> = []
     for (const r of res.records) {
-      const uri = r.value.uri?.trim()
+      const val = r.value as Record<string, unknown>
+      const uri = (val.subject as string)?.trim()
       if (!uri) continue
-      const label = r.value.label?.trim() || undefined
+      const label = (val.label as string)?.trim() || undefined
       deps.push({ uri, label })
     }
     if (deps.length > 0) dependencies = deps
-  } catch {
-    // optional
+  } catch { /* optional */ }
+
+  if (!dependencies) {
+    try {
+      const res = await client.list(fund.at.dependency, { limit: 100 })
+      const deps: Array<{ uri: string; label?: string }> = []
+      for (const r of res.records) {
+        const uri = r.value.uri?.trim()
+        if (!uri) continue
+        const label = r.value.label?.trim() || undefined
+        deps.push({ uri, label })
+      }
+      if (deps.length > 0) {
+        dependencies = deps
+        needsMigration = true
+      }
+    } catch { /* optional */ }
   }
 
-  if (!contributeUrl && !dependencies) return null
-  return { contributeUrl, dependencies }
+  // ── Channels + Plans ───────────────────────────────────────────────────
+  let channels: FundingChannel[] | undefined
+  let plans: FundingPlan[] | undefined
+
+  const [channelRecords, planRecords] = await Promise.all([
+    (async (): Promise<FundingChannel[]> => {
+      try {
+        const res = await client.list(fund.at.funding.channel, { limit: 50 })
+        return res.records.map((r) => {
+          const rkey = r.uri.split('/').pop() ?? ''
+          return parseChannelRecord(rkey, r.value as Record<string, unknown>)
+        })
+      } catch {
+        return []
+      }
+    })(),
+    (async (): Promise<FundingPlan[]> => {
+      try {
+        const res = await client.list(fund.at.funding.plan, { limit: 50 })
+        return res.records
+          .map((r) => {
+            const rkey = r.uri.split('/').pop() ?? ''
+            return parsePlanRecord(rkey, r.value as Record<string, unknown>)
+          })
+          .filter((p): p is FundingPlan => p !== null)
+      } catch {
+        return []
+      }
+    })(),
+  ])
+
+  if (channelRecords.length > 0) channels = channelRecords
+  if (planRecords.length > 0) plans = planRecords
+
+  if (!contributeUrl && !dependencies && !channels && !plans) return null
+  return { contributeUrl, dependencies, channels, plans, needsMigration: needsMigration || undefined }
 }

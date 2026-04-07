@@ -1,0 +1,6 @@
+{
+  "lexicon": 1,
+  "id": "fund.at.funding.defs",
+  "description": "Shared definitions for at.fund funding metadata. Reserved for reusable types referenced by fund.at.funding.channel, fund.at.funding.plan, and future record types.",
+  "defs": {}
+}

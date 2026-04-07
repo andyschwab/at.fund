@@ -1,0 +1,33 @@
+{
+  "lexicon": 1,
+  "id": "fund.at.funding.contribute",
+  "description": "A single funding URL published by a steward. Points to the steward's external funding page — the human-friendly entry point. The ATProto equivalent of rel=\"payment\" (IANA link relation).",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "The steward's canonical funding entry point. A single URL where people can support this entity. Inspired by the rel=\"payment\" microformat: a simple, unopinionated pointer to a support page.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The canonical funding page URL (e.g. GitHub Sponsors, Open Collective, ko-fi, or a custom landing page)."
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Human-readable description of the funding page (e.g. 'Support via GitHub Sponsors'). Inspired by rel=\"payment\" title attribute. Optional — clients may derive a label from the URL."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this record was created or last updated."
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,3 +1,5 @@
+import type { FundingChannel, FundingPlan } from '@/lib/funding-manifest'
+
 export type StewardSource = 'fund.at' | 'manual' | 'unknown'
 
 /**
@@ -30,12 +32,15 @@ export type Capability = {
 /**
  * The resolved presentation of an AT Protocol entity.
  * Produced by `buildIdentity()` in the identity resolution layer.
+ *
+ * DID is the canonical key — every Identity must have a resolved DID.
+ * Handles and hostnames are display metadata only.
  */
 export type Identity = {
-  /** Primary display key — hostname preferred over handle preferred over DID. */
+  /** Canonical key — always the resolved DID. */
   uri: string
-  /** Resolved DID. Used as the dedup key when present. */
-  did?: string
+  /** Resolved DID. Always present — entities without a DID are dropped. */
+  did: string
   /** Bluesky handle — present for accounts whose DID resolves a handle. */
   handle?: string
   /** Human-readable display name. */
@@ -43,7 +48,7 @@ export type Identity = {
   description?: string
   /** Bluesky avatar URL. */
   avatar?: string
-  /** Web link — bsky profile for non-tools, undefined for tools. */
+  /** Web link — bsky profile for accounts with a handle. */
   landingPage?: string
 }
 
@@ -61,6 +66,10 @@ export type Funding = {
   source: StewardSource
   contributeUrl?: string
   dependencies?: string[]
+  /** Payment channels from fund.at.funding.channel records or funding.json. */
+  channels?: FundingChannel[]
+  /** Funding plans/tiers from fund.at.funding.plan records or funding.json. */
+  plans?: FundingPlan[]
 }
 
 // ---------------------------------------------------------------------------
@@ -104,40 +113,33 @@ export function isHumanReadableName(name: string | undefined | null): name is st
 }
 
 export type BuildIdentityInput = {
-  /** Original identifier — hostname, handle, or DID. */
-  ref: string
-  did?: string
+  /** Resolved DID — required. Entities without a DID are dropped before reaching this point. */
+  did: string
   handle?: string
   displayName?: string
   description?: string
   avatar?: string
-  /**
-   * Whether this entity was discovered as a tool (via repo collections).
-   * Tools use hostname as URI; non-tools get a bsky profile landing page.
-   */
-  isTool?: boolean
 }
 
 /**
- * Assembles an Identity from resolved data, applying canonical rules for
- * URI preference, display name, and landing page.
+ * Assembles an Identity from resolved data. DID is the canonical key (uri = did).
+ * Handle and hostname are display metadata only.
  *
  * Pure — no network calls. Safe for client-side import.
  */
 export function buildIdentity(input: BuildIdentityInput): Identity {
-  const { ref, did, handle, description, avatar, isTool } = input
-  const hostname = isTool && !ref.startsWith('did:') ? ref : undefined
+  const { did, handle, description, avatar } = input
 
-  // URI preference: hostname > handle > DID > raw ref
-  const uri = hostname ?? handle ?? did ?? ref
+  // URI is always the DID — the canonical key
+  const uri = did
 
-  // Display name: profile name (if human-readable) > hostname > handle > raw ref
+  // Display name: profile name (if human-readable) > handle > DID
   const displayName = isHumanReadableName(input.displayName)
     ? input.displayName
-    : hostname ?? handle ?? ref
+    : handle ?? did
 
-  // Landing page: non-tools with a handle get a bsky profile link
-  const landingPage = !isTool && handle
+  // Accounts with a handle get a bsky profile link
+  const landingPage = handle
     ? `https://bsky.app/profile/${handle}`
     : undefined
 

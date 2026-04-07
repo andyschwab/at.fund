@@ -1,5 +1,7 @@
 import { getRedisClient } from '@/lib/auth/kv-store'
 import { normalizeStewardUri } from '@/lib/steward-uri'
+import { resolveRefToDid } from '@/lib/identity'
+import { FUND_ENDORSE, LEGACY_ENDORSE } from '@/lib/fund-at-records'
 import { logger } from '@/lib/logger'
 import { runWithConcurrency } from '@/lib/concurrency'
 
@@ -8,7 +10,7 @@ import { runWithConcurrency } from '@/lib/concurrency'
 // ---------------------------------------------------------------------------
 //
 // Single-pass approach: for each candidate DID (e.g. follows), query their
-// PDS for all fund.at.endorse records. This is O(DIDs), not O(DIDs × URIs).
+// PDS for all fund.at.graph.endorse records. This is O(DIDs), not O(DIDs × URIs).
 // We use Slingshot's resolveMiniDoc to get PDS URLs, then listRecords
 // directly from each PDS.
 // ---------------------------------------------------------------------------
@@ -27,13 +29,16 @@ const memoryCache = new Map<string, { data: unknown; fetchedAt: number }>()
 // Types
 // ---------------------------------------------------------------------------
 
-/** Map of endorsed URI → Set of endorser DIDs (from the scanned set). */
+/** Map of endorsed DID → Set of endorser DIDs (from the scanned set). */
 export type EndorsementMap = Map<string, Set<string>>
 
 /** Endorsement count for a single URI, derived from the endorsement map. */
 export type EndorsementCounts = {
   networkEndorsementCount: number
 }
+
+/** Singleflight cache for resolving non-DID URIs to DIDs during collection. */
+type DidResolutionCache = Map<string, Promise<string | undefined>>
 
 // ---------------------------------------------------------------------------
 // PDS resolution via Slingshot
@@ -67,43 +72,84 @@ async function resolvePds(did: string): Promise<string | null> {
 type ListRecordsResponse = {
   records?: Array<{
     uri?: string
-    value?: { uri?: string; [key: string]: unknown }
+    value?: { subject?: string; uri?: string; [key: string]: unknown }
   }>
 }
 
 /**
- * Fetch all fund.at.endorse records for a single DID from its PDS.
- * Returns the endorsed URIs (normalized).
+ * Resolve a non-DID URI to a DID, using the shared singleflight cache.
+ * Returns undefined if resolution fails.
+ */
+function cachedResolve(
+  uri: string,
+  cache: DidResolutionCache,
+): Promise<string | undefined> {
+  const existing = cache.get(uri)
+  if (existing) return existing
+  const promise = resolveRefToDid(uri)
+  cache.set(uri, promise)
+  return promise
+}
+
+/**
+ * Fetch all fund.at.graph.endorse records for a single DID from its PDS.
+ * Falls back to legacy fund.at.endorse collection.
+ *
+ * Two-stage resolution: DIDs pass through immediately; handles and hostnames
+ * are resolved to DIDs via the shared singleflight cache so duplicate URIs
+ * across follows only trigger one network call.
+ *
+ * Returns endorsed DIDs (non-DID URIs that can't resolve are dropped).
  */
 async function fetchEndorsementsForDid(
   did: string,
   pdsUrl: string,
+  didCache: DidResolutionCache,
 ): Promise<string[]> {
-  try {
-    const params = new URLSearchParams({
-      repo: did,
-      collection: 'fund.at.endorse',
-      limit: '100',
-    })
-    const res = await fetch(
-      `${pdsUrl}/xrpc/com.atproto.repo.listRecords?${params}`,
-      { headers: HEADERS },
-    )
-    if (!res.ok) return []
+  // Try new NSID first, fall back to legacy
+  for (const collection of [FUND_ENDORSE, LEGACY_ENDORSE]) {
+    try {
+      const params = new URLSearchParams({
+        repo: did,
+        collection,
+        limit: '100',
+      })
+      const res = await fetch(
+        `${pdsUrl}/xrpc/com.atproto.repo.listRecords?${params}`,
+        { headers: HEADERS },
+      )
+      if (!res.ok) continue
 
-    const data = (await res.json()) as ListRecordsResponse
-    const uris: string[] = []
-    for (const record of data.records ?? []) {
-      const raw = record.value?.uri
-      if (typeof raw === 'string' && raw.trim()) {
+      const data = (await res.json()) as ListRecordsResponse
+
+      // Stage 1: partition into DIDs and non-DIDs
+      const dids: string[] = []
+      const pendingResolves: Promise<string | undefined>[] = []
+      for (const record of data.records ?? []) {
+        const raw = record.value?.subject ?? record.value?.uri
+        if (typeof raw !== 'string' || !raw.trim()) continue
         const normalized = normalizeStewardUri(raw) ?? raw.trim()
-        uris.push(normalized)
+        if (normalized.startsWith('did:')) {
+          dids.push(normalized)
+        } else {
+          pendingResolves.push(cachedResolve(normalized, didCache))
+        }
       }
+
+      // Stage 2: resolve non-DIDs (singleflight — shared across all follows)
+      if (pendingResolves.length > 0) {
+        const resolved = await Promise.all(pendingResolves)
+        for (const did of resolved) {
+          if (did) dids.push(did)
+        }
+      }
+
+      if (dids.length > 0) return dids
+    } catch {
+      continue
     }
-    return uris
-  } catch {
-    return []
   }
+  return []
 }
 
 /**
@@ -119,6 +165,8 @@ export async function collectNetworkEndorsements(
   onProgress?: (scanned: number, total: number) => void,
 ): Promise<EndorsementMap> {
   const endorsementMap: EndorsementMap = new Map()
+  // Shared singleflight cache: non-DID URIs resolved once across all follows
+  const didCache: DidResolutionCache = new Map()
   let resolvedCount = 0
   let withRecords = 0
   let scannedCount = 0
@@ -129,19 +177,19 @@ export async function collectNetworkEndorsements(
     if (!pdsUrl) { scannedCount++; onProgress?.(scannedCount, candidateDids.length); return }
     resolvedCount++
 
-    // Step 2: List all fund.at.endorse records
-    const endorsedUris = await fetchEndorsementsForDid(did, pdsUrl)
+    // Step 2: List all fund.at.graph.endorse records (resolved to DIDs)
+    const endorsedDids = await fetchEndorsementsForDid(did, pdsUrl, didCache)
     scannedCount++
     onProgress?.(scannedCount, candidateDids.length)
-    if (endorsedUris.length === 0) return
+    if (endorsedDids.length === 0) return
     withRecords++
 
-    // Step 3: Aggregate into the map
-    for (const uri of endorsedUris) {
-      let dids = endorsementMap.get(uri)
+    // Step 3: Aggregate into the map (keys are always DIDs now)
+    for (const endorsedDid of endorsedDids) {
+      let dids = endorsementMap.get(endorsedDid)
       if (!dids) {
         dids = new Set()
-        endorsementMap.set(uri, dids)
+        endorsementMap.set(endorsedDid, dids)
       }
       dids.add(did)
     }
@@ -243,13 +291,13 @@ export async function collectNetworkEndorsementsCached(
 // ---------------------------------------------------------------------------
 
 /**
- * Look up endorsement counts for a specific URI from a pre-collected map.
+ * Look up endorsement counts for a DID from a pre-collected map.
+ * Map keys are always DIDs (non-DID URIs are resolved during collection).
  */
 export function getCountsFromMap(
   map: EndorsementMap,
-  uri: string,
+  did: string,
 ): EndorsementCounts {
-  const normalized = normalizeStewardUri(uri) ?? uri
-  const dids = map.get(normalized)
+  const dids = map.get(did)
   return { networkEndorsementCount: dids?.size ?? 0 }
 }

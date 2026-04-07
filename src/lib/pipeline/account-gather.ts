@@ -40,11 +40,6 @@ export type GatheredAccount = {
   hostnames: Set<string>
 }
 
-export type UnresolvedService = {
-  hostname: string
-  tags: StewardTag[]
-}
-
 export type ScanWarning = {
   stewardUri: string
   step: string
@@ -56,7 +51,6 @@ export type GatherResult = {
   handle?: string
   pdsUrl?: string
   accounts: Map<string, GatheredAccount>
-  unresolvedServices: UnresolvedService[]
   warnings: ScanWarning[]
   /** Feed AT URIs from user prefs (for Phase 3). */
   feedUris: string[]
@@ -120,7 +114,6 @@ export async function gatherAccounts(
   const client = new Client(session)
   const publicClient = new Client(PUBLIC_API)
   const accounts = new Map<string, GatheredAccount>()
-  const unresolvedServices: UnresolvedService[] = []
   const warnings: ScanWarning[] = []
 
   // Use the orchestrator's scan context, or create a local one as fallback.
@@ -196,11 +189,10 @@ export async function gatherAccounts(
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'DNS lookup failed'
-        logger.warn('gather: DNS lookup failed', { stewardUri, error: msg })
+        logger.warn('gather: DNS lookup failed — dropping', { stewardUri, error: msg })
         warnings.push({ stewardUri, step: 'dns-lookup', message: msg })
       }
-      // No DID found — unresolved service
-      unresolvedServices.push({ hostname: stewardUri, tags: ['tool'] })
+      // No DID found — drop this service (DID-first: no unresolved entries)
     }),
   )
 
@@ -271,7 +263,6 @@ export async function gatherAccounts(
   logger.info('gather: completed', {
     did: session.did,
     accountCount: accounts.size,
-    unresolvedCount: unresolvedServices.length,
     tagBreakdown: {
       tool: [...accounts.values()].filter((a) => a.tags.has('tool')).length,
       follow: [...accounts.values()].filter((a) => a.tags.has('follow')).length,
@@ -280,5 +271,5 @@ export async function gatherAccounts(
     },
   })
 
-  return { did: session.did, handle: handle ?? undefined, pdsUrl, accounts, unresolvedServices, warnings, feedUris, labelerDids, ctx: scanCtx }
+  return { did: session.did, handle: handle ?? undefined, pdsUrl, accounts, warnings, feedUris, labelerDids, ctx: scanCtx }
 }

@@ -54,7 +54,6 @@ type GatherResult = {
   handle?: string
   pdsUrl?: string
   accounts: Map<string, GatheredAccount>   // DID → stub with tags + hostnames
-  unresolvedServices: UnresolvedService[]  // hostnames that didn't resolve to a DID
   warnings: ScanWarning[]
   feedUris: string[]                       // AT URIs for Phase 5
   labelerDids: string[]                    // DIDs for Phase 5
@@ -67,10 +66,6 @@ A `GatheredAccount` accumulates tags from multiple sources. If the same DID appe
 ### Speculative prefetch
 
 As Phase 1 discovers DIDs, it fires fund.at record prefetches via `ctx.prefetch(did)`. These run with bounded concurrency (20 parallel) in the background while gather continues. By the time Phase 4 (enrich) needs funding data, most prefetch promises have already resolved. See `lib/fund-at-prefetch.ts` and `lib/scan-context.ts`.
-
-### Unresolved services
-
-When a steward URI (hostname) doesn't resolve to a DID via DNS, it becomes an `UnresolvedService`. These are still shown as "discover" cards — the user relies on the service, we just can't identify the ATProto account behind it.
 
 ### Steward URI resolution
 
@@ -86,7 +81,7 @@ Observed keys (NSIDs, URLs, `$type` values) pass through `resolveStewardUri()` f
 
 **Files:** `src/lib/microcosm.ts`, `src/lib/pipeline/scan-stream.ts`
 
-Single-pass collection of all endorsements made by the user's follows. O(follows): one Slingshot `resolveMiniDoc` (to find each follow's PDS) + one PDS `listRecords` (to fetch their `fund.at.endorse` records).
+Single-pass collection of all endorsements made by the user's follows. O(follows): one Slingshot `resolveMiniDoc` (to find each follow's PDS) + one PDS `listRecords` (to fetch their endorse records). Tries new NSID `fund.at.graph.endorse` first, falls back to legacy `fund.at.endorse`.
 
 ### How it works
 
@@ -118,7 +113,7 @@ Ecosystem URIs are injected into the gathered accounts (with tag `ecosystem`) so
 
 **File:** `src/lib/pipeline/account-enrich.ts`
 
-For each account, resolves funding info by trying **every key type**. This is where the hostname-vs-DID mismatch is handled — we try all keys in one place.
+For each account, resolves identity and funding info. DID is the canonical key throughout — the catalog's DID reverse index means lookups work natively by DID.
 
 ### Resolution order
 
@@ -126,15 +121,15 @@ For each `GatheredAccount`:
 
 1. **Batch profile resolution** — `app.bsky.actor.getProfiles` for all DIDs (batches of 25). Returns handle, displayName, description, avatar.
 2. **fund.at records** — `fetchFundAtForStewardDid(did)` from the steward's PDS
-3. **Manual catalog by DID** — `lookupManualStewardRecord(did)`
-4. **Manual catalog by hostname** — `lookupManualStewardRecord(hostname)` for each associated hostname
-5. **Manual catalog by handle** — `lookupManualStewardRecord(handle)`
-6. **Fallback** — `source: 'unknown'`
+3. **Manual catalog by DID** — `lookupManualStewardRecord(did)` uses the DID reverse index to find hostname-keyed entries
+4. **Fallback** — `source: 'unknown'`
+
+When both fund.at and manual catalog exist, fund.at wins for `contributeUrl` (manual is fallback) and dependencies are unioned.
 
 ### URI and displayName selection
 
-- `uri`: hostname preferred (readable), then handle, then DID
-- `displayName`: profile name preferred (non-DID), then hostname, then handle, then DID
+- `uri`: always the DID (DID-first canonical key)
+- `displayName`: profile name preferred (if human-readable), then handle, then DID
 
 ### Emission
 
@@ -142,7 +137,7 @@ All entries with at least one tag are emitted as `entry` events, including ecosy
 
 ### Output
 
-One `StewardEntry` per account, plus entries for unresolved services.
+One `StewardEntry` per account.
 
 ## Phase 5: Attach capabilities
 
@@ -199,15 +194,16 @@ It runs all phases and emits `ScanStreamEvent` objects for the client to consume
 4. Phase 4 → `entry` events as each account is enriched (all entries with tags)
 5. Phase 5 → updated `entry` events with capabilities attached (first emission for feed/labeler-only accounts)
 6. Phase 6 → `entry` events for dependency entries
-7. `endorsement-counts` → per-entry network endorsement counts
-8. PDS host → `entry` event with `tags: ['tool', 'pds-host']` and a `pds` capability for the entryway
-9. `done` event
+7. **Endorsed entry resolution** → endorsed URIs not already discovered are resolved via `resolveDepEntry()` and emitted as entries. The `endorsed` event is re-emitted with canonical identifiers (uri + did) so the client can match by any form.
+8. `endorsement-counts` → per-entry network endorsement counts
+9. PDS host → `entry` event with `tags: ['tool', 'pds-host']` and a `pds` capability for the entryway
+10. `done` event
 
 ### Event types
 
 ```typescript
 type ScanStreamEvent =
-  | { type: 'meta'; did: string; handle?: string; pdsUrl?: string }
+  | { type: 'meta'; did: string; handle?: string; pdsUrl?: string; endorsementsCapped?: boolean; followCount?: number }
   | { type: 'status'; message: string }
   | { type: 'endorsed'; uris: string[] }
   | { type: 'entry'; entry: StewardEntry }
@@ -288,6 +284,7 @@ card-primitives.tsx     Stateless building blocks
   ├── HandleBadge           @handle linking to DID profile
   ├── TagBadges             Inline tag pills (tool, feed, labeler, follow, ecosystem, personal data server)
   ├── CapabilitiesSection   "Provides" list of feeds, labelers, and PDS capabilities
+  ├── FundingChannelsSection     Combined platform + amount chips linking to channel URLs
   └── helpers               heartState, websiteFallbackForUri, profileUrlFor
 
 card-dependencies.tsx   Drill-down modal system
@@ -320,7 +317,7 @@ ProjectCards.tsx        Card exports
 
 The give page has three sections:
 
-1. **My Stack** — pinned at top. Contains PDS host entry and all entries the user has endorsed. Endorsements are `fund.at.endorse` records — public, protocol-level signals of trust. The hover state on endorsed buttons swaps to "Remove" with a red color shift.
+1. **My Stack** — pinned at top. Contains PDS host entry and all entries the user has endorsed. Endorsements are `fund.at.graph.endorse` records (with legacy `fund.at.endorse` fallback) — public, protocol-level signals of trust. The hover state on endorsed buttons swaps to "Remove" with a red color shift. A "Share your stack" link points to `/stack/{handle}`, a public page showing the user's endorsed projects.
 
 2. **My Fundable Services** tab — tools, feeds, labelers, and follows (with contribute URLs) discovered from the user's account data. Excludes ecosystem-only entries and PDS host (pinned above). Filter pills (Tools, Feeds, Labelers, Network) filter by tag.
 
@@ -343,15 +340,18 @@ src/
 │   ├── setup/page.tsx                    Publish fund.at records
 │   └── api/
 │       ├── entry/route.ts                Full single-entry resolution
-│       ├── endorse/route.ts              Endorsement create/delete
-│       ├── setup/route.ts                Publish/delete fund.at records
+│       ├── endorse/route.ts              Endorsement create/delete (with deleteWithFallback)
+│       ├── setup/route.ts                Publish/delete fund.at records (channels, plans, deps)
+│       ├── migrate/route.ts              One-time legacy → grouped NSID migration
+│       ├── stack/[handle]/stream/
+│       │   └── route.ts                  Public NDJSON stream of a user's endorsed entries
 │       ├── lexicons/
 │       │   ├── route.ts                  Non-streaming JSON scan (legacy)
 │       │   └── stream/route.ts           Streaming API → scanStreaming()
 │       └── steward/route.ts              Thin steward lookup (legacy)
 ├── components/
 │   ├── GiveClient.tsx                    Client: streaming scan, unified EntryIndex, tabs, endorsement
-│   ├── SetupClient.tsx                   Setup form: contribute URL, dependencies, live preview
+│   ├── SetupClient.tsx                   Setup form: channels, plans, deps, contribute URL, live preview
 │   ├── ProjectCards.tsx                  StewardCard (compact <li> row)
 │   ├── card-primitives.tsx               ProfileAvatar, TagBadges, CapabilitiesSection, etc.
 │   ├── card-dependencies.tsx             DependencyRow, ModalCardContent, DependenciesSection
@@ -377,6 +377,7 @@ src/
     │   ├── dep-resolve.ts                Phase 6: dependency entry resolution
     │   ├── ecosystem-scan.ts             Phase 3: ecosystem URI discovery from endorsement map
     │   ├── entry-resolve.ts              Full vertical: single-entry pipeline
+    │   ├── fetch-public-endorsements.ts  Public endorsement fetch (new + legacy NSID fallback)
     │   └── scan-stream.ts                Orchestrator: creates ScanContext, runs phases, emits events
     ├── scan-context.ts                   ScanContext type + createScanContext() — app-wide network orchestrator
     ├── fund-at-prefetch.ts               Speculative fund.at prefetch with bounded concurrency
@@ -385,6 +386,7 @@ src/
     ├── steward-model.ts                  Identity, Funding, StewardEntry, Capability types
     ├── identity.ts                       buildIdentity, batchFetchProfiles, resolveRefToDid
     ├── funding.ts                        resolveFunding, resolveFundingForDep, lookupManualByIdentity
+    ├── funding-manifest.ts               funding.json parser, FundingChannel/FundingPlan types, platform detection
     ├── entry-priority.ts                 Unified entryPriority() ranking (tiers 0–5)
     ├── steward-merge.ts                  EntryIndex (client-side dedup) + merge logic
     ├── steward-funding.ts                fetchFundAtForStewardDid (PDS fund.at.* fetch)
@@ -404,11 +406,24 @@ src/
 
 ## Lexicon schemas
 
-- `fund.at.contribute` — funding page URL (singleton, rkey `self`)
-- `fund.at.dependency` — upstream dependency entries (rkey = URI)
-- `fund.at.endorse` — endorsement entries (rkey = endorsed URI)
+### Current (grouped namespaces)
 
-See the in-app lexicon page (`/lexicon`) for full schema documentation.
+- `fund.at.actor.declaration` — ecosystem participation signal (singleton, rkey `self`)
+- `fund.at.funding.contribute` — funding page URL (singleton, rkey `self`)
+- `fund.at.funding.channel` — payment channel record (rkey = slug ID, e.g. `channel-1`)
+- `fund.at.funding.plan` — funding plan/tier (rkey = slug ID, e.g. `plan-1`; amount in cents)
+- `fund.at.graph.dependency` — upstream dependency (rkey = subject URI)
+- `fund.at.graph.endorse` — endorsement (rkey = subject URI)
+
+### Legacy (flat namespaces — migration only)
+
+- `fund.at.contribute` — replaced by `fund.at.funding.contribute`
+- `fund.at.dependency` — replaced by `fund.at.graph.dependency`
+- `fund.at.endorse` — replaced by `fund.at.graph.endorse`
+
+The read paths try new NSIDs first and fall back to legacy. Writes always use
+new NSIDs. The `/api/migrate` route converts legacy records to the new format.
+See `docs/fund-at-funding-spec.md` for the full specification.
 
 ## Error handling strategy
 
@@ -441,7 +456,7 @@ The user sees partial results with warnings rather than a blank page.
 |-------|-------------|----------|
 | 1. Gather | Follow pagination fails | Emit warning, continue with partial follows |
 | 1. Gather | Repo listRecords fails | Emit warning, skip repo-based tool discovery |
-| 1. Gather | Steward URI DNS fails | Becomes `UnresolvedService` — shown as discover card |
+| 1. Gather | Steward URI DNS fails | Entry dropped (DID-first requires resolved DID) |
 | 2. Endorsements | PDS unreachable for a follow | Skip that follow's endorsements, continue |
 | 2. Endorsements | Redis cache read/write fails | Fall back to in-memory, log warning |
 | 3. Ecosystem | No failures possible | Pure in-memory lookup against endorsement map |

@@ -1,6 +1,6 @@
 # Architecture Best Practices
 
-_Last updated: 2026-04-05_
+_Last updated: 2026-04-06_
 
 Continuous improvement tracking. Builds on the refactoring work in
 [architecture-review.md](./architecture-review.md) with a focus on proactive
@@ -39,6 +39,23 @@ quality — making sure the codebase stays clean as it evolves.
 | 14 | ~~Extract shared input style constants~~ | **dropped** — only ~8 medium-length patterns (160–200 chars), not the ~270-char duplication originally estimated; extraction overhead not justified |
 | 15 | ~~Document cache invalidation strategy~~ | **dropped** — `_scanCache` lifecycle is self-evident from code comments; a docstring suffices, not a full doc |
 
+## Phase 4 — Profile page unification ✓
+
+| # | Action | Status |
+|---|--------|--------|
+| 16 | Unified profile page at `/<identifier>` with three viewer modes | **done** |
+| 17 | Parallel server-side data fetching (replace sequential `resolveEntry()`) | **done** |
+| 18 | Session validation for owner mode (not just cookie check) | **done** |
+| 19 | Unified `StackEntriesList` component for all entry lists | **done** |
+| 20 | Shared `useEndorsement` hook with optimistic updates | **done** |
+| 21 | Inline edit with live card preview (`SetupClient` embedded mode) | **done** |
+| 22 | Wire endorsement through all views (deps modal, endorsed list, profile card) | **done** |
+| 23 | Endorse-by-handle on profile page | **done** |
+| 24 | Remove `/stack` page (absorbed into profile) | **done** |
+| 25 | Convert `/setup` to redirect to profile with `?edit=true` | **done** |
+| 26 | Add `handle` to SessionContext for profile nav link | **done** |
+| 27 | Update NavBar (remove "Receive", add conditional "My Profile") | **done** |
+
 ---
 
 ## Observations
@@ -53,10 +70,15 @@ quality — making sure the codebase stays clean as it evolves.
 - **Strict TypeScript** throughout; path aliases for clean imports
 - **No TODOs/FIXMEs** in the codebase — refactoring work is complete
 - **CI pipeline** catches lint, type, test, and build regressions on every PR
-- **148 unit tests** covering core business logic, pipeline phases, and catalog validation
+- **164 unit tests** covering core business logic, pipeline phases, and catalog validation
 - **Admin-editable data** (`src/data/`) fully decoupled from test assertions
 - **Error boundaries** isolate card rendering failures from the rest of the page
 - **Shared LoginForm** eliminates the NavBar/RequireSession duplication
+- **Unified profile page** (`/<identifier>`) with three viewer modes (public, authenticated, owner)
+- **Single list component** (`StackEntriesList`) used by GiveClient, StackStream, and profile deps
+- **Shared endorsement hook** (`useEndorsement`) with optimistic updates and rollback
+- **Parallel server-side data fetching** on profile page (no sequential pipeline)
+- **Live edit preview** — SetupClient embedded in profile card with real-time form→card updates
 
 ### Remaining architecture risks
 
@@ -64,6 +86,7 @@ quality — making sure the codebase stays clean as it evolves.
 - **No E2E tests** — unit tests cover logic but not user flows (see `docs/e2e-testing-plan.md`)
 - ~~No centralized auth~~ — **fixed**: `src/proxy.ts` guards pages + API routes
 - ~~No coverage visibility~~ — **fixed**: `pnpm test:coverage` reports v8 coverage
+- **Viewer endorsement state** — on other users' profiles, the viewer's own endorsement state isn't loaded (would need a separate fetch of the viewer's endorsements)
 
 ### Admin data vs constants
 

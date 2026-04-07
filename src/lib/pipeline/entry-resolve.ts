@@ -1,7 +1,7 @@
 import { Client } from '@atproto/lex'
 import type { StewardEntry, Capability } from '@/lib/steward-model'
 import { resolveIdentity } from '@/lib/identity'
-import { resolveFunding, lookupManualByIdentity } from '@/lib/funding'
+import { resolveFunding } from '@/lib/funding'
 import { xrpcQuery } from '@/lib/xrpc'
 import { resolveDependencies } from '@/lib/pipeline/dep-resolve'
 import { createScanContext } from '@/lib/scan-context'
@@ -21,6 +21,7 @@ type ResolveResult = {
 /**
  * Resolve a single URI (handle, DID, or hostname) into a fully-enriched
  * StewardEntry with capabilities and transitive dependency entries.
+ * Returns null if the URI cannot be resolved to a DID.
  *
  * Runs the same logical pipeline as the streaming scan, scoped to one entity:
  *   1. Identity — resolve DID, fetch profile
@@ -30,27 +31,21 @@ type ResolveResult = {
  *
  * No authentication required — all data sources are public.
  */
-export async function resolveEntry(uri: string, ctx?: ScanContext): Promise<ResolveResult> {
+export async function resolveEntry(uri: string, ctx?: ScanContext): Promise<ResolveResult | null> {
   const scanCtx = ctx ?? createScanContext()
-  // Determine if this is a tool (has a manual catalog entry for hostname)
-  const manual = lookupManualByIdentity({ uri, displayName: uri })
-  const isTool = !uri.startsWith('did:') && !!manual
 
   // ── 1. Identity ────────────────────────────────────────────────────────
-  const identity = await resolveIdentity(uri, { isTool })
+  const identity = await resolveIdentity(uri)
+  if (!identity) return null
 
   // ── 2. Funding ─────────────────────────────────────────────────────────
   const { funding } = await resolveFunding(identity, { ctx: scanCtx })
 
-  const tags: StewardEntry['tags'] = isTool ? ['tool'] : []
-
-  const entry: StewardEntry = { ...identity, ...funding, tags }
+  const entry: StewardEntry = { ...identity, ...funding, tags: [] }
 
   // ── 3. Capabilities — discover feeds + labeler from the DID's repo ────
-  if (identity.did) {
-    const publicClient = new Client(PUBLIC_API)
-    await discoverCapabilities(publicClient, identity.did, entry)
-  }
+  const publicClient = new Client(PUBLIC_API)
+  await discoverCapabilities(publicClient, identity.did, entry)
 
   // ── 4. Dependencies — resolve transitive deps from catalog ────────────
   const referenced = await resolveDependencies([entry], undefined, scanCtx)

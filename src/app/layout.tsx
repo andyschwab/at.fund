@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { getSession } from "@/lib/auth/session";
+import { cookies } from "next/headers";
 import { SessionProvider } from "@/components/SessionContext";
 import { NavBar } from "@/components/NavBar";
+import { LegacyMigrationModal } from "@/components/LegacyMigrationModal";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,8 +41,11 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await getSession();
-  const did = session?.did ?? null;
+  // Read identity from cookies only — no network calls, no session restore.
+  // Both cookies are set at OAuth callback time and cleared on logout.
+  const cookieStore = await cookies();
+  const did = cookieStore.get("did")?.value ?? null;
+  const handle = cookieStore.get("handle")?.value ?? null;
 
   return (
     <html
@@ -49,8 +53,9 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background font-sans text-foreground">
-        <SessionProvider initial={{ hasSession: !!session, did }}>
+        <SessionProvider initial={{ hasSession: !!did, did, handle }}>
           <NavBar />
+          <LegacyMigrationModal />
           {children}
         </SessionProvider>
       </body>

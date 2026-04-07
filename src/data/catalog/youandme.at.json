@@ -1,3 +1,6 @@
 {
-  "dependencies": ["brookie.blog"]
+  "did": "did:plc:zfgfhm7mpslcdc3mk3z6sebw",
+  "dependencies": [
+    "brookie.blog"
+  ]
 }

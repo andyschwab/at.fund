@@ -1,22 +1,18 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import Link from 'next/link'
 import type { EndorsementCounts } from '@/lib/pipeline/scan-stream'
 import type { StewardEntry } from '@/lib/steward-model'
 import { entryPriority } from '@/lib/entry-priority'
 import { pdslsRepoUrl } from '@/lib/pdsls'
 import { useSession } from '@/components/SessionContext'
 import { useScanStream } from '@/hooks/useScanStream'
-import { StewardCard } from '@/components/ProjectCards'
-import { CardErrorBoundary } from '@/components/CardErrorBoundary'
+import { StackEntriesList } from '@/components/StackEntriesList'
 import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 import {
   AlertCircle,
-  ArrowRight,
   BadgeCheck,
   BadgePlus,
-  CheckCircle2,
   ExternalLink,
   RefreshCw,
 } from 'lucide-react'
@@ -35,7 +31,9 @@ const TAG_FILTER_LABELS: { tag: TagFilter; label: string }[] = [
 ]
 
 function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
-  return uris.has(e.uri) || uris.has(e.did ?? '')
+  return uris.has(e.uri)
+    || (!!e.did && uris.has(e.did))
+    || (!!e.handle && uris.has(e.handle))
 }
 
 // ---------------------------------------------------------------------------
@@ -43,7 +41,7 @@ function isEndorsed(e: StewardEntry, uris: Set<string>): boolean {
 // ---------------------------------------------------------------------------
 
 export function GiveClient() {
-  const { did: sessionDid, authFetch } = useSession()
+  const { authFetch } = useSession()
 
   const {
     meta, entries, warnings, endorsedUris, endorsementCounts,
@@ -53,18 +51,8 @@ export function GiveClient() {
   } = useScanStream()
 
   const [selfReport, setSelfReport] = useState('')
-  const [hasOwnRecords, setHasOwnRecords] = useState<boolean | null>(null)
   const [activeTag, setActiveTag] = useState<TagFilter>('all')
   const [activeTab, setActiveTab] = useState<'discover' | 'ecosystem'>('discover')
-
-  // Check whether the logged-in user has published fund.at records
-  useState(() => {
-    if (!sessionDid) return
-    fetch(`/api/entry?uri=${encodeURIComponent(sessionDid)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setHasOwnRecords(!!data?.contributeUrl || !!(data?.dependencies?.length)))
-      .catch(() => setHasOwnRecords(false))
-  })
 
   // ── Derived state ─────────────────────────────────────────────────────
 
@@ -91,10 +79,15 @@ export function GiveClient() {
     })
   }, [entries])
 
-  const endorsedEntries = useMemo(
-    () => visibleEntries.filter((e) => isEndorsed(e, endorsedUris)),
-    [visibleEntries, endorsedUris],
-  )
+  const endorsedEntries = useMemo(() => {
+    const lookup = (uri: string) => entries.find((e) => e.uri === uri)
+    return entries
+      .filter((e) => !e.tags.includes('pds-host') && isEndorsed(e, endorsedUris))
+      .sort((a, b) => {
+        const diff = entryPriority(a, lookup) - entryPriority(b, lookup)
+        return diff !== 0 ? diff : a.uri.localeCompare(b.uri)
+      })
+  }, [entries, endorsedUris])
   const discoveredEntries = useMemo(
     () => visibleEntries.filter((e) => !isEndorsed(e, endorsedUris)),
     [visibleEntries, endorsedUris],
@@ -167,10 +160,11 @@ export function GiveClient() {
       return next
     })
     try {
+      // Send all known identifiers so the endpoint can try each as rkey
       const res = await authFetch('/api/endorse', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uri }),
+        body: JSON.stringify({ uri, uris: [...removeUris] }),
       })
       if (!res.ok) {
         setEndorsedUris((prev) => new Set([...prev, ...removeUris]))
@@ -181,29 +175,22 @@ export function GiveClient() {
   }, [authFetch, entryIndexRef, setEndorsedUris])
 
   const endorseAndFetch = useCallback(async (uri: string) => {
-    handleEndorse(uri)
     try {
+      // Resolve the entry first to get the canonical DID
       const res = await fetch(`/api/entry?uri=${encodeURIComponent(uri)}`)
       if (!res.ok) return
       const data = await res.json() as { entry: StewardEntry; referenced: StewardEntry[] }
       entryIndexRef.current.upsert(data.entry)
-      setEntries(entryIndexRef.current.toArray())
-      if (data.entry.uri !== uri) {
-        setEndorsedUris((prev) => new Set([...prev, data.entry.uri]))
-      }
-      if (data.entry.did && data.entry.did !== uri) {
-        setEndorsedUris((prev) => new Set([...prev, data.entry.did!]))
-      }
       for (const ref of data.referenced) {
         entryIndexRef.current.upsert(ref)
       }
-      if (data.referenced.length > 0) {
-        setEntries(entryIndexRef.current.toArray())
-      }
+      setEntries(entryIndexRef.current.toArray())
+      // Endorse with the canonical DID only — no handle-keyed records
+      await handleEndorse(data.entry.did)
     } catch (e) {
       console.warn('endorseAndFetch failed', e)
     }
-  }, [handleEndorse, entryIndexRef, setEntries, setEndorsedUris])
+  }, [handleEndorse, entryIndexRef, setEntries])
 
   // ── Render helpers ────────────────────────────────────────────────────
 
@@ -261,24 +248,6 @@ export function GiveClient() {
               <span>{scanStatus}</span>
             </div>
           )}
-          {!loading && hasOwnRecords === true && (
-            <Link
-              href="/setup"
-              className="ml-auto inline-flex items-center gap-1.5 text-xs text-emerald-600 transition-opacity hover:opacity-80 dark:text-emerald-400"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              Your funding records look good
-            </Link>
-          )}
-          {!loading && hasOwnRecords === false && (
-            <Link
-              href="/setup"
-              className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-[var(--support)] transition-opacity hover:opacity-80"
-            >
-              Set up your funding records
-              <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            </Link>
-          )}
         </div>
 
         {/* ── My Stack ─────────────────────────────────────────── */}
@@ -288,17 +257,6 @@ export function GiveClient() {
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               My Stack
             </h2>
-            {scanDone && endorsedEntries.length > 0 && meta?.handle && (
-              <a
-                href={`/stack/${meta.handle}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-auto inline-flex items-center gap-1 text-sm text-emerald-600 transition-opacity hover:opacity-75 dark:text-emerald-400"
-              >
-                <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                Share your stack
-              </a>
-            )}
           </div>
           {!hasStackContent && !loading && (
             <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
@@ -314,32 +272,15 @@ export function GiveClient() {
 
           <div className="flex flex-col gap-3">
             {(pdsEntries.length > 0 || endorsedEntries.length > 0) && (
-              <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-                {pdsEntries.map((entry) => (
-                  <CardErrorBoundary key={entry.uri} uri={entry.uri}>
-                    <StewardCard
-                      entry={entry}
-                      allEntries={entries}
-                    />
-                  </CardErrorBoundary>
-                ))}
-                {endorsedEntries.map((entry) => {
-                  const counts = lookupCounts(entry)
-                  return (
-                    <CardErrorBoundary key={entry.uri} uri={entry.uri}>
-                      <StewardCard
-                        entry={entry}
-                        allEntries={entries}
-                        endorsed
-                        endorsedSet={endorsedUris}
-                        onEndorse={handleEndorse}
-                        onUnendorse={handleUnendorse}
-                        networkEndorsementCount={counts?.networkEndorsementCount}
-                      />
-                    </CardErrorBoundary>
-                  )
-                })}
-              </ul>
+              <StackEntriesList
+                entries={[...pdsEntries, ...endorsedEntries]}
+                allEntries={entries}
+                endorsedSet={endorsedUris}
+                onEndorse={handleEndorse}
+                onUnendorse={handleUnendorse}
+                endorsementCounts={endorsementCounts}
+                active
+              />
             )}
 
             {/* Endorse by handle */}
@@ -382,15 +323,8 @@ export function GiveClient() {
             return (
               <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white/60 px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-400">
                 <span>
-                  <strong className="font-semibold text-slate-800 dark:text-slate-200">{fundableEntries.length} project{fundableEntries.length === 1 ? '' : 's'}</strong> in your stack have funding links.
+                  <strong className="font-semibold text-slate-800 dark:text-slate-200">{fundableEntries.length} project{fundableEntries.length === 1 ? '' : 's'}</strong> in your stack have funding links. Endorse the ones you value below <span className="text-base" aria-hidden>↓</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('discover')}
-                  className="shrink-0 text-emerald-600 hover:underline dark:text-emerald-400"
-                >
-                  Start endorsing →
-                </button>
               </div>
             )
           }
@@ -399,16 +333,6 @@ export function GiveClient() {
               <span>
                 You&rsquo;ve endorsed <strong className="font-semibold">{count} project{count === 1 ? '' : 's'}</strong>.
               </span>
-              {meta?.handle && (
-                <a
-                  href={`/stack/${meta.handle}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 font-medium hover:underline"
-                >
-                  Share on Atmosphere →
-                </a>
-              )}
             </div>
           )
         })()}
@@ -518,23 +442,14 @@ export function GiveClient() {
                   )}
 
                   {filteredEntries.length > 0 && (
-                    <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-                      {filteredEntries.map((entry) => {
-                        const counts = lookupCounts(entry)
-                        return (
-                          <CardErrorBoundary key={entry.uri} uri={entry.uri}>
-                            <StewardCard
-                              entry={entry}
-                              allEntries={entries}
-                              endorsedSet={endorsedUris}
-                              onEndorse={handleEndorse}
-                              onUnendorse={handleUnendorse}
-                              networkEndorsementCount={counts?.networkEndorsementCount}
-                            />
-                          </CardErrorBoundary>
-                        )
-                      })}
-                    </ul>
+                    <StackEntriesList
+                      entries={filteredEntries}
+                      allEntries={entries}
+                      endorsedSet={endorsedUris}
+                      onEndorse={handleEndorse}
+                      onUnendorse={handleUnendorse}
+                      endorsementCounts={endorsementCounts}
+                    />
                   )}
                   {filteredEntries.length === 0 && discoveredEntries.length === 0 && loading && (
                     <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
@@ -564,23 +479,14 @@ export function GiveClient() {
                 </p>
               )}
               {visibleEcosystemEntries.length > 0 ? (
-                <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900/60">
-                  {visibleEcosystemEntries.map((entry) => {
-                    const counts = lookupCounts(entry)
-                    return (
-                      <CardErrorBoundary key={entry.uri} uri={entry.uri}>
-                        <StewardCard
-                          entry={entry}
-                          allEntries={entries}
-                          endorsedSet={endorsedUris}
-                          onEndorse={handleEndorse}
-                          onUnendorse={handleUnendorse}
-                          networkEndorsementCount={counts?.networkEndorsementCount}
-                        />
-                      </CardErrorBoundary>
-                    )
-                  })}
-                </ul>
+                <StackEntriesList
+                  entries={visibleEcosystemEntries}
+                  allEntries={entries}
+                  endorsedSet={endorsedUris}
+                  onEndorse={handleEndorse}
+                  onUnendorse={handleUnendorse}
+                  endorsementCounts={endorsementCounts}
+                />
               ) : scanDone ? (
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   No network endorsements found yet. As more people in your network use at.fund, endorsed projects will appear here.

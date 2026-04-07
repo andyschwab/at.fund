@@ -1,3 +1,6 @@
 {
-  "dependencies": ["bad-example.com"]
+  "did": "did:plc:lulmyldiq4sb2ikags5sfb25",
+  "dependencies": [
+    "bad-example.com"
+  ]
 }

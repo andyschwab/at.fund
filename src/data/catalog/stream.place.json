@@ -1,3 +1,6 @@
 {
-  "dependencies": ["livepeer.org"]
+  "did": "did:plc:rbvrr34edl5ddpuwcubjiost",
+  "dependencies": [
+    "livepeer.org"
+  ]
 }

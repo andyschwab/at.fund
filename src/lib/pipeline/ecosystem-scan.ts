@@ -30,17 +30,21 @@ export function discoverEcosystem(
   const catalogEntries = getEcosystemCatalogEntries()
   const uris = new Map<string, EndorsementCounts>()
 
-  // Always include catalog ecosystem entries
+  // Always include catalog ecosystem entries (look up counts by DID when available)
+  const catalogDids = new Set<string>()
   for (const cat of catalogEntries) {
-    uris.set(cat.stewardUri, getCountsFromMap(endorsementMap, cat.stewardUri))
+    const key = cat.did ?? cat.stewardUri
+    if (cat.did) catalogDids.add(cat.did)
+    uris.set(cat.stewardUri, getCountsFromMap(endorsementMap, key))
   }
 
-  // Add network-discovered entries: any URI endorsed by 1+ follows
-  for (const [uri, endorserDids] of endorsementMap) {
-    if (uris.has(uri)) continue // already in catalog set
+  // Add network-discovered entries: any DID endorsed by 1+ follows
+  for (const [did, endorserDids] of endorsementMap) {
+    if (catalogDids.has(did)) continue // already counted via catalog
+    if (uris.has(did)) continue
     if (endorserDids.size === 0) continue
 
-    uris.set(uri, { networkEndorsementCount: endorserDids.size })
+    uris.set(did, { networkEndorsementCount: endorserDids.size })
   }
 
   logger.info('ecosystem: discovery completed', {

@@ -10,7 +10,7 @@ import { gatherAccounts } from './account-gather'
 import type { ScanWarning } from './account-gather'
 import { enrichAccounts } from './account-enrich'
 import { attachCapabilities } from './capability-scan'
-import { resolveDependencies } from './dep-resolve'
+import { resolveDependencies, resolveDepEntry } from './dep-resolve'
 import { discoverEcosystem } from './ecosystem-scan'
 import type { EndorsementCounts } from './ecosystem-scan'
 import { logger } from '@/lib/logger'
@@ -43,8 +43,9 @@ export async function scanStreaming(
   const ctx = createScanContext()
 
   // ── Endorsements: fetch early so the client can mark entries ────────────
+  let endorsedUris: string[] = []
   try {
-    const endorsedUris = await fetchOwnEndorsements(session)
+    endorsedUris = await fetchOwnEndorsements(session)
     if (endorsedUris.length > 0) {
       emit({ type: 'endorsed', uris: endorsedUris })
     }
@@ -117,22 +118,13 @@ export async function scanStreaming(
     const discovery = discoverEcosystem(endorsementMap)
 
     if (discovery.uris.size > 0) {
-      // Build set of URIs already gathered (by DID or hostname)
-      const existingUris = new Set<string>()
-      for (const [did, stub] of gathered.accounts) {
-        existingUris.add(did)
-        for (const h of stub.hostnames) existingUris.add(h)
-      }
-      for (const svc of gathered.unresolvedServices) {
-        existingUris.add(svc.hostname)
-      }
+      // Build set of DIDs already gathered
+      const existingDids = new Set<string>(gathered.accounts.keys())
 
       const uriEntries = [...discovery.uris.entries()]
-        .filter(([uri]) => !existingUris.has(uri))
+        .filter(([uri]) => !existingDids.has(uri))
 
       await Promise.all(uriEntries.map(async ([uri, counts]) => {
-        ecosystemUriCounts.set(uri, counts)
-
         if (uri.startsWith('did:')) {
           if (!gathered.accounts.has(uri)) {
             gathered.accounts.set(uri, {
@@ -141,17 +133,18 @@ export async function scanStreaming(
               hostnames: new Set(),
             })
             ctx.prefetchUnbounded(uri)
+            ecosystemUriCounts.set(uri, counts)
           }
           return
         }
 
-        // Hostname — check catalog for an atprotoHandle alias first
+        // Hostname — resolve to DID or drop
         const catalogEntry = lookupManualStewardRecord(uri)
         const lookupHostname = catalogEntry?.atprotoHandle ?? uri
 
         try {
           const did = await lookupAtprotoDid(lookupHostname)
-          if (did && !existingUris.has(did) && !gathered.accounts.has(did)) {
+          if (did && !existingDids.has(did) && !gathered.accounts.has(did)) {
             gathered.accounts.set(did, {
               did,
               tags: new Set<StewardTag>(['ecosystem']),
@@ -159,12 +152,8 @@ export async function scanStreaming(
             })
             ctx.prefetchUnbounded(did)
             ecosystemUriCounts.set(did, counts)
-            return
           }
-        } catch { /* DNS lookup failed */ }
-
-        // No DID found — use unresolved services path
-        gathered.unresolvedServices.push({ hostname: uri, tags: ['ecosystem'] })
+        } catch { /* DNS lookup failed — drop */ }
       }))
     }
   } catch (e) {
@@ -178,7 +167,6 @@ export async function scanStreaming(
   const enriched = await enrichAccounts(
     session,
     gathered.accounts,
-    gathered.unresolvedServices,
     (entry) => {
       if (entry.tags.length > 0) {
         emit({ type: 'entry', entry })
@@ -192,7 +180,7 @@ export async function scanStreaming(
   }
 
   // ── Phase 3: Capabilities ──────────────────────────────────────────────
-  const allEntries = [...enriched.entries, ...enriched.unresolvedEntries]
+  const allEntries = [...enriched.entries]
 
   if (gathered.feedUris.length > 0 || gathered.labelerDids.length > 0) {
     emit({ type: 'status', message: 'Loading feed and labeler details…' })
@@ -210,23 +198,50 @@ export async function scanStreaming(
     emit({ type: 'entry', entry })
   }, ctx)
 
+  // ── Endorsed entries: resolve any endorsed URIs not already discovered.
+  // Under DID-first, endorsed URIs are DIDs. We resolve any missing ones
+  // and re-emit the endorsed set (all DIDs).
+  if (endorsedUris.length > 0) {
+    const knownDids = new Set<string>(allEntries.map((e) => e.did))
+
+    const missing = endorsedUris.filter((uri) => !knownDids.has(uri))
+    if (missing.length > 0) {
+      emit({ type: 'status', message: `Resolving ${missing.length} endorsed entr${missing.length === 1 ? 'y' : 'ies'}…` })
+      await Promise.all(missing.map(async (uri) => {
+        try {
+          const entry = await resolveDepEntry(uri, ctx)
+          if (entry) {
+            allEntries.push(entry)
+            emit({ type: 'entry', entry })
+          }
+        } catch {
+          // Best-effort — skip entries that can't be resolved
+        }
+      }))
+    }
+
+    // Re-emit endorsed set — all DIDs
+    const resolvedEndorsed = new Set(endorsedUris)
+    for (const uri of endorsedUris) {
+      const entry = allEntries.find((e) => e.did === uri)
+      if (entry) {
+        resolvedEndorsed.add(entry.did)
+      }
+    }
+    emit({ type: 'endorsed', uris: [...resolvedEndorsed] })
+  }
+
   // ── Emit endorsement counts for ALL entries (from the single-pass map) ─
   const allCounts: Record<string, EndorsementCounts> = {}
   for (const entry of allEntries) {
-    let counts = getCountsFromMap(endorsementMap, entry.uri)
-    if (counts.networkEndorsementCount === 0 && entry.did) {
-      counts = getCountsFromMap(endorsementMap, entry.did)
-    }
-    if (counts.networkEndorsementCount === 0 && entry.handle) {
-      counts = getCountsFromMap(endorsementMap, entry.handle)
-    }
-
+    // DID is the canonical key — look up counts by DID
+    const counts = getCountsFromMap(endorsementMap, entry.did)
     if (counts.networkEndorsementCount > 0) {
-      allCounts[entry.uri] = counts
+      allCounts[entry.did] = counts
     }
   }
-  for (const [uri, c] of ecosystemUriCounts) {
-    if (!allCounts[uri]) allCounts[uri] = c
+  for (const [did, c] of ecosystemUriCounts) {
+    if (!allCounts[did]) allCounts[did] = c
   }
   if (Object.keys(allCounts).length > 0) {
     emit({ type: 'endorsement-counts', counts: allCounts })
@@ -253,20 +268,23 @@ export async function scanStreaming(
       const entryway = catalogEntryway ?? funding?.pdsEntryway ?? pdsHostname
       const operator = catalogOperator ?? funding?.pdsStewardUri ?? pdsHostname
 
-      const pdsEntry: StewardEntry = {
-        uri: operator,
-        did: funding?.stewardDid,
-        handle: funding?.pdsStewardHandle,
-        tags: ['tool', 'pds-host'],
-        displayName: operator,
-        contributeUrl: funding?.contributeUrl,
-        dependencies: funding?.dependencies?.map((d) => d.uri),
-        source: funding ? 'fund.at' : 'unknown',
-        capabilities: entryway !== operator
-          ? [{ type: 'pds', name: entryway, hostname: entryway, landingPage: `https://${entryway}` }]
-          : undefined,
+      // DID-first: only emit PDS entry if the operator resolves to a DID
+      if (funding?.stewardDid) {
+        const pdsEntry: StewardEntry = {
+          uri: funding.stewardDid,
+          did: funding.stewardDid,
+          handle: funding.pdsStewardHandle,
+          tags: ['tool', 'pds-host'],
+          displayName: operator,
+          contributeUrl: funding.contributeUrl,
+          dependencies: funding.dependencies?.map((d) => d.uri),
+          source: 'fund.at',
+          capabilities: entryway !== operator
+            ? [{ type: 'pds', name: entryway, hostname: entryway, landingPage: `https://${entryway}` }]
+            : undefined,
+        }
+        emit({ type: 'entry', entry: pdsEntry })
       }
-      emit({ type: 'entry', entry: pdsEntry })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'PDS host lookup failed'
       logger.warn('scan: PDS host lookup failed', { error: msg })

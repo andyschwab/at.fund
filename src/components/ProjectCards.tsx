@@ -16,6 +16,7 @@ import {
   HandleBadge,
   TagBadges,
   CapabilitiesSection,
+  FundingChannelsSection,
   ProfileAvatar,
 } from '@/components/card-primitives'
 import { DependenciesSection } from '@/components/card-dependencies'
@@ -161,6 +162,12 @@ export function StewardCard({
       {entry.capabilities && entry.capabilities.length > 0 && (
         <div className="pl-12">
           <CapabilitiesSection capabilities={entry.capabilities} />
+        </div>
+      )}
+
+      {(entry.channels || entry.plans) && (
+        <div className="pl-12">
+          <FundingChannelsSection channels={entry.channels} plans={entry.plans} />
         </div>
       )}
 

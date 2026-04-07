@@ -1,7 +1,11 @@
 import { createFundAtPrefetch, prefetchInto } from '@/lib/fund-at-prefetch'
 import type { FundAtPrefetchMap } from '@/lib/fund-at-prefetch'
+import type { StewardEntry } from '@/lib/steward-model'
 
 export type { FundAtPrefetchMap }
+
+/** Singleflight map for dependency entry resolution — keyed by dep URI. */
+export type ResolvedDepsMap = Map<string, Promise<StewardEntry | null>>
 
 /**
  * Shared network context for a scan session.
@@ -22,6 +26,8 @@ export type ScanContext = {
   readonly prefetch: (did: string) => void
   /** Fire a prefetch outside the bounded queue (ecosystem, late discovery). */
   readonly prefetchUnbounded: (did: string) => void
+  /** Singleflight cache for resolved dependency entries. */
+  readonly resolvedDeps: ResolvedDepsMap
 }
 
 /**
@@ -34,5 +40,6 @@ export function createScanContext(): ScanContext {
     fundAtPrefetch: map,
     prefetch,
     prefetchUnbounded: (did: string) => prefetchInto(map, did),
+    resolvedDeps: new Map(),
   }
 }

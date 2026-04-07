@@ -58,7 +58,7 @@ describe('lookupManualByIdentity', () => {
     vi.resetAllMocks()
   })
 
-  it('looks up by DID first', () => {
+  it('looks up by DID', () => {
     const record = manualRecord({ contributeUrl: 'https://donate.example.com' })
     mockCatalog.mockReturnValueOnce(record)
 
@@ -67,33 +67,10 @@ describe('lookupManualByIdentity', () => {
     expect(mockCatalog).toHaveBeenCalledWith('did:plc:abc123')
   })
 
-  it('falls back to URI when DID has no match', () => {
+  it('tries extra keys when DID has no match', () => {
     const record = manualRecord({ contributeUrl: 'https://donate.example.com' })
     mockCatalog.mockReturnValueOnce(null) // DID miss
-    mockCatalog.mockReturnValueOnce(record) // URI hit
-
-    const result = lookupManualByIdentity(identity())
-    expect(result).toBe(record)
-    expect(mockCatalog).toHaveBeenCalledWith('example.com')
-  })
-
-  it('falls back to handle when DID and URI miss', () => {
-    const record = manualRecord({ contributeUrl: 'https://donate.example.com' })
-    mockCatalog.mockReturnValueOnce(null) // DID
-    mockCatalog.mockReturnValueOnce(null) // URI
-    mockCatalog.mockReturnValueOnce(record) // handle
-
-    const result = lookupManualByIdentity(identity())
-    expect(result).toBe(record)
-    expect(mockCatalog).toHaveBeenCalledWith('example.bsky.social')
-  })
-
-  it('tries extra keys after standard keys', () => {
-    const record = manualRecord({ contributeUrl: 'https://donate.example.com' })
-    mockCatalog.mockReturnValueOnce(null) // DID
-    mockCatalog.mockReturnValueOnce(null) // URI
-    mockCatalog.mockReturnValueOnce(null) // handle
-    mockCatalog.mockReturnValueOnce(record) // extra key
+    mockCatalog.mockReturnValueOnce(record) // extra key hit
 
     const result = lookupManualByIdentity(identity(), ['extra.example.com'])
     expect(result).toBe(record)
@@ -107,20 +84,13 @@ describe('lookupManualByIdentity', () => {
     expect(result).toBeNull()
   })
 
-  it('skips URI lookup when URI equals DID', () => {
+  it('only calls catalog once for DID (no URI/handle fallback)', () => {
     mockCatalog.mockReturnValue(null)
 
-    lookupManualByIdentity(identity({ uri: 'did:plc:abc123', did: 'did:plc:abc123' }))
-    // DID lookup + handle lookup = 2 calls (URI skipped because it equals DID)
-    expect(mockCatalog).toHaveBeenCalledTimes(2)
-  })
-
-  it('skips DID lookup when DID is undefined', () => {
-    mockCatalog.mockReturnValue(null)
-
-    lookupManualByIdentity(identity({ did: undefined }))
-    // URI + handle = 2 calls (DID skipped)
-    expect(mockCatalog).toHaveBeenCalledTimes(2)
+    lookupManualByIdentity(identity())
+    // DID-first: only DID lookup, no URI or handle fallback
+    expect(mockCatalog).toHaveBeenCalledTimes(1)
+    expect(mockCatalog).toHaveBeenCalledWith('did:plc:abc123')
   })
 })
 
@@ -177,8 +147,8 @@ describe('resolveFunding', () => {
 
   it('falls back to manual catalog when fund.at returns null', async () => {
     mockFetchFundAt.mockResolvedValue(null)
-    mockCatalog.mockReturnValueOnce(null) // during fund.at merge
-    mockCatalog.mockReturnValueOnce(manualRecord({ contributeUrl: 'https://manual.com' })) // fallback
+    // DID-first: catalog lookup by DID finds the manual record
+    mockCatalog.mockReturnValueOnce(manualRecord({ contributeUrl: 'https://manual.com' }))
 
     const result = await resolveFunding(identity())
     expect(result.funding.source).toBe('manual')
@@ -205,14 +175,6 @@ describe('resolveFunding', () => {
     expect(result.funding.source).toBe('unknown')
   })
 
-  it('skips fund.at fetch when DID is undefined', async () => {
-    mockCatalog.mockReturnValue(null)
-
-    const result = await resolveFunding(identity({ did: undefined }))
-    expect(mockFetchFundAt).not.toHaveBeenCalled()
-    expect(result.funding.source).toBe('unknown')
-  })
-
   it('uses prefetch map when available in ScanContext', async () => {
     const prefetchMap = new Map<string, Promise<{ contributeUrl?: string; dependencies?: Array<{ uri: string }> } | null>>()
     prefetchMap.set('did:plc:abc123', Promise.resolve({
@@ -224,6 +186,7 @@ describe('resolveFunding', () => {
       fundAtPrefetch: prefetchMap,
       prefetch: vi.fn(),
       prefetchUnbounded: vi.fn(),
+      resolvedDeps: new Map(),
     }
 
     const result = await resolveFunding(identity(), { ctx })
@@ -256,7 +219,7 @@ describe('resolveFundingForDep', () => {
 
   it('falls back to manual when fund.at returns null', async () => {
     mockFetchRecords.mockResolvedValue(null)
-    mockCatalog.mockReturnValueOnce(null) // fund.at merge call
+    // DID-first: catalog lookup by DID finds the manual record
     mockCatalog.mockReturnValueOnce(manualRecord({ contributeUrl: 'https://manual.com' }))
 
     const result = await resolveFundingForDep(identity())
@@ -291,6 +254,7 @@ describe('resolveFundingForDep', () => {
       fundAtPrefetch: prefetchMap,
       prefetch: vi.fn(),
       prefetchUnbounded: vi.fn(),
+      resolvedDeps: new Map(),
     }
 
     const result = await resolveFundingForDep(identity(), ctx)
@@ -299,11 +263,4 @@ describe('resolveFundingForDep', () => {
     expect(mockFetchRecords).not.toHaveBeenCalled()
   })
 
-  it('skips fund.at when DID is undefined', async () => {
-    mockCatalog.mockReturnValue(null)
-
-    const result = await resolveFundingForDep(identity({ did: undefined }))
-    expect(mockFetchRecords).not.toHaveBeenCalled()
-    expect(result.source).toBe('unknown')
-  })
 })

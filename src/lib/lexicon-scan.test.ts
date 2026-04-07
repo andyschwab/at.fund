@@ -71,9 +71,16 @@ vi.mock('@/lib/atfund-uri', () => ({
 
 // Mock fund-at-records identity resolution
 vi.mock('@/lib/fund-at-records', () => ({
-  FUND_CONTRIBUTE: 'fund.at.contribute',
-  FUND_DEPENDENCY: 'fund.at.dependency',
-  FUND_ENDORSE: 'fund.at.endorse',
+  FUND_DECLARATION: 'fund.at.actor.declaration',
+  FUND_CONTRIBUTE: 'fund.at.funding.contribute',
+  FUND_CHANNEL: 'fund.at.funding.channel',
+  FUND_PLAN: 'fund.at.funding.plan',
+  FUND_DEPENDENCY: 'fund.at.graph.dependency',
+  FUND_ENDORSE: 'fund.at.graph.endorse',
+  LEGACY_CONTRIBUTE: 'fund.at.contribute',
+
+  LEGACY_DEPENDENCY: 'fund.at.dependency',
+  LEGACY_ENDORSE: 'fund.at.endorse',
   resolveHandleFromDid: vi.fn().mockResolvedValue(undefined),
   resolveDidFromIdentifier: vi.fn().mockResolvedValue(undefined),
   resolvePdsUrl: vi.fn().mockResolvedValue(null),
@@ -174,16 +181,23 @@ beforeEach(() => {
 
 describe('scanRepo pipeline', () => {
   it('filters noise collections and resolves third-party NSIDs to steward URIs', async () => {
+    // Mock DNS resolution for the test stewards so they have DIDs
+    vi.mocked(lookupAtprotoDid).mockImplementation(async (hostname) => {
+      if (hostname === 'alpha.test') return 'did:plc:alpha'
+      if (hostname === 'beta.test') return 'did:plc:beta'
+      return null
+    })
+
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
     expect(result.did).toBe('did:plc:testuser123')
     expect(result.handle).toBe('testuser.bsky.social')
 
-    // Should have resolved synthetic stewards via mocked catalog
-    const uris = result.entries.map((e) => e.uri)
-    expect(uris).toContain('alpha.test') // test.alpha.record → mocked resolver
-    expect(uris).toContain('beta.test')  // test.beta.upload → mocked resolver
+    // Under DID-first, entries are keyed by DID
+    const dids = result.entries.map((e) => e.did)
+    expect(dids).toContain('did:plc:alpha') // test.alpha.record → mocked resolver → DNS
+    expect(dids).toContain('did:plc:beta')  // test.beta.upload → mocked resolver → DNS
   })
 
   it('uses manual catalog fallback for known stewards', async () => {
@@ -195,15 +209,20 @@ describe('scanRepo pipeline', () => {
         ],
       }
 
+    // DID-first: hostname must resolve to a DID for the entry to exist
+    vi.mocked(lookupAtprotoDid).mockImplementation(async (hostname) => {
+      if (hostname === 'alpha.test') return 'did:plc:alpha'
+      return null
+    })
+
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    const alpha = result.entries.find((e) => e.uri === 'alpha.test')
+    const alpha = result.entries.find((e) => e.did === 'did:plc:alpha')
     // alpha.test has a mocked manual catalog entry with dependencies
-    if (alpha) {
-      expect(alpha.source).toBe('manual')
-      expect(alpha.dependencies).toBeDefined()
-    }
+    expect(alpha).toBeDefined()
+    expect(alpha!.source).toBe('manual')
+    expect(alpha!.dependencies).toBeDefined()
   })
 
   it('marks stewards as unknown when no fund.at or manual record exists', async () => {
@@ -216,13 +235,19 @@ describe('scanRepo pipeline', () => {
         ],
       }
 
+    // DID-first: must resolve to a DID
+    vi.mocked(lookupAtprotoDid).mockImplementation(async (hostname) => {
+      if (hostname === 'randomdev.com') return 'did:plc:random'
+      return null
+    })
+
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
     const unknown = result.entries.find((e) => e.source === 'unknown')
     expect(unknown).toBeDefined()
-    // Unknown entries use uri as displayName
-    expect(unknown!.displayName).toBe(unknown!.uri)
+    // Under DID-first, uri = did, displayName falls back to DID
+    expect(unknown!.uri).toBe(unknown!.did)
   })
 
   it('uses fund.at records when steward DID resolves', async () => {
@@ -247,7 +272,7 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    const alpha = result.entries.find((e) => e.uri === 'alpha.test')
+    const alpha = result.entries.find((e) => e.did === 'did:plc:alpha')
     expect(alpha).toBeDefined()
     expect(alpha!.source).toBe('fund.at')
     expect(alpha!.contributeUrl).toBe('https://alpha.test/donate')
@@ -260,10 +285,16 @@ describe('scanRepo pipeline', () => {
         collections: ['app.bsky.feed.post'],
       }
 
+    // DID-first: self-reported hostname must resolve to a DID
+    vi.mocked(lookupAtprotoDid).mockImplementation(async (hostname) => {
+      if (hostname === 'alpha.test') return 'did:plc:alpha'
+      return null
+    })
+
     const session = makeMockSession()
     const result = await scanRepo(session, ['alpha.test'])
 
-    const alpha = result.entries.find((e) => e.uri === 'alpha.test')
+    const alpha = result.entries.find((e) => e.did === 'did:plc:alpha')
     expect(alpha).toBeDefined()
     expect(alpha!.displayName).toBeTruthy()
   })
@@ -278,9 +309,10 @@ describe('scanRepo pipeline', () => {
         ],
       }
 
-    // alpha.test resolves to fund.at with contribute URL
+    // Both must resolve to DIDs under DID-first
     vi.mocked(lookupAtprotoDid).mockImplementation(async (hostname) => {
       if (hostname === 'alpha.test') return 'did:plc:alpha'
+      if (hostname === 'randomdev.com') return 'did:plc:random'
       return null
     })
     vi.mocked(fetchFundAtForStewardDid).mockImplementation(async (did) => {
@@ -347,11 +379,17 @@ describe('scanRepo pipeline', () => {
         ],
       }
 
+    // DID-first: must resolve
+    vi.mocked(lookupAtprotoDid).mockImplementation(async (hostname) => {
+      if (hostname === 'alpha.test') return 'did:plc:alpha'
+      return null
+    })
+
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    // Both collections should resolve to a single alpha.test entry
-    const alphaCards = result.entries.filter((e) => e.uri === 'alpha.test')
+    // Both collections should resolve to a single entry (deduped by DID)
+    const alphaCards = result.entries.filter((e) => e.did === 'did:plc:alpha')
     expect(alphaCards).toHaveLength(1)
   })
 
@@ -394,8 +432,8 @@ describe('scanRepo pipeline', () => {
     const session = makeMockSession()
     const result = await scanRepo(session, [])
 
-    // Should fall through to manual catalog
-    const alpha = result.entries.find((e) => e.uri === 'alpha.test')
+    // Should fall through to manual catalog (found by DID)
+    const alpha = result.entries.find((e) => e.did === 'did:plc:alpha')
     expect(alpha).toBeDefined()
 
     // Should have a warning

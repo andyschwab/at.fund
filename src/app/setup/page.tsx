@@ -1,30 +1,17 @@
-import { getSession } from '@/lib/auth/session'
-import { getSessionHandle } from '@/lib/auth/session-handle'
-import { fetchOwnFundAtRecords } from '@/lib/fund-at-records'
-import { SetupClient } from '@/components/SetupClient'
-import { RequireSession } from '@/components/RequireSession'
-import type { FundAtResult } from '@/lib/fund-at-records'
+import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 
-export const metadata = {
-  title: 'Set up your funding profile — at.fund',
-}
-
-export default async function SetupPage() {
-  const session = await getSession()
-  if (!session) {
-    return <RequireSession>{null}</RequireSession>
+/**
+ * /setup now redirects to the unified profile page in edit mode.
+ * LandingPage CTAs still point here, so this redirect is needed.
+ */
+export default async function SetupRedirect() {
+  const cookieStore = await cookies()
+  const did = cookieStore.get('did')?.value
+  if (!did) {
+    redirect('/')
   }
 
-  const [handle, existing] = await Promise.all([
-    getSessionHandle(session).catch(() => undefined),
-    fetchOwnFundAtRecords(session).catch((): FundAtResult | null => null),
-  ])
-
-  return (
-    <SetupClient
-      did={session.did}
-      handle={handle}
-      existing={existing}
-    />
-  )
+  const handle = cookieStore.get('handle')?.value
+  redirect(`/${handle ?? did}?edit=true`)
 }

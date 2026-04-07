@@ -12,9 +12,14 @@ export { $nsid }
 type Main = {
   $type: 'fund.at.endorse'
 
-  /** The endorsed entity: a DID (did:plc:..., did:web:...) or a hostname (example.com). */
+  /**
+   * The endorsed entity: a DID (did:plc:..., did:web:...) or a hostname (example.com).
+   */
   uri: string
-  /** When this endorsement was created. */
+
+  /**
+   * When this endorsement was created.
+   */
   createdAt?: l.DatetimeString
 }
 

@@ -1,0 +1,73 @@
+{
+  "lexicon": 1,
+  "id": "fund.at.funding.plan",
+  "description": "A funding plan or tier with a suggested amount. Each plan is an individual record keyed by its slug ID. Plans reference channels by AT URI, allowing cross-account references (e.g. multiple maintainers pointing plans at a shared org channel).",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A funding plan — a named tier or suggested contribution level. References payment channels by AT URI, which may be in this account or any other account's fund.at.funding.channel records.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "maxLength": 16,
+            "description": "Whether this plan is currently accepting contributions. Maps to funding.json plan.status.",
+            "knownValues": [
+              "active",
+              "inactive"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Human-readable plan name (e.g. 'Supporter', 'Sustainer')."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "What this plan covers or how the funds are used."
+          },
+          "amount": {
+            "type": "integer",
+            "description": "Suggested amount in the smallest currency unit (e.g. cents for USD). Use 0 for 'any amount'. Maps to funding.json plan.amount (converted from whole units)."
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "description": "ISO 4217 currency code (e.g. 'USD', 'EUR')."
+          },
+          "frequency": {
+            "type": "string",
+            "maxLength": 16,
+            "description": "How often the plan is billed. Maps to funding.json plan.frequency.",
+            "knownValues": [
+              "one-time",
+              "weekly",
+              "fortnightly",
+              "monthly",
+              "yearly",
+              "other"
+            ]
+          },
+          "channels": {
+            "type": "array",
+            "description": "AT URIs of fund.at.funding.channel records where this plan can be fulfilled. May reference channels in any account. If omitted, all of this account's channels apply.",
+            "maxLength": 10,
+            "items": {
+              "type": "string",
+              "format": "at-uri"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this record was created or last updated."
+          }
+        }
+      }
+    }
+  }
+}

@@ -12,9 +12,14 @@ export { $nsid }
 type Main = {
   $type: 'fund.at.contribute'
 
-  /** The canonical funding page URL (e.g. GitHub Sponsors, Open Collective, ko-fi). */
+  /**
+   * The canonical funding page URL (e.g. GitHub Sponsors, Open Collective, ko-fi).
+   */
   url: l.UriString
-  /** When this record was created or last updated. */
+
+  /**
+   * When this record was created or last updated.
+   */
   createdAt?: l.DatetimeString
 }
 

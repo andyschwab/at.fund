@@ -23,6 +23,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await resolveEntry(uri)
+    if (!result) {
+      return NextResponse.json({ error: 'Could not resolve to a DID' }, { status: 404 })
+    }
     return NextResponse.json(result)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Failed to resolve entry'

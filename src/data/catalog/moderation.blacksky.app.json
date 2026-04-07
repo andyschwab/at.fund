@@ -1,4 +1,5 @@
 {
+  "did": "did:plc:d2mkddsbmnrgr3domzg5qexf",
   "dependencies": [
     "blacksky.community"
   ]

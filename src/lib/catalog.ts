@@ -4,6 +4,8 @@ import resolverJson from '@/data/resolver-catalog.json'
 import { normalizeStewardUri } from '@/lib/steward-uri'
 
 type ManualRecord = {
+  /** Resolved DID for this steward (when known). */
+  did?: string
   contributeUrl?: string
   dependencies?: string[]
   tags?: string[]
@@ -23,19 +25,25 @@ type ResolverFile = {
   overrides: ResolverOverride[]
 }
 
-function loadCatalogRecords(): Record<string, ManualRecord> {
+function loadCatalog(): {
+  records: Record<string, ManualRecord>
+  didToKey: Map<string, string>
+} {
   const catalogDir = path.join(process.cwd(), 'src', 'data', 'catalog')
   const records: Record<string, ManualRecord> = {}
+  const didToKey = new Map<string, string>()
   for (const file of fs.readdirSync(catalogDir)) {
     if (!file.endsWith('.json')) continue
     const stewardUri = file.replace(/\.json$/, '')
     const content = fs.readFileSync(path.join(catalogDir, file), 'utf-8')
-    records[stewardUri] = JSON.parse(content) as ManualRecord
+    const record = JSON.parse(content) as ManualRecord
+    records[stewardUri] = record
+    if (record.did) didToKey.set(record.did, stewardUri)
   }
-  return records
+  return { records, didToKey }
 }
 
-const manualCatalogRecords = loadCatalogRecords()
+const { records: manualCatalogRecords, didToKey: catalogDidIndex } = loadCatalog()
 const resolverCatalog = resolverJson as ResolverFile
 
 function normalizePrefix(prefix: string): string {
@@ -107,6 +115,7 @@ export function resolveStewardUri(observedKey: string): string | null {
 
 export type ManualStewardRecord = {
   stewardUri: string
+  did?: string
   contributeUrl?: string
   dependencies?: string[]
   tags?: string[]
@@ -121,7 +130,18 @@ export function lookupManualStewardRecord(
   const key = normalizeStewardUri(stewardUri)
   if (!key) return null
 
-  const record = manualCatalogRecords[key]
+  let record = manualCatalogRecords[key]
+  let resolvedKey = key
+
+  // DID reverse index: if the key is a DID, find its hostname-keyed entry
+  if (!record && key.startsWith('did:')) {
+    const hostnameKey = catalogDidIndex.get(key)
+    if (hostnameKey) {
+      record = manualCatalogRecords[hostnameKey]
+      resolvedKey = hostnameKey
+    }
+  }
+
   if (!record) return null
 
   const hasContent =
@@ -132,7 +152,8 @@ export function lookupManualStewardRecord(
   if (!hasContent) return null
 
   return {
-    stewardUri: key,
+    stewardUri: resolvedKey,
+    did: record.did,
     contributeUrl: record.contributeUrl,
     dependencies: record.dependencies,
     tags: record.tags,

@@ -1,3 +1,6 @@
 {
-  "dependencies": ["pirmax.fr"]
+  "did": "did:plc:6stwlcvsamyqp3c2t5cemkvj",
+  "dependencies": [
+    "pirmax.fr"
+  ]
 }

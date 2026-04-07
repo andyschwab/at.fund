@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import type { StewardEntry, StewardTag, Capability } from '@/lib/steward-model'
+import type { FundingChannel, FundingPlan } from '@/lib/funding-manifest'
+import { detectPlatform, PLATFORM_LABELS } from '@/lib/funding-manifest'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -211,6 +213,116 @@ export function CapabilitiesSection({ capabilities }: { capabilities: Capability
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// FundingChannelsSection — renders funding.json channels and plans
+// ---------------------------------------------------------------------------
+
+/** Human-friendly label for a channel: detected platform name or description fallback. */
+function channelLabel(ch: FundingChannel): string {
+  const platform = detectPlatform(ch.address)
+  if (platform) return PLATFORM_LABELS[platform]
+  if (ch.description) return ch.description
+  // Fall back to the hostname of the address if it's a URL
+  try {
+    return new URL(ch.address).hostname
+  } catch {
+    return ch.type === 'bank' ? 'Bank transfer' : 'Other'
+  }
+}
+
+function formatAmount(amount: number, currency: string): string {
+  if (amount === 0) return ''
+  try {
+    return new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 0,
+    }).format(amount)
+  } catch {
+    return `${amount} ${currency}`
+  }
+}
+
+function frequencyLabel(freq: FundingPlan['frequency']): string {
+  switch (freq) {
+    case 'one-time': return 'one-time'
+    case 'weekly': return '/wk'
+    case 'fortnightly': return '/2wk'
+    case 'monthly': return '/mo'
+    case 'yearly': return '/yr'
+    default: return ''
+  }
+}
+
+export function FundingChannelsSection({ channels, plans }: { channels?: FundingChannel[]; plans?: FundingPlan[] }) {
+  const [expanded, setExpanded] = useState(true)
+
+  // Only linkable channels (URLs)
+  const linkableChannels = (channels ?? []).filter((ch) => {
+    try { new URL(ch.address); return true } catch { return false }
+  })
+
+  if (linkableChannels.length === 0) return null
+
+  // Index plans by channel GUID for combined display
+  const planByChannel = new Map<string, FundingPlan>()
+  for (const plan of plans ?? []) {
+    if (plan.status !== 'active') continue
+    for (const chRef of plan.channels) {
+      const slug = chRef.includes('/') ? chRef.split('/').pop()! : chRef
+      planByChannel.set(slug, plan)
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50/40 px-3 py-2 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-1.5 text-left cursor-pointer"
+      >
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+          Funding
+        </span>
+        <span className="text-[10px] text-slate-400 dark:text-slate-500">
+          {linkableChannels.length} channel{linkableChannels.length !== 1 ? 's' : ''}
+        </span>
+        <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500">
+          {expanded ? '▾' : '▸'}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="mt-2">
+          <div className="flex flex-wrap gap-1.5">
+            {linkableChannels.map((ch) => {
+              const plan = planByChannel.get(ch.guid)
+              const amt = plan && plan.amount > 0 ? formatAmount(plan.amount, plan.currency) : ''
+              const freq = plan ? frequencyLabel(plan.frequency) : ''
+              return (
+                <a
+                  key={ch.guid}
+                  href={ch.address}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50 hover:border-emerald-300 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
+                >
+                  {channelLabel(ch)}
+                  {amt && (
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      {amt}{freq}
+                    </span>
+                  )}
+                </a>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

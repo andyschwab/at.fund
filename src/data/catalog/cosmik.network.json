@@ -1,3 +1,6 @@
 {
-  "dependencies": ["atprotocol.dev"]
+  "did": "did:plc:b2p6rujcgpenbtcjposmjuc3",
+  "dependencies": [
+    "atprotocol.dev"
+  ]
 }
