@@ -46,16 +46,18 @@ export async function POST() {
     const res = await client.list(fund.at.dependency, { limit: 100 })
     for (const r of res.records) {
       try {
-        const legacyUri = r.value.uri?.trim()
-        if (!legacyUri) continue
-        const label = r.value.label?.trim() || undefined
-        await client.put(fund.at.graph.dependency, {
-          subject: legacyUri,
-          ...(label && { label }),
-          createdAt,
-        }, { rkey: legacyUri })
-        // Delete legacy record — extract rkey from AT URI
         const rkey = r.uri.split('/').pop()
+        const legacyUri = r.value.uri?.trim()
+        // Only migrate records with a canonical DID subject
+        if (legacyUri?.startsWith('did:')) {
+          const label = r.value.label?.trim() || undefined
+          await client.put(fund.at.graph.dependency, {
+            subject: legacyUri,
+            ...(label && { label }),
+            createdAt,
+          }, { rkey: legacyUri })
+        }
+        // Always delete the legacy record
         if (rkey) await client.deleteRecord(LEGACY_DEPENDENCY as `${string}.${string}.${string}`, rkey)
       } catch (e) {
         errors.push(`dependency ${r.uri}: ${e instanceof Error ? e.message : String(e)}`)
@@ -71,13 +73,16 @@ export async function POST() {
     const res = await client.list(fund.at.endorse, { limit: 100 })
     for (const r of res.records) {
       try {
-        const legacyUri = r.value.uri?.trim()
-        if (!legacyUri) continue
-        await client.put(fund.at.graph.endorse, {
-          subject: legacyUri,
-          createdAt,
-        }, { rkey: legacyUri })
         const rkey = r.uri.split('/').pop()
+        const legacyUri = r.value.uri?.trim()
+        // Only migrate records with a canonical DID subject
+        if (legacyUri?.startsWith('did:')) {
+          await client.put(fund.at.graph.endorse, {
+            subject: legacyUri,
+            createdAt,
+          }, { rkey: legacyUri })
+        }
+        // Always delete the legacy record
         if (rkey) await client.deleteRecord(LEGACY_ENDORSE as `${string}.${string}.${string}`, rkey)
       } catch (e) {
         errors.push(`endorse ${r.uri}: ${e instanceof Error ? e.message : String(e)}`)
