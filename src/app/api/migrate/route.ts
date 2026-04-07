@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { Client, l } from '@atproto/lex'
 import * as fund from '@/lexicons/fund'
-import { LEGACY_CONTRIBUTE, LEGACY_DEPENDENCY, LEGACY_ENDORSE } from '@/lib/fund-at-records'
+import { LEGACY_CONTRIBUTE, LEGACY_DEPENDENCY, LEGACY_ENDORSE, resolveDidFromIdentifier } from '@/lib/fund-at-records'
 import { logger } from '@/lib/logger'
 
 /**
@@ -48,14 +48,17 @@ export async function POST() {
       try {
         const rkey = r.uri.split('/').pop()
         const legacyUri = r.value.uri?.trim()
-        // Only migrate records with a canonical DID subject
-        if (legacyUri?.startsWith('did:')) {
-          const label = r.value.label?.trim() || undefined
-          await client.put(fund.at.graph.dependency, {
-            subject: legacyUri,
-            ...(label && { label }),
-            createdAt,
-          }, { rkey: legacyUri })
+        if (legacyUri) {
+          // Resolve non-DID identifiers (handles, hostnames) to DIDs
+          const did = await resolveDidFromIdentifier(legacyUri)
+          if (did) {
+            const label = r.value.label?.trim() || undefined
+            await client.put(fund.at.graph.dependency, {
+              subject: did,
+              ...(label && { label }),
+              createdAt,
+            }, { rkey: did })
+          }
         }
         // Always delete the legacy record
         if (rkey) await client.deleteRecord(LEGACY_DEPENDENCY as `${string}.${string}.${string}`, rkey)
@@ -75,12 +78,15 @@ export async function POST() {
       try {
         const rkey = r.uri.split('/').pop()
         const legacyUri = r.value.uri?.trim()
-        // Only migrate records with a canonical DID subject
-        if (legacyUri?.startsWith('did:')) {
-          await client.put(fund.at.graph.endorse, {
-            subject: legacyUri,
-            createdAt,
-          }, { rkey: legacyUri })
+        if (legacyUri) {
+          // Resolve non-DID identifiers (handles, hostnames) to DIDs
+          const did = await resolveDidFromIdentifier(legacyUri)
+          if (did) {
+            await client.put(fund.at.graph.endorse, {
+              subject: did,
+              createdAt,
+            }, { rkey: did })
+          }
         }
         // Always delete the legacy record
         if (rkey) await client.deleteRecord(LEGACY_ENDORSE as `${string}.${string}.${string}`, rkey)
