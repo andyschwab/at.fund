@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { Client, l } from '@atproto/lex'
 import * as fund from '@/lexicons/fund'
-import { LEGACY_CONTRIBUTE, LEGACY_DEPENDENCY, LEGACY_ENDORSE } from '@/lib/fund-at-records'
+import { LEGACY_CONTRIBUTE, LEGACY_DEPENDENCY, LEGACY_ENDORSE, resolveDidFromIdentifier } from '@/lib/fund-at-records'
 import { logger } from '@/lib/logger'
 
 /**
@@ -46,16 +46,21 @@ export async function POST() {
     const res = await client.list(fund.at.dependency, { limit: 100 })
     for (const r of res.records) {
       try {
-        const legacyUri = r.value.uri?.trim()
-        if (!legacyUri) continue
-        const label = r.value.label?.trim() || undefined
-        await client.put(fund.at.graph.dependency, {
-          subject: legacyUri,
-          ...(label && { label }),
-          createdAt,
-        }, { rkey: legacyUri })
-        // Delete legacy record — extract rkey from AT URI
         const rkey = r.uri.split('/').pop()
+        const legacyUri = r.value.uri?.trim()
+        if (legacyUri) {
+          // Resolve non-DID identifiers (handles, hostnames) to DIDs
+          const did = await resolveDidFromIdentifier(legacyUri)
+          if (did) {
+            const label = r.value.label?.trim() || undefined
+            await client.put(fund.at.graph.dependency, {
+              subject: did,
+              ...(label && { label }),
+              createdAt,
+            }, { rkey: did })
+          }
+        }
+        // Always delete the legacy record
         if (rkey) await client.deleteRecord(LEGACY_DEPENDENCY as `${string}.${string}.${string}`, rkey)
       } catch (e) {
         errors.push(`dependency ${r.uri}: ${e instanceof Error ? e.message : String(e)}`)
@@ -71,13 +76,19 @@ export async function POST() {
     const res = await client.list(fund.at.endorse, { limit: 100 })
     for (const r of res.records) {
       try {
-        const legacyUri = r.value.uri?.trim()
-        if (!legacyUri) continue
-        await client.put(fund.at.graph.endorse, {
-          subject: legacyUri,
-          createdAt,
-        }, { rkey: legacyUri })
         const rkey = r.uri.split('/').pop()
+        const legacyUri = r.value.uri?.trim()
+        if (legacyUri) {
+          // Resolve non-DID identifiers (handles, hostnames) to DIDs
+          const did = await resolveDidFromIdentifier(legacyUri)
+          if (did) {
+            await client.put(fund.at.graph.endorse, {
+              subject: did,
+              createdAt,
+            }, { rkey: did })
+          }
+        }
+        // Always delete the legacy record
         if (rkey) await client.deleteRecord(LEGACY_ENDORSE as `${string}.${string}.${string}`, rkey)
       } catch (e) {
         errors.push(`endorse ${r.uri}: ${e instanceof Error ? e.message : String(e)}`)
