@@ -56,7 +56,8 @@ your identity, portable across any ATProto application — become your
 **giving portfolio**.
 
 Not a list of subscriptions locked inside Patreon. Not recurring charges
-buried in your credit card statement. A unified, self-sovereign record of
+buried in your credit card statement. A record that belongs to you — in
+your repository, under your control, portable across applications — of
 "these are the entities I've decided matter to me."
 
 at.fund reads your portfolio and shows you the full picture:
@@ -93,20 +94,20 @@ for your own decisions about sustainability, and it's useful for foundations,
 corporate sponsors, and matching programs that need to justify where to
 allocate resources.
 
-## How it works: the two-sided attestation
+## How it works: two unilateral signals
 
-at.fund uses two complementary signals, each stored in the respective
-actor's own repository:
+at.fund uses two independent records, each stored in the respective
+actor's own repository. Neither depends on the other. Neither requires
+the other's cooperation.
 
 ```
 ┌─────────────────┐                    ┌─────────────────┐
 │     Giver       │                    │    Steward       │
 │                 │   fund.at.graph    │                  │
 │  "I endorse     │────.endorse───────▶│                  │
-│   this entity"  │                    │  "This person    │
-│                 │◀──.supporter───────│   funds me"      │
-│  "I gave to     │   (or similar)     │                  │
-│   this entity"  │                    │                  │
+│   this entity"  │                    │  "I acknowledge  │
+│                 │◀──.acknowledge─────│   this person    │
+│                 │                    │   as a funder"   │
 └─────────────────┘                    └─────────────────┘
 ```
 
@@ -114,31 +115,35 @@ actor's own repository:
 
 - `fund.at.graph.endorse` — "I vouch for this entity's work." A public
   statement of intent. This is the portfolio entry.
-- `fund.at.graph.gave` — "I contributed to this entity." Not the amount,
-  not the platform, just the signed fact. This converts intent into
-  demonstrated commitment.
 
 **The steward's side:**
 
 - `fund.at.funding.contribute` — "Here is where you can support me."
 - `fund.at.funding.channel` / `plan` — Structured payment endpoints and tiers.
-- `fund.at.graph.supporter` — "This person actively funds my work." The
-  steward's acknowledgment, closing the loop.
+- `fund.at.graph.acknowledge` — "I recognize this person as a funder of
+  my work."
 
-Neither side needs to trust the other's claim. Both records are independently
-signed and independently verifiable. Together, they create a **two-sided
-attestation** without requiring a cryptographic exchange protocol, an escrow
-system, or any shared infrastructure.
+There is no handshake. Each side speaks only for itself, and each
+statement is always true with respect to the person making it. The giver
+is always right about who they endorse. The steward is always right about
+who they acknowledge. The *relationship* is read from the combination —
+and the mismatches are the most interesting part:
 
-The giver says "I gave." The steward says "They support me." If both records
-exist, confidence is high. If only one exists, that's information too — maybe
-the giver needs to update their records, or maybe the steward hasn't
-acknowledged yet.
+| Endorse | Acknowledge | What it tells you |
+|---------|-------------|-------------------|
+| Yes | Yes | Active, healthy funding relationship |
+| Yes | No | Intent without action — a gap to close |
+| No | Yes | A relationship that's drifted — a subscription to review |
+| No | No | No relationship |
 
-And critically: **the relationship signals when it's broken.** If you
-unendorse but the supporter record remains, you know you have a subscription
-to cancel. If you endorse but there's no supporter record, you know you
-haven't followed through yet. The mismatch is the actionable signal.
+Every state is informative. The "endorse but not acknowledged" gap is
+where at.fund helps givers follow through. The "acknowledged but not
+endorsed" state is the quiet signal that you've moved on but haven't
+cleaned up — a reminder to cancel, or to reconsider.
+
+No cryptographic exchange protocol. No escrow. No shared state. Just
+two people each saying something true about their side of a relationship,
+and the overlap (or lack of it) telling the story.
 
 ## What at.fund is not
 
@@ -154,7 +159,7 @@ relationship picture and helps you act on it. The action happens on
 the platforms where money actually moves.
 
 **at.fund is not a social network.** It's infrastructure. The endorsement
-and supporter records are ATProto data, readable by any application.
+and acknowledgement records are ATProto data, readable by any application.
 at.fund is one interface — perhaps the canonical one — but the records
 belong to the users and can be consumed by any client: a podcast player
 that knows you endorse a show, a feed reader that sees you support the
@@ -191,9 +196,10 @@ intentionally.
 The relationship layer needs three properties that most platforms can't
 provide:
 
-1. **User sovereignty.** Your endorsements are *your* data, in *your*
+1. **Your data stays yours.** Your endorsements live in *your*
    repository. They're not locked inside a platform that might pivot,
-   shut down, or change its terms. They survive because they're yours.
+   shut down, or change its terms. You can move them, back them up,
+   or read them with any tool that speaks the protocol.
 
 2. **Cryptographic provenance.** When someone endorses an entity, that
    endorsement is signed with their DID. It can't be faked, can't be
@@ -210,7 +216,7 @@ provide:
 No DNS-based standard (funding.json, FUNDING.yml) can provide
 cryptographic provenance. No platform-specific system (Patreon, GitHub
 Sponsors) can provide cross-application readability. No centralized
-database can provide user sovereignty.
+database can give you control of your own records.
 
 ATProto provides all three. at.fund is the application layer that makes
 them useful for funding relationships.
@@ -240,9 +246,12 @@ their support base — not just who follows them, but who has publicly
 committed to valuing their work, and how that converts to actual
 funding.
 
-**The giving attestation.** Records that let givers say "I gave" and
-stewards say "they support me," creating a two-sided relationship
-signal without intermediating the payment.
+**The acknowledgement layer.** A record that lets stewards say "I
+recognize this person as a funder" — creating a two-sided relationship
+signal without intermediating the payment. The match and mismatch
+between endorsements and acknowledgements becomes the map of where
+relationships are healthy, where they've lapsed, and where intent
+hasn't yet become action.
 
 **The coordination layer.** Endorsement data as input for matching
 programs, foundation grants, and collective giving — where the signed,
