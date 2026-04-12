@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { StackEntriesList } from './StackEntriesList'
 import type { StackStreamEvent } from '@/app/api/stack/[handle]/stream/route'
@@ -32,6 +32,13 @@ export function StackStream({
   const [done, setDone] = useState(false)
   const [started, setStarted] = useState(false)
 
+  // Stable refs for callbacks — the stream effect should only re-run
+  // when `handle` changes, not when callback identities change.
+  const onEntryRef = useRef(onEntry)
+  const onRefRef = useRef(onRef)
+  useEffect(() => { onEntryRef.current = onEntry }, [onEntry])
+  useEffect(() => { onRefRef.current = onRef }, [onRef])
+
   useEffect(() => {
     let cancelled = false
 
@@ -60,9 +67,9 @@ export function StackStream({
             catch { continue }
 
             if (event.type === 'entry') {
-              if (!cancelled) onEntry(event.entry)
+              if (!cancelled) onEntryRef.current(event.entry)
             } else if (event.type === 'ref') {
-              if (!cancelled) onRef(event.entry)
+              if (!cancelled) onRefRef.current(event.entry)
             } else if (event.type === 'done') {
               if (!cancelled) setDone(true)
             }

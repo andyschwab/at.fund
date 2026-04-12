@@ -5,7 +5,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "A single dependency pointer. The subject is a DID (preferred) or hostname identifying the upstream entity the author depends on.",
+      "description": "A single dependency pointer. The subject is a DID identifying the upstream entity the author depends on.",
       "key": "any",
       "record": {
         "type": "object",
@@ -14,7 +14,7 @@
           "subject": {
             "type": "string",
             "maxLength": 512,
-            "description": "The dependency identifier: a DID (did:plc:..., did:web:...) or a hostname (example.com). DIDs are preferred for accounts with AT Protocol identity."
+            "description": "The dependency identifier: a DID (did:plc:..., did:web:...)."
           },
           "label": {
             "type": "string",

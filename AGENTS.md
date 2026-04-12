@@ -209,6 +209,21 @@ pnpm test:coverage   # run with v8 coverage report
 - Changes to the funding or identity resolution chain
 - Changes to entry priority / merge logic
 
+## Quality checks — required before completing any task
+
+Run all three checks and fix any errors or warnings before considering
+work complete. Do not leave lint warnings for the next person.
+
+```bash
+pnpm exec tsc --noEmit    # type check — must be clean
+pnpm lint                 # eslint — zero errors AND zero warnings
+pnpm test                 # vitest — all tests must pass
+```
+
+If `pnpm build` fails due to network issues (e.g. Google Fonts), the
+TypeScript check (`tsc --noEmit`) is an acceptable substitute for
+verifying compilation. But always run all three checks above.
+
 ## Common pitfalls
 
 1. **Don't mutate ScanContext** — it's `readonly` by design. Thread it through; don't clone or recreate.
