@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Actor } from '@/components/AvatarBadge'
 import { SuggestionList } from '@/components/SuggestionList'
@@ -41,10 +41,21 @@ export function HandleAutocomplete({
     useTypeahead(value)
   const inputWrapperRef = useRef<HTMLDivElement>(null)
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+  const [portalTarget, setPortalTarget] = useState<Element | null>(null)
+
+  // Find the nearest <dialog> ancestor (if any) to portal into.
+  // Portaling into the dialog keeps the dropdown in the top layer
+  // (so it isn't hidden behind the backdrop) while escaping the
+  // dialog's inner overflow clipping.
+  const resolvePortalTarget = useCallback(() => {
+    const dialog = inputWrapperRef.current?.closest('dialog')
+    setPortalTarget(dialog ?? document.body)
+  }, [])
 
   // Recompute position when dropdown opens or suggestions change
   useEffect(() => {
     if (!open || !inputWrapperRef.current) return
+    resolvePortalTarget()
     function update() {
       const rect = inputWrapperRef.current?.getBoundingClientRect()
       if (!rect) return
@@ -63,7 +74,7 @@ export function HandleAutocomplete({
       window.removeEventListener('scroll', update, true)
       window.removeEventListener('resize', update)
     }
-  }, [open, suggestions.length])
+  }, [open, suggestions.length, resolvePortalTarget])
 
   function pick(actor: Actor) {
     onChange(actor.handle)
@@ -144,7 +155,7 @@ export function HandleAutocomplete({
         )}
       </div>
 
-      {open && createPortal(
+      {open && portalTarget && createPortal(
         <SuggestionList
           suggestions={suggestions}
           active={active}
@@ -153,7 +164,7 @@ export function HandleAutocomplete({
           idPrefix="hac"
           style={dropdownStyle}
         />,
-        document.body,
+        portalTarget,
       )}
     </div>
   )
