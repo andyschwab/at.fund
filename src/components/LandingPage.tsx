@@ -80,7 +80,7 @@ export function LandingPage() {
             {hasSession ? (
               <Link
                 href="/setup"
-                className="inline-flex items-center gap-2 rounded-xl border border-[var(--support-border)] px-6 py-3 text-base font-medium text-[var(--support)] shadow-sm transition-opacity hover:opacity-80"
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--support)] px-6 py-3 text-base font-medium text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
               >
                 Add your project
                 <ArrowRight className="h-5 w-5" aria-hidden />
@@ -93,7 +93,7 @@ export function LandingPage() {
                   const dialog = document.querySelector<HTMLDialogElement>('dialog')
                   dialog?.showModal()
                 }}
-                className="inline-flex items-center gap-2 rounded-xl border border-[var(--support-border)] px-6 py-3 text-base font-medium text-[var(--support)] shadow-sm transition-opacity hover:opacity-80"
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--support)] px-6 py-3 text-base font-medium text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
               >
                 Add your project
                 <ArrowRight className="h-5 w-5" aria-hidden />
@@ -106,7 +106,7 @@ export function LandingPage() {
             {hasSession ? (
               <Link
                 href="/give"
-                className="inline-flex items-center gap-2 rounded-xl bg-[var(--support)] px-6 py-3 text-base font-medium text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--discover)] px-6 py-3 text-base font-medium text-[var(--discover-foreground)] shadow-sm transition-opacity hover:opacity-90"
               >
                 Pay your builders
                 <ArrowRight className="h-5 w-5" aria-hidden />
@@ -119,7 +119,7 @@ export function LandingPage() {
                   const dialog = document.querySelector<HTMLDialogElement>('dialog')
                   dialog?.showModal()
                 }}
-                className="inline-flex items-center gap-2 rounded-xl bg-[var(--support)] px-6 py-3 text-base font-medium text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--discover)] px-6 py-3 text-base font-medium text-[var(--discover-foreground)] shadow-sm transition-opacity hover:opacity-90"
               >
                 Pay your builders
                 <ArrowRight className="h-5 w-5" aria-hidden />
