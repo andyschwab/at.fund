@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Actor } from '@/components/AvatarBadge'
 import { SuggestionList } from '@/components/SuggestionList'
@@ -40,31 +40,19 @@ export function HandleAutocomplete({
   const { suggestions, open, setOpen, active, setActive, loading, containerRef, reset } =
     useTypeahead(value)
   const inputWrapperRef = useRef<HTMLDivElement>(null)
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
-  const [portalTarget, setPortalTarget] = useState<Element | null>(null)
+  const [dropdown, setDropdown] = useState<{
+    top: number; left: number; width: number; target: Element
+  } | null>(null)
 
-  // Find the nearest <dialog> ancestor (if any) to portal into.
-  // Portaling into the dialog keeps the dropdown in the top layer
-  // (so it isn't hidden behind the backdrop) while escaping the
-  // dialog's inner overflow clipping.
-  const resolvePortalTarget = useCallback(() => {
-    const dialog = inputWrapperRef.current?.closest('dialog')
-    setPortalTarget(dialog ?? document.body)
-  }, [])
-
-  // Recompute position when dropdown opens or suggestions change
+  // Recompute position and portal target when dropdown opens or suggestions change
   useEffect(() => {
     if (!open || !inputWrapperRef.current) return
-    resolvePortalTarget()
+    // Portal into nearest <dialog> (stays in top layer) or body
+    const target = inputWrapperRef.current.closest('dialog') ?? document.body
     function update() {
       const rect = inputWrapperRef.current?.getBoundingClientRect()
       if (!rect) return
-      setDropdownStyle({
-        position: 'fixed',
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-      })
+      setDropdown({ top: rect.bottom + 4, left: rect.left, width: rect.width, target })
     }
     update()
     // Reposition on scroll/resize since we're using fixed positioning
@@ -73,8 +61,9 @@ export function HandleAutocomplete({
     return () => {
       window.removeEventListener('scroll', update, true)
       window.removeEventListener('resize', update)
+      setDropdown(null)
     }
-  }, [open, suggestions.length, resolvePortalTarget])
+  }, [open, suggestions.length])
 
   function pick(actor: Actor) {
     onChange(actor.handle)
@@ -155,16 +144,16 @@ export function HandleAutocomplete({
         )}
       </div>
 
-      {open && portalTarget && createPortal(
+      {open && dropdown && createPortal(
         <SuggestionList
           suggestions={suggestions}
           active={active}
           onPick={pick}
           onHover={setActive}
           idPrefix="hac"
-          style={dropdownStyle}
+          style={{ position: 'fixed', top: dropdown.top, left: dropdown.left, width: dropdown.width }}
         />,
-        portalTarget,
+        dropdown.target,
       )}
     </div>
   )

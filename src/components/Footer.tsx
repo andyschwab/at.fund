@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { HeartHandshake } from 'lucide-react'
 
 const BURRITO_QUOTE_URL =
@@ -8,9 +9,9 @@ export function Footer() {
     <footer className="mt-auto py-8 px-4">
       <div className="mx-auto flex max-w-5xl flex-col items-center gap-4">
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          <a href="/" className="inline-flex items-center font-mono text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+          <Link href="/" className="inline-flex items-center font-mono text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
             at<HeartHandshake className="inline-block h-[0.75em] w-[0.75em] translate-y-[0.02em] mx-[0.08em]" strokeWidth={1.75} aria-hidden />fund
-          </a>
+          </Link>
           {' '}&mdash;{' '}
           We can just pay for things
           <sup className="ml-0.5 align-super text-xs font-normal leading-none">
