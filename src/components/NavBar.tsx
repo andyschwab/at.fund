@@ -205,7 +205,7 @@ export function NavBar() {
       {/* Auth modal */}
       <dialog
         ref={dialogRef}
-        className="m-auto max-w-md overflow-visible rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl backdrop:bg-black/40 dark:border-slate-800 dark:bg-slate-950"
+        className="m-auto max-w-md rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl backdrop:bg-black/40 dark:border-slate-800 dark:bg-slate-950"
         onClick={(e) => {
           if (e.target === e.currentTarget) closeAuthModal()
         }}
@@ -224,7 +224,7 @@ export function NavBar() {
           </button>
         </div>
 
-        <div className="overflow-visible p-5">
+        <div className="min-h-72 p-5">
           <LoginForm id="nav-handle-input" />
         </div>
       </dialog>
