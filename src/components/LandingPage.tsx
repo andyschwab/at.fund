@@ -70,8 +70,13 @@ export function LandingPage() {
             </p>
           </div>
 
-          {/* Dual CTAs — steward left, user right */}
-          <div className="flex flex-col sm:flex-row items-center gap-3">
+        </div>
+
+        {/* ── CTAs + Four audiences — shared 2-col grid ───────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-12">
+
+          {/* CTA: steward (left column) */}
+          <div className="flex justify-center">
             {hasSession ? (
               <Link
                 href="/setup"
@@ -94,6 +99,10 @@ export function LandingPage() {
                 <ArrowRight className="h-5 w-5" aria-hidden />
               </button>
             )}
+          </div>
+
+          {/* CTA: user (right column) */}
+          <div className="flex justify-center">
             {hasSession ? (
               <Link
                 href="/give"
@@ -117,10 +126,6 @@ export function LandingPage() {
               </button>
             )}
           </div>
-        </div>
-
-        {/* ── Four audiences ───────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-12">
 
           {/* Builders */}
           <div className="relative flex flex-col gap-6 p-4 pb-8">
