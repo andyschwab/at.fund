@@ -224,7 +224,7 @@ export function NavBar() {
           </button>
         </div>
 
-        <div className="min-h-72 p-5">
+        <div className="p-5">
           <LoginForm id="nav-handle-input" />
         </div>
       </dialog>

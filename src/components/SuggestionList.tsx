@@ -8,14 +8,17 @@ type Props = {
   onPick: (actor: Actor) => void
   onHover: (index: number) => void
   idPrefix: string
+  /** When provided, overrides default absolute positioning (used for portal rendering). */
+  style?: React.CSSProperties
 }
 
-export function SuggestionList({ suggestions, active, onPick, onHover, idPrefix }: Props) {
+export function SuggestionList({ suggestions, active, onPick, onHover, idPrefix, style }: Props) {
   return (
     <ul
       id={`${idPrefix}-listbox`}
       role="listbox"
-      className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+      className={`z-50 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900 ${style ? '' : 'absolute left-0 right-0 top-full mt-1'}`}
+      style={style}
     >
       {suggestions.map((actor, i) => (
         <li

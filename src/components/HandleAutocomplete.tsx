@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { Actor } from '@/components/AvatarBadge'
 import { SuggestionList } from '@/components/SuggestionList'
 import { useTypeahead } from '@/hooks/useTypeahead'
@@ -37,6 +39,31 @@ export function HandleAutocomplete({
 }: Props) {
   const { suggestions, open, setOpen, active, setActive, loading, containerRef, reset } =
     useTypeahead(value)
+  const inputWrapperRef = useRef<HTMLDivElement>(null)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+
+  // Recompute position when dropdown opens or suggestions change
+  useEffect(() => {
+    if (!open || !inputWrapperRef.current) return
+    function update() {
+      const rect = inputWrapperRef.current?.getBoundingClientRect()
+      if (!rect) return
+      setDropdownStyle({
+        position: 'fixed',
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      })
+    }
+    update()
+    // Reposition on scroll/resize since we're using fixed positioning
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [open, suggestions.length])
 
   function pick(actor: Actor) {
     onChange(actor.handle)
@@ -69,7 +96,7 @@ export function HandleAutocomplete({
 
   return (
     <div ref={containerRef} className="relative">
-      <div className="relative">
+      <div ref={inputWrapperRef} className="relative">
         <input
           id={id}
           type="text"
@@ -117,14 +144,16 @@ export function HandleAutocomplete({
         )}
       </div>
 
-      {open && (
+      {open && createPortal(
         <SuggestionList
           suggestions={suggestions}
           active={active}
           onPick={pick}
           onHover={setActive}
           idPrefix="hac"
-        />
+          style={dropdownStyle}
+        />,
+        document.body,
       )}
     </div>
   )
