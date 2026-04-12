@@ -1,13 +1,8 @@
 import dns from 'node:dns/promises'
+import { identityGet, identitySet } from '@/lib/identity-cache'
 
 /** DNS TXT name prefix for domain → DID discovery (ATProto `_atproto`). */
 export const ATPROTO_TXT_PREFIX = '_atproto'
-
-// Global-backed cache for hostname → DID lookups so results survive hot reloads in dev.
-const gDns = global as typeof globalThis & {
-  __atprotoDnsCache?: Map<string, string | null>
-}
-const dnsCache = (gDns.__atprotoDnsCache ??= new Map())
 
 function parseDidFromTxtChunks(chunks: string[]): string | null {
   const flat = chunks.join('').trim()
@@ -57,7 +52,8 @@ export async function lookupAtprotoDid(hostname: string): Promise<string | null>
   if (!h || h.includes('/') || h.includes(':')) return null
 
   const cacheKey = `climb:${h}`
-  if (dnsCache.has(cacheKey)) return dnsCache.get(cacheKey)!
+  const cached = await identityGet<string | null>('hostnameToDid', cacheKey)
+  if (cached !== undefined) return cached
 
   let result: string | null = null
   outer: for (const candidate of candidateHostnames(h)) {
@@ -80,7 +76,7 @@ export async function lookupAtprotoDid(hostname: string): Promise<string | null>
     result = await lookupDidViaWellKnown(h)
   }
 
-  dnsCache.set(cacheKey, result)
+  identitySet('hostnameToDid', cacheKey, result)
   return result
 }
 
@@ -95,7 +91,8 @@ export async function lookupAtprotoDidExact(
   if (!h || h.includes('/') || h.includes(':')) return null
 
   const cacheKey = `exact:${h}`
-  if (dnsCache.has(cacheKey)) return dnsCache.get(cacheKey)!
+  const cached = await identityGet<string | null>('hostnameToDid', cacheKey)
+  if (cached !== undefined) return cached
 
   let result: string | null = null
   const name = `${ATPROTO_TXT_PREFIX}.${h}`
@@ -110,6 +107,6 @@ export async function lookupAtprotoDidExact(
   }
   if (!result) result = await lookupDidViaWellKnown(h)
 
-  dnsCache.set(cacheKey, result)
+  identitySet('hostnameToDid', cacheKey, result)
   return result
 }
