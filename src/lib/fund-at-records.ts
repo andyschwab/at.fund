@@ -6,6 +6,7 @@ import type { AtIdentifierString } from '@atproto/lex-client'
 import * as fund from '@/lexicons/fund'
 import type { FundingChannel, FundingPlan } from '@/lib/funding-manifest'
 import { xrpcQuery } from '@/lib/xrpc'
+import { identityGet, identitySet } from '@/lib/identity-cache'
 
 // New grouped NSIDs
 export const FUND_DECLARATION = 'fund.at.actor.declaration'
@@ -51,12 +52,6 @@ export async function deleteWithFallback(
 const PUBLIC_IDENTITY = 'https://public.api.bsky.app'
 const publicClient = new Client(PUBLIC_IDENTITY)
 
-// Global-backed cache for DID documents so results survive hot reloads in dev.
-const gDid = global as typeof globalThis & {
-  __didDocCache?: Map<string, Record<string, unknown> | null>
-}
-const didDocCache = (gDid.__didDocCache ??= new Map())
-
 export type FundAtResult = {
   contributeUrl?: string
   dependencies?: Array<{ uri: string; label?: string }>
@@ -78,9 +73,14 @@ const PLC_DIRECTORY = 'https://plc.directory'
  * Fetches a DID document from plc.directory.
  * This is the reliable path — com.atproto.identity.resolveIdentity is not
  * implemented on the public Bluesky API.
+ *
+ * Results are cached in the two-tier identity cache (L1 in-process + L2 Redis)
+ * with a 7-day TTL — DID documents rarely change.
  */
 async function fetchDidDocument(did: string): Promise<Record<string, unknown> | null> {
-  if (didDocCache.has(did)) return didDocCache.get(did)!
+  const cached = await identityGet<Record<string, unknown> | null>('didToDoc', did)
+  if (cached !== undefined) return cached
+
   let result: Record<string, unknown> | null = null
   try {
     const res = await fetch(`${PLC_DIRECTORY}/${encodeURIComponent(did)}`)
@@ -88,7 +88,7 @@ async function fetchDidDocument(did: string): Promise<Record<string, unknown> | 
   } catch {
     // leave result as null
   }
-  didDocCache.set(did, result)
+  identitySet('didToDoc', did, result)
   return result
 }
 
@@ -122,6 +122,11 @@ export async function resolveDidFromIdentifier(
 ): Promise<string | undefined> {
   // If already a DID, return as-is
   if (identifier.startsWith('did:')) return identifier
+
+  const normalised = identifier.toLowerCase()
+  const cached = await identityGet<string>('handleToDid', normalised)
+  if (cached) return cached
+
   // Treat as a handle and resolve via the public API
   try {
     const res = await xrpcQuery<{ did: string }>(
@@ -129,6 +134,7 @@ export async function resolveDidFromIdentifier(
       'com.atproto.identity.resolveHandle',
       { handle: identifier },
     )
+    if (res.did) identitySet('handleToDid', normalised, res.did)
     return res.did
   } catch {
     return undefined
@@ -140,10 +146,19 @@ export async function resolveDidFromIdentifier(
 // ---------------------------------------------------------------------------
 
 export async function resolvePdsUrl(stewardDid: string): Promise<URL | null> {
+  // Check dedicated PDS URL cache first (avoids DID doc deserialization)
+  const cached = await identityGet<string | null>('didToPds', stewardDid)
+  if (cached !== undefined) return cached ? new URL(cached) : null
+
   try {
     const didDoc = await fetchDidDocument(stewardDid)
-    if (!didDoc) return null
-    return extractPdsUrl(didDoc as AtprotoDidDocument)
+    if (!didDoc) {
+      identitySet('didToPds', stewardDid, null)
+      return null
+    }
+    const url = extractPdsUrl(didDoc as AtprotoDidDocument)
+    identitySet('didToPds', stewardDid, url?.origin ?? null)
+    return url
   } catch {
     return null
   }
