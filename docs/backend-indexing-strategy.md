@@ -344,6 +344,26 @@ async function connect() {
   })
 }
 
+/** Resolve a subject to a DID at ingest time. DIDs pass through;
+ *  handles/hostnames go through resolveHandle / DNS. On failure,
+ *  queues for retry via the dead-letter set. */
+async function normalizeSubject(raw: string): Promise<string | undefined> {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  if (trimmed.startsWith('did:')) return trimmed
+  // Handle or hostname — try plc.directory / resolveHandle
+  try {
+    const res = await fetch(
+      `https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(trimmed)}`,
+    )
+    if (res.ok) {
+      const data = await res.json() as { did: string }
+      return data.did
+    }
+  } catch { /* fall through */ }
+  return undefined
+}
+
 async function routeEvent(
   did: string,
   collection: string,
@@ -353,9 +373,14 @@ async function routeEvent(
 ) {
   // --- Endorsements ---
   if (collection === 'fund.at.graph.endorse' || collection === 'fund.at.endorse') {
-    const subject = record?.subject ?? record?.uri
-    if (!subject) return
-    // Normalize: resolve non-DID URIs to DIDs (or store raw for later resolution)
+    const raw = record?.subject ?? record?.uri
+    if (!raw) return
+    const subject = await normalizeSubject(raw)
+    if (!subject) {
+      // Dead-letter for retry — resolution failed
+      await redis.sadd('index:unresolved', JSON.stringify({ did, collection, subject: raw, time_us: Date.now() * 1000 }))
+      return
+    }
     if (operation === 'create') {
       await redis.sadd(`endorse:by-subject:${subject}`, did)
       await redis.sadd(`endorse:by-author:${did}`, subject)
@@ -368,8 +393,13 @@ async function routeEvent(
 
   // --- Dependencies ---
   if (collection === 'fund.at.graph.dependency' || collection === 'fund.at.dependency') {
-    const subject = record?.subject ?? record?.uri
-    if (!subject) return
+    const raw = record?.subject ?? record?.uri
+    if (!raw) return
+    const subject = await normalizeSubject(raw)
+    if (!subject) {
+      await redis.sadd('index:unresolved', JSON.stringify({ did, collection, subject: raw, time_us: Date.now() * 1000 }))
+      return
+    }
     if (operation === 'create') {
       await redis.sadd(`fundat:deps:${did}`, subject)
     } else if (operation === 'delete') {
@@ -451,39 +481,172 @@ async function getFundAtFromIndex(did: string): Promise<FundAtResult | null> {
 }
 ```
 
+## Resolved: URI Normalization at Ingest Time
+
+Endorsement and dependency subjects can be DIDs, handles, or hostnames. We
+resolve to DIDs eagerly in the collector rather than deferring to read time.
+
+**Why ingest-time:** The index is keyed by DID everywhere else. If we store
+raw handles/hostnames, every read query has to resolve them, which pushes
+latency and failure modes back into the hot path — exactly what we're trying
+to eliminate. With <50 participants and single-digit events/minute, the
+resolution cost at ingest is negligible.
+
+**How it works in the collector:**
+
+```typescript
+import { resolveRefToDid } from '@/lib/identity'
+
+/** Resolve a subject to a DID. DIDs pass through; handles and hostnames
+ *  go through plc.directory / resolveHandle. Returns undefined on failure. */
+async function normalizeSubject(raw: string): Promise<string | undefined> {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  if (trimmed.startsWith('did:')) return trimmed
+  // Handle or hostname — resolve to DID
+  return resolveRefToDid(trimmed)
+}
+```
+
+For endorsements and dependencies, the collector calls `normalizeSubject()`
+before writing to Redis. If resolution fails (transient DNS/PDS issue), the
+event is logged to a dead-letter set (`index:unresolved`) with the raw subject
+and author DID, and retried on a timer. At current volume this set will rarely
+have entries.
+
+```
+index:unresolved  → Set<JSON { did, collection, subject, time_us }>
+```
+
+A background sweep (every 5 minutes) retries unresolved entries and promotes
+them to the main index on success.
+
+## Resolved: Upstash Capacity
+
+Upstash has been upgraded — no free tier constraints. Command budget and storage
+are not concerns.
+
+## Backfill Strategy
+
+With fewer than 50 active participants, the backfill is trivial — roughly 450
+PDS requests total. The goal is to seed the Redis index completely before the
+Jetstream listener starts, so there's no gap in coverage.
+
+### Source 1: Manual catalog (54 known DIDs)
+
+The `src/data/catalog/*.json` files each contain a `did` field. These are our
+known ecosystem projects. Not all of them will have fund.at records, but we
+query them all — it's 54 DIDs.
+
+### Source 2: Discovered endorsers
+
+During normal user scans, we've seen endorsement records from follows. The
+existing `collectNetworkEndorsements()` in `microcosm.ts` already returns an
+`EndorsementMap` containing endorser DIDs. We can harvest these during the
+backfill to discover participants not in the manual catalog.
+
+### Source 3: plc.directory crawl (optional, future)
+
+If we ever need to find every DID that has written a fund.at record without
+waiting for Jetstream to observe them, we could crawl plc.directory's export
+and check each DID's PDS for fund.at collections. This is expensive and
+unnecessary at current scale — Jetstream will catch new participants going
+forward.
+
+### Backfill implementation
+
+The backfill runs as a one-shot script (or a `/api/admin/backfill` route
+protected by the existing admin auth). It reuses the same PDS resolution and
+record fetching logic that the app already has:
+
+```typescript
+import { fetchFundAtRecords } from '@/lib/fund-at-records'
+import { resolvePdsUrl } from '@/lib/fund-at-records'
+import { runWithConcurrency } from '@/lib/concurrency'
+
+async function backfill(dids: string[]) {
+  let indexed = 0
+
+  await runWithConcurrency(dids, 10, async (did) => {
+    // 1. Fetch all fund.at records from PDS (reuses existing logic)
+    const records = await fetchFundAtRecords(did)
+    if (records) {
+      await writeToIndex(did, records)  // same Redis writes as the collector
+      indexed++
+    }
+
+    // 2. Fetch endorsement records directly from PDS
+    const pdsUrl = await resolvePdsUrl(did)
+    if (pdsUrl) {
+      const endorsements = await fetchEndorseRecords(did, pdsUrl.origin)
+      for (const subject of endorsements) {
+        const resolved = await normalizeSubject(subject)
+        if (resolved) {
+          await redis.sadd(`endorse:by-subject:${resolved}`, did)
+          await redis.sadd(`endorse:by-author:${did}`, resolved)
+        }
+      }
+    }
+  })
+
+  // 3. Set the cursor to "now" — Jetstream picks up from here
+  await redis.set('index:cursor', String(Date.now() * 1000))
+
+  return { total: dids.length, indexed }
+}
+```
+
+### Backfill sequence
+
+```
+1. Collect DIDs from catalog:  readCatalogDids()     → ~54 DIDs
+2. Deduplicate:                Set(catalogDids)       → ~50 unique DIDs
+3. Backfill PDS records:       backfill(dids)         → ~450 PDS requests
+                               (10 concurrent, ~45s)
+4. Set cursor to now:          redis.set(cursor)
+5. Start Jetstream listener:   connect()              → live from here
+```
+
+The entire backfill takes under a minute with 10-concurrency. No impact on
+the 50 existing participants — we're reading their public PDS records, same
+as the app already does during normal scans. Each DID gets hit once for all
+collections in parallel (the existing `fetchFundAtRecords` already parallelizes
+contribute + dependency + channel + plan fetches).
+
+### Avoiding re-backfill
+
+The backfill is idempotent — Redis `SADD` is a no-op for existing members,
+and `SET`/`HSET` overwrites are fine since the data is the same. If the
+Jetstream listener goes down for longer than the ~72h replay buffer, we
+re-run the backfill against the same DID set (plus any new DIDs discovered
+via Jetstream before the outage). The cursor is reset and the listener
+resumes.
+
+### Growth path
+
+As the network grows beyond 50 participants, new DIDs are automatically
+captured by the Jetstream listener — no backfill needed. The only DIDs we'd
+miss are those who wrote fund.at records before the listener started and
+were never in our catalog. At 50 participants, we likely know all of them.
+By the time there are 500 participants, the listener will have been running
+long enough to have seen them all.
+
 ## Open Questions
 
-1. **URI normalization in the collector**: Endorsement subjects may be handles
-   or hostnames, not DIDs. The collector needs to either resolve them at
-   ingest time (adds latency + failure modes) or store them raw and resolve
-   at read time. The current PDS crawl normalizes at read time — we should
-   probably do the same in the index to keep the collector simple.
-
-2. **Upstash free tier limits**: 10,000 commands/day, 256MB storage. Low
-   `fund.at.*` volume means command count is fine, but we need to monitor
-   storage as the endorsement index grows. The paid tier ($10/month for
-   250MB + 500K commands/day) is a cheap upgrade if needed.
-
-3. **Backfill completeness**: We can only backfill from DIDs we already know
-   about (from existing user scans). There may be fund.at records from DIDs
-   that have never been scanned. This gap closes over time as the Jetstream
-   listener picks up all new events, but historical records from unknown DIDs
-   will be missing until those DIDs are scanned or we do a broader crawl.
-
-4. **Collector monitoring**: How do we know if the collector is down? Options:
+1. **Collector monitoring**: How do we know if the collector is down? Options:
    - Fly.io health check hitting a `/health` endpoint
    - Check `index:cursor` freshness from the at.fund app — if it's >5 minutes
      stale, fall back to PDS crawl
    - Upstash Redis pub/sub heartbeat
 
-5. **Multi-region**: Jetstream has US-East and US-West instances. Should we
+2. **Multi-region**: Jetstream has US-East and US-West instances. Should we
    run two collectors for redundancy, or is one sufficient given the low
    volume?
 
-6. **Spacedust capabilities**: Can Spacedust's `/subscribe` endpoint offer
+3. **Spacedust capabilities**: Can Spacedust's `/subscribe` endpoint offer
    anything Jetstream can't? Worth investigating before committing to a
    Jetstream-only approach. The identity resolution features of the Microcosm
-   stack could simplify the URI normalization problem (question 1).
+   stack could simplify the collector if they support custom lexicon filtering.
 
 ## Cost Comparison
 
