@@ -62,6 +62,9 @@ export function LandingPage() {
             <h1 className="text-5xl font-semibold tracking-tight sm:text-6xl">
               <span className="inline-flex items-center font-mono font-medium text-slate-500 dark:text-slate-400">at<HeartHandshake className="inline-block h-[0.85em] w-[0.85em] translate-y-[0.04em] text-[var(--support)] mx-[0.12em]" strokeWidth={1.75} aria-hidden={true} />fund</span>
             </h1>
+            <p className="text-xl font-medium text-slate-900 dark:text-slate-100 sm:text-2xl">
+              Fund your internet.
+            </p>
             <p className="text-base leading-relaxed text-slate-600 dark:text-slate-400">
               No VCs, no ads — just builders getting paid directly for the work
               you already rely on.
@@ -114,13 +117,28 @@ export function LandingPage() {
                 dependency on this site — users find you through the protocol.
               </p>
             </div>
-            <Link
-              href="/setup"
-              className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-[var(--support)] transition-opacity hover:opacity-80"
-            >
-              Add your project
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
+            {hasSession ? (
+              <Link
+                href="/setup"
+                className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-[var(--support)] transition-opacity hover:opacity-80"
+              >
+                Add your project
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  document.cookie = 'returnTo=/setup; path=/; max-age=300; SameSite=Lax'
+                  const dialog = document.querySelector<HTMLDialogElement>('dialog')
+                  dialog?.showModal()
+                }}
+                className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-[var(--support)] transition-opacity hover:opacity-80"
+              >
+                Add your project
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </button>
+            )}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[var(--background)] to-transparent" aria-hidden />
           </div>
 
@@ -212,13 +230,28 @@ export function LandingPage() {
                 credit, not just you.
               </p>
             </div>
-            <Link
-              href="/setup"
-              className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-[var(--network)] transition-opacity hover:opacity-80"
-            >
-              Share your dependencies
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
+            {hasSession ? (
+              <Link
+                href="/setup"
+                className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-[var(--network)] transition-opacity hover:opacity-80"
+              >
+                Share your dependencies
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  document.cookie = 'returnTo=/setup; path=/; max-age=300; SameSite=Lax'
+                  const dialog = document.querySelector<HTMLDialogElement>('dialog')
+                  dialog?.showModal()
+                }}
+                className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-[var(--network)] transition-opacity hover:opacity-80"
+              >
+                Share your dependencies
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </button>
+            )}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[var(--background)] to-transparent" aria-hidden />
           </div>
 
