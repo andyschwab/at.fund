@@ -124,17 +124,13 @@ index:cursor                    → time_us (Unix microseconds)
 - No historical data — need a one-time backfill for existing records
 - Single-connection model (if the process dies, events are missed until restart)
 
-**Backfill strategy:**
-1. Seed from the existing per-user PDS crawl (use the Slingshot + listRecords
-   approach as a batch job to populate Redis for all known DIDs)
-2. Start the Jetstream listener with cursor set to "now"
-3. Any gap between seed completion and listener start is covered by the ~72h
-   replay buffer
-4. Keep the per-user PDS approach as a fallback for DIDs not yet in the index
+**Backfill:** Jetstream only has ~72h replay. Historical records from before
+the listener started require a separate backfill — see Backfill Strategy
+section below for options.
 
 **Estimated effort:** 1-2 days for the collector, 1 day for pipeline integration.
 
-**Cost:** $0/month (Fly.io free + Upstash free tier).
+**Cost:** $0/month (Fly.io free + Upstash paid tier already available).
 
 ---
 
@@ -177,7 +173,87 @@ capabilities and intended use cases.
 
 ---
 
-### Strategy 3: Self-Hosted Jetstream
+### Strategy 3: Tap (ATProto Sync Service)
+
+**What:** Tap is Bluesky's official sync utility from the Indigo project. It
+sits between a full relay and raw Jetstream — it subscribes to the relay
+firehose, but only tracks repos that match your collection filters. Crucially,
+it has a **collection signal mode** that auto-discovers every repo on the
+network that has ever written a record in a specified collection, then backfills
+their full history.
+
+**How it works:**
+
+```bash
+docker run -p 2480:2480 \
+  -e TAP_SIGNAL_COLLECTION=fund.at.graph.endorse \
+  -e TAP_COLLECTION_FILTERS=fund.at.* \
+  -v ./data:/data \
+  ghcr.io/bluesky-social/indigo/tap:latest
+```
+
+- `TAP_SIGNAL_COLLECTION` — **which repos to track**: any repo with at least
+  one record in this collection gets auto-discovered and fully backfilled
+- `TAP_COLLECTION_FILTERS` — **which records to deliver**: only `fund.at.*`
+  events are forwarded to our app, everything else is dropped
+
+Tap connects to the relay (`relay1.us-east.bsky.network` by default),
+watches the firehose for repos that write to the signal collection, then
+fetches their full repo via `com.atproto.sync.getRepo` from their PDS.
+Historical events are delivered with `live: false` before live events, so
+we get a complete, ordered view of each repo.
+
+Our collector connects to Tap's WebSocket at `ws://localhost:2480/channel`
+and receives clean JSON events — no CBOR decoding needed. Tap handles repo
+structure verification, MST integrity, and identity signature validation.
+
+```
+┌─────────────┐   firehose    ┌──────────────┐   WebSocket    ┌──────────┐
+│  Relay       │ ────────────▶ │  Tap          │ ────────────▶ │ Collector │
+│  (public)    │               │  (Docker)     │  fund.at.*    │          │
+└─────────────┘               └──────┬───────┘               └────┬─────┘
+                                     │ backfill                    │ writes
+                                     │ getRepo                    ▼
+                              ┌──────┴───────┐               ┌──────────┐
+                              │  PDS hosts    │               │  Redis   │
+                              └──────────────┘               └──────────┘
+```
+
+**Advantages:**
+- **Auto-discovers unknown participants** — any DID that has ever written a
+  fund.at record gets found via the firehose, even if we've never seen them
+- **Full historical backfill** — fetches complete repo history for discovered
+  DIDs, not just events from the last 72h
+- **Verified data** — validates repo structure and signatures, unlike raw
+  Jetstream which trusts the relay
+- **Clean JSON output** — same developer experience as Jetstream
+- **Handles reconnection** — ordered delivery guarantees no gaps
+- **Official Bluesky tooling** — actively maintained, designed for this use case
+
+**Disadvantages:**
+- Requires a persistent server (Docker container with storage)
+- Connects to the full relay firehose (bandwidth for scanning, though it only
+  retains matching repos)
+- More moving parts than a bare Jetstream WebSocket connection
+- Storage grows with tracked repos (SQLite/PostgreSQL)
+- New infrastructure to operate (though it's a single binary)
+
+**Resource estimate for fund.at:**
+- fund.at participants are <50 repos today, growing slowly
+- Each repo is tiny (a few KB of records)
+- SQLite storage: negligible (<1MB)
+- RAM: minimal — outbox buffer is mostly empty at our volume
+- Bandwidth: firehose scanning is the main cost, but we only retain matches
+
+**Cost:** ~$5-7/month on Railway or Fly.io (needs persistent storage +
+always-on process). Could also run on any cheap VPS.
+
+**Estimated effort:** 1 day to deploy Tap + adapt the collector to read from
+Tap's WebSocket instead of Jetstream directly, 1 day for pipeline integration.
+
+---
+
+### Strategy 4: Self-Hosted Jetstream
 
 **What:** Run our own Jetstream instance via Docker, consuming from the public
 Bluesky relay upstream.
@@ -200,7 +276,7 @@ operational overhead. Revisit only if public instances prove unreliable.
 
 ---
 
-### Strategy 4: Full ATProto Relay (Indigo)
+### Strategy 5: Full ATProto Relay (Indigo)
 
 **What:** Run the reference relay implementation from `bluesky-social/indigo`.
 This subscribes to the entire ATProto network and maintains a full copy of
@@ -233,7 +309,7 @@ use case.
 
 ---
 
-### Strategy 5: Hybrid — Jetstream + PDS Fallback
+### Strategy 6: Hybrid — Jetstream + PDS Fallback
 
 **What:** Deploy the Jetstream listener (Strategy 1) but keep the existing
 per-user PDS crawl as a live fallback, not just for backfill.
@@ -268,10 +344,12 @@ separate strategy. Always keep the PDS fallback during initial rollout.
 
 ## Recommended Approach
 
-**Phase 1: Jetstream Collector (Strategy 1 + 5)**
+**Phase 1: Tap + Collector (Strategy 3 + 6)**
 
-Deploy a minimal Jetstream listener on Fly.io that indexes all `fund.at.*`
-records into Redis. Keep the PDS crawl as a fallback. This gets us:
+Deploy Tap with collection signal mode to auto-discover all repos that have
+ever written `fund.at.*` records, backfill their full history, and stream
+live events. The collector reads from Tap's WebSocket and writes to Redis.
+Keep the PDS crawl as a fallback during rollout. This gets us:
 
 - Global endorsement counts (not just network)
 - Near-instant scan times for the endorsement phase
@@ -528,54 +606,72 @@ are not concerns.
 
 ## Backfill Strategy
 
-With fewer than 50 active participants, the backfill is trivial — roughly 450
-PDS requests total. The goal is to seed the Redis index completely before the
-Jetstream listener starts, so there's no gap in coverage.
+The critical question: how do we discover DIDs that have written `fund.at.*`
+records but aren't in our 54-entry manual catalog? There are users in the wild
+who have created records that we don't know about. There is no ATProto API to
+query "all repos that contain collection X" — record enumeration is per-repo.
 
-### Source 1: Manual catalog (54 known DIDs)
+### Option A: Tap auto-discovery (recommended)
 
-The `src/data/catalog/*.json` files each contain a `did` field. These are our
-known ecosystem projects. Not all of them will have fund.at records, but we
-query them all — it's 54 DIDs.
+Tap's **collection signal mode** solves the discovery problem natively. When
+configured with `TAP_SIGNAL_COLLECTION=fund.at.graph.endorse`, Tap watches the
+relay firehose for any repo that writes to that collection. When it finds one,
+it fetches the **full repo history** from that DID's PDS via
+`com.atproto.sync.getRepo` and delivers all historical events (marked
+`live: false`) before switching to live events for that repo.
 
-### Source 2: Discovered endorsers
+This means Tap will:
+1. Observe the firehose for any `fund.at.graph.endorse` write (the most common
+   collection — if someone is using fund.at, they've probably endorsed something)
+2. Fetch that repo's complete history from its PDS
+3. Deliver all `fund.at.*` records (filtered by `TAP_COLLECTION_FILTERS`)
+   to our collector in chronological order
 
-During normal user scans, we've seen endorsement records from follows. The
-existing `collectNetworkEndorsements()` in `microcosm.ts` already returns an
-`EndorsementMap` containing endorser DIDs. We can harvest these during the
-backfill to discover participants not in the manual catalog.
+**What about DIDs who wrote records in the past but haven't written new ones
+since Tap started?** This is the gap. Tap discovers repos when it sees a
+matching event on the firehose. If a DID wrote `fund.at.graph.endorse` six
+months ago and hasn't written anything since, Tap won't see them until they
+write again.
 
-### Source 3: plc.directory crawl (optional, future)
+To close this gap, we seed Tap with known DIDs in parallel:
 
-If we ever need to find every DID that has written a fund.at record without
-waiting for Jetstream to observe them, we could crawl plc.directory's export
-and check each DID's PDS for fund.at collections. This is expensive and
-unnecessary at current scale — Jetstream will catch new participants going
-forward.
+### Option B: Seed known DIDs into Tap
 
-### Backfill implementation
+Tap has a `POST /repos/add` endpoint that explicitly adds DIDs to track. We
+feed it every DID we know about — catalog entries, endorser DIDs discovered
+during user scans, and any DIDs we can enumerate from existing Redis caches.
 
-The backfill runs as a one-shot script (or a `/api/admin/backfill` route
-protected by the existing admin auth). It reuses the same PDS resolution and
-record fetching logic that the app already has:
+```bash
+# Seed catalog DIDs into Tap
+for did in $(jq -r '.did' src/data/catalog/*.json | sort -u); do
+  curl -X POST http://tap:2480/repos/add -d "{\"did\": \"$did\"}"
+done
+```
+
+Tap then backfills each added repo's full history. Combined with the
+collection signal mode running in parallel, this gives us:
+
+- **Known participants** (catalog + scan history): seeded explicitly via
+  `/repos/add`, backfilled immediately
+- **Unknown participants who are still active**: discovered automatically via
+  collection signal when they next write a fund.at record
+- **Unknown participants who are dormant**: the only gap — these are DIDs who
+  wrote fund.at records before Tap started and haven't written since
+
+### Option C: PDS crawl (fallback for Jetstream-only approach)
+
+If we go with Strategy 1 (bare Jetstream, no Tap), we need a manual backfill
+since Jetstream has no historical replay beyond ~72h:
 
 ```typescript
-import { fetchFundAtRecords } from '@/lib/fund-at-records'
-import { resolvePdsUrl } from '@/lib/fund-at-records'
+import { fetchFundAtRecords, resolvePdsUrl } from '@/lib/fund-at-records'
 import { runWithConcurrency } from '@/lib/concurrency'
 
 async function backfill(dids: string[]) {
-  let indexed = 0
-
   await runWithConcurrency(dids, 10, async (did) => {
-    // 1. Fetch all fund.at records from PDS (reuses existing logic)
     const records = await fetchFundAtRecords(did)
-    if (records) {
-      await writeToIndex(did, records)  // same Redis writes as the collector
-      indexed++
-    }
+    if (records) await writeToIndex(did, records)
 
-    // 2. Fetch endorsement records directly from PDS
     const pdsUrl = await resolvePdsUrl(did)
     if (pdsUrl) {
       const endorsements = await fetchEndorseRecords(did, pdsUrl.origin)
@@ -588,75 +684,93 @@ async function backfill(dids: string[]) {
       }
     }
   })
-
-  // 3. Set the cursor to "now" — Jetstream picks up from here
   await redis.set('index:cursor', String(Date.now() * 1000))
-
-  return { total: dids.length, indexed }
 }
 ```
 
-### Backfill sequence
+This only covers known DIDs — it cannot discover unknown wild users.
+
+### Closing the dormant-user gap
+
+For the small number of dormant unknown participants (wrote fund.at records
+historically, not in our catalog, not recently active), there is no cheap
+canonical ATProto API to enumerate them. The realistic options:
+
+1. **Wait for activity** — most users who wrote fund.at records will write
+   again eventually. Tap's signal mode catches them when they do.
+2. **Social discovery** — post on Bluesky asking fund.at users to visit the
+   app or endorse something, which triggers Tap discovery.
+3. **Piggyback on scans** — when existing users scan, their follows' PDS
+   records are already checked for endorsements. Any endorser DID discovered
+   this way gets fed to Tap via `/repos/add` to trigger a full backfill.
+4. **Full relay replay** — connect to `com.atproto.sync.subscribeRepos` with
+   cursor=0 and scan the entire network history for fund.at collections.
+   Complete but extremely expensive (days of replay, CBOR decoding required).
+   Not worth it for a handful of dormant users.
+
+At <50 total participants, the dormant-unknown set is likely single digits.
+Options 1 + 3 close the gap organically over a few weeks.
+
+### Recommended backfill sequence (Tap approach)
 
 ```
-1. Collect DIDs from catalog:  readCatalogDids()     → ~54 DIDs
-2. Deduplicate:                Set(catalogDids)       → ~50 unique DIDs
-3. Backfill PDS records:       backfill(dids)         → ~450 PDS requests
-                               (10 concurrent, ~45s)
-4. Set cursor to now:          redis.set(cursor)
-5. Start Jetstream listener:   connect()              → live from here
+1. Deploy Tap with signal + filter:
+     TAP_SIGNAL_COLLECTION=fund.at.graph.endorse
+     TAP_COLLECTION_FILTERS=fund.at.*
+
+2. Seed known DIDs:
+     POST /repos/add for each catalog DID (~54)
+     POST /repos/add for any endorser DIDs from Redis caches
+
+3. Wait for Tap to backfill seeded repos:
+     ~54 repos × getRepo from PDS → minutes at most
+
+4. Start the collector reading from Tap's WebSocket:
+     ws://tap:2480/channel → routeEvent() → Redis
+
+5. Tap continues discovering new repos via signal mode:
+     Any new fund.at.graph.endorse write → auto-track + backfill
 ```
 
-The entire backfill takes under a minute with 10-concurrency. No impact on
-the 50 existing participants — we're reading their public PDS records, same
-as the app already does during normal scans. Each DID gets hit once for all
-collections in parallel (the existing `fetchFundAtRecords` already parallelizes
-contribute + dependency + channel + plan fetches).
-
-### Avoiding re-backfill
-
-The backfill is idempotent — Redis `SADD` is a no-op for existing members,
-and `SET`/`HSET` overwrites are fine since the data is the same. If the
-Jetstream listener goes down for longer than the ~72h replay buffer, we
-re-run the backfill against the same DID set (plus any new DIDs discovered
-via Jetstream before the outage). The cursor is reset and the listener
-resumes.
-
-### Growth path
-
-As the network grows beyond 50 participants, new DIDs are automatically
-captured by the Jetstream listener — no backfill needed. The only DIDs we'd
-miss are those who wrote fund.at records before the listener started and
-were never in our catalog. At 50 participants, we likely know all of them.
-By the time there are 500 participants, the listener will have been running
-long enough to have seen them all.
+The entire bootstrap takes minutes. Tap handles the hard discovery problem
+automatically going forward. The only gap is dormant unknowns, which close
+organically as users interact with the network.
 
 ## Open Questions
 
-1. **Collector monitoring**: How do we know if the collector is down? Options:
-   - Fly.io health check hitting a `/health` endpoint
+1. **Collector monitoring**: How do we know if the collector/Tap is down?
+   Options:
+   - Tap's built-in `/health` endpoint
    - Check `index:cursor` freshness from the at.fund app — if it's >5 minutes
      stale, fall back to PDS crawl
-   - Upstash Redis pub/sub heartbeat
+   - Tap's `/stats/repo-count` and `/stats/record-count` for growth tracking
 
-2. **Multi-region**: Jetstream has US-East and US-West instances. Should we
-   run two collectors for redundancy, or is one sufficient given the low
-   volume?
+2. **Tap hosting**: Tap needs persistent storage and an always-on process.
+   Railway has documented support. Fly.io with a volume works too. Any cheap
+   VPS (Hetzner, OVH) also works. The bandwidth cost of scanning the firehose
+   is the main consideration — budget providers are preferred.
 
 3. **Spacedust capabilities**: Can Spacedust's `/subscribe` endpoint offer
-   anything Jetstream can't? Worth investigating before committing to a
-   Jetstream-only approach. The identity resolution features of the Microcosm
-   stack could simplify the collector if they support custom lexicon filtering.
+   anything Tap/Jetstream can't? Worth investigating before committing. The
+   identity resolution features of the Microcosm stack could simplify the
+   collector if they support custom lexicon filtering.
+
+4. **Signal collection scope**: `TAP_SIGNAL_COLLECTION` takes a single NSID.
+   Using `fund.at.graph.endorse` catches anyone who has endorsed, but misses
+   DIDs who only wrote contribute/channel/plan records without endorsing.
+   This is likely a tiny set, but we could also run a second Tap instance
+   with a different signal collection, or periodically scan for these edge
+   cases.
 
 ## Cost Comparison
 
-| Strategy | Monthly Cost | Effort | Ops Burden |
-|----------|-------------|--------|------------|
-| Jetstream listener (Fly.io free) | $0 | 1-2 days | Low |
-| Jetstream + paid Redis | ~$10 | 1-2 days | Low |
-| Self-hosted Jetstream | ~$5-15 (VPS) | 2-3 days | Medium |
-| Full relay (Indigo) | $50-200+ (bandwidth) | 1-2 weeks | High |
-| Spacedust API | $0 (if free) | 1-2 days | Low (if stable) |
+| Strategy | Monthly Cost | Effort | Ops Burden | Backfill |
+|----------|-------------|--------|------------|----------|
+| Tap + collector | ~$5-7 | 2 days | Low-Medium | Automatic |
+| Jetstream listener (Fly.io free) | $0 | 2 days | Low | Manual (known DIDs only) |
+| Self-hosted Jetstream | ~$5-15 | 3 days | Medium | Manual (known DIDs only) |
+| Full relay (Indigo) | $50-200+ | 1-2 weeks | High | Complete |
+| Spacedust API | $0? | 2 days | Low | Unknown |
 
 ## Relationship to Existing Docs
 
