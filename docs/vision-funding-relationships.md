@@ -1,27 +1,16 @@
-# The Funding Relationship Problem
+# Funding Relationships
 
 > at.fund is not a payment platform. It's the missing relationship layer
 > between people who create value and people who want to sustain it.
 
-## The problem nobody has solved
+## The challenge everyone already feels
 
-The internet has a funding problem, but it's not the one people usually talk
-about.
+You value things online. A working journalist whose coverage you rely on.
+Open source tools you use every day. A podcast that shapes how you think
+about your field. A Bluesky feed that curates your professional domain.
+A labeler that keeps your timeline clean. Maybe a newsletter or two.
 
-The usual framing: "How do we get people to pay for things?" This leads to
-paywalls, subscriptions, tip jars, crypto micropayments, and increasingly
-desperate calls to action. Each solution assumes the bottleneck is the
-transaction — that if we could just make paying easier, people would pay.
-
-But the actual bottleneck is upstream of payment. It's **relationship
-management**.
-
-Consider someone who genuinely wants to support the things they value online.
-A working journalist. A few open source tools they rely on. A podcast. A
-Bluesky feed that curates their professional domain. A labeler that keeps
-their timeline clean. Maybe a newsletter or two.
-
-Right now, supporting all of these means:
+You'd support these people if it were straightforward. But it isn't:
 
 - Remembering who you value (across dozens of contexts, over months and years)
 - Discovering whether they accept funding (not obvious — many do, buried in bios)
@@ -34,31 +23,39 @@ Right now, supporting all of these means:
   give more? Less?
 - Noticing when a new thing you rely on deserves support
 
-Nobody does all of this. Almost nobody does half. Not because they're cheap —
-because it's an unreasonable amount of cognitive overhead. The people who
-manage it maintain spreadsheets. Literal spreadsheets of their giving
-relationships.
+Nobody does all of this. Almost nobody does half. Not because they're
+cheap — because it's an unreasonable amount of cognitive overhead. The
+people who manage it maintain spreadsheets. Literal spreadsheets of
+their giving relationships.
 
-The result: creators and builders have supporters who *want* to give but
-don't, because the gap between intent and action is filled with friction that
-no single payment platform can solve — because the friction isn't about
-payment. It's about awareness, tracking, and cross-platform coordination.
+On the other side, creators and builders know they have supporters who
+*want* to give but don't. The gap between intent and action is real, and
+no payment platform has closed it — because the problem isn't payment.
+Payment is largely solved. The problem is **relationship management**:
+knowing what you value, tracking your commitments, seeing the full
+picture, and acting on it coherently.
 
 ## What at.fund makes possible
 
 at.fund addresses the relationship layer — the space between "I value this"
 and "I sustain this" — using ATProto as the substrate.
 
-### For the person who gives
+### For the user
 
 Your endorsement records — stored in your own data repository, signed with
 your identity, portable across any ATProto application — become your
-**giving portfolio**.
+**relationship portfolio**.
 
 Not a list of subscriptions locked inside Patreon. Not recurring charges
 buried in your credit card statement. A record that belongs to you — in
 your repository, under your control, portable across applications — of
 "these are the entities I've decided matter to me."
+
+You don't have to be a funder to start. Endorsing something is a
+statement of value: "this matters to me." Some of those relationships
+will become funding relationships. Some won't. The portfolio tracks
+both — and the clarity it provides makes the path from intent to
+action visible.
 
 at.fund reads your portfolio and shows you the full picture:
 
@@ -69,7 +66,7 @@ at.fund reads your portfolio and shows you the full picture:
 - What's changed (new projects worth considering, dormant ones to revisit)
 
 This is not a payment tool. It's a **relationship awareness tool** that
-makes payment a natural consequence of clarity.
+makes support — financial or otherwise — a natural consequence of clarity.
 
 ### For the person who builds
 
@@ -102,7 +99,7 @@ the other's cooperation.
 
 ```
 ┌─────────────────┐                    ┌─────────────────┐
-│     Giver       │                    │    Steward       │
+│      User       │                    │    Steward       │
 │                 │   fund.at.graph    │                  │
 │  "I endorse     │────.endorse───────▶│                  │
 │   this entity"  │                    │  "I acknowledge  │
@@ -111,10 +108,10 @@ the other's cooperation.
 └─────────────────┘                    └─────────────────┘
 ```
 
-**The giver's side:**
+**The user's side:**
 
 - `fund.at.graph.endorse` — "I vouch for this entity's work." A public
-  statement of intent. This is the portfolio entry.
+  statement of value. This is the portfolio entry.
 
 **The steward's side:**
 
@@ -124,7 +121,7 @@ the other's cooperation.
   my work."
 
 There is no handshake. Each side speaks only for itself, and each
-statement is always true with respect to the person making it. The giver
+statement is always true with respect to the person making it. The user
 is always right about who they endorse. The steward is always right about
 who they acknowledge. The *relationship* is read from the combination —
 and the mismatches are the most interesting part:
@@ -137,13 +134,52 @@ and the mismatches are the most interesting part:
 | No | No | No relationship |
 
 Every state is informative. The "endorse but not acknowledged" gap is
-where at.fund helps givers follow through. The "acknowledged but not
+where at.fund helps users follow through. The "acknowledged but not
 endorsed" state is the quiet signal that you've moved on but haven't
 cleaned up — a reminder to cancel, or to reconsider.
 
 No cryptographic exchange protocol. No escrow. No shared state. Just
 two people each saying something true about their side of a relationship,
 and the overlap (or lack of it) telling the story.
+
+## The deeper graph: dependencies as shared infrastructure
+
+The user-steward relationship is only the first layer. Stewards themselves
+depend on other entities — libraries, infrastructure, tools, services —
+and they declare those dependencies in their own repositories.
+
+```
+┌────────┐  endorses   ┌───────────┐  depends on  ┌───────────┐
+│  User  │────────────▶│  Steward  │─────────────▶│  Enabler  │
+└────────┘             └───────────┘              └───────────┘
+                             │                          ▲
+                             │                          │
+┌────────┐  endorses   ┌───────────┐  depends on        │
+│  User  │────────────▶│  Steward  │────────────────────┘
+└────────┘             └───────────┘
+```
+
+An **enabler** is anything a steward declares as a dependency: an open
+source library, a hosting provider, a protocol tool, a shared service.
+When multiple stewards that a user endorses share a common enabler, that
+tells a story: *this enabler is load-bearing for your ecosystem.*
+
+You endorse a feed, a labeler, and a bot. All three depend on the same
+ATProto SDK. You didn't know that — but now you can see that the thing
+holding up three things you care about is itself unfunded. The
+relationship graph reveals infrastructure that was previously invisible.
+
+This isn't an npm-style technical dependency tree. It's a **provenance
+chain** — each link is an assertion by someone you've chosen to trust.
+The steward says "my work depends on this." You decide whether that
+matters to you. The dependency isn't computed; it's communicated.
+
+In future, this graph enables questions that no single platform can
+answer: Which enablers are shared across the things I care about? Which
+are well-funded and which are fragile? Where does my ecosystem have
+single points of failure? The relationships you've already expressed —
+through endorsement — become the lens for seeing infrastructure you
+never knew you relied on.
 
 ## What at.fund is not
 
