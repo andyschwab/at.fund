@@ -149,9 +149,9 @@ depend on other entities — libraries, infrastructure, tools, services —
 and they declare those dependencies in their own repositories.
 
 ```
-┌────────┐  endorses   ┌───────────┐  depends on  ┌───────────┐
-│  User  │────────────▶│  Steward  │─────────────▶│  Enabler  │
-└────────┘             └───────────┘              └───────────┘
+┌────────┐  endorses   ┌───────────┐  depends on  ┌────────────┐
+│  User  │────────────▶│  Steward  │─────────────▶│ Dependency │
+└────────┘             └───────────┘              └────────────┘
                              │                          ▲
                              │                          │
 ┌────────┐  endorses   ┌───────────┐  depends on        │
@@ -159,10 +159,11 @@ and they declare those dependencies in their own repositories.
 └────────┘             └───────────┘
 ```
 
-An **enabler** is anything a steward declares as a dependency: an open
-source library, a hosting provider, a protocol tool, a shared service.
-When multiple stewards that a user endorses share a common enabler, that
-tells a story: *this enabler is load-bearing for your ecosystem.*
+A **dependency** is anything a steward declares their work relies on: an
+open source library, a hosting provider, a protocol tool, a shared
+service. When multiple stewards that a user endorses share a common
+dependency, that tells a story: *this dependency is load-bearing for
+your ecosystem.*
 
 You endorse a feed, a labeler, and a bot. All three depend on the same
 ATProto SDK. You didn't know that — but now you can see that the thing
@@ -175,11 +176,11 @@ The steward says "my work depends on this." You decide whether that
 matters to you. The dependency isn't computed; it's communicated.
 
 In future, this graph enables questions that no single platform can
-answer: Which enablers are shared across the things I care about? Which
-are well-funded and which are fragile? Where does my ecosystem have
-single points of failure? The relationships you've already expressed —
-through endorsement — become the lens for seeing infrastructure you
-never knew you relied on.
+answer: Which dependencies are shared across the things I care about?
+Which are well-funded and which are fragile? Where does my ecosystem
+have single points of failure? The relationships you've already
+expressed — through endorsement — become the lens for seeing
+infrastructure you never knew you relied on.
 
 ## What at.fund is not
 
@@ -298,6 +299,16 @@ institutional funders need.
 read, so the funding relationship layer isn't locked inside at.fund
 but is woven into the fabric of every application that touches the
 ecosystem.
+
+**Lexicon refinement.** The current dependency record is deliberately
+simple — a pointer from one entity to another. Over time, there may
+be value in an optional type field to distinguish between kinds of
+dependencies (a project vs. a contributor vs. an infrastructure
+provider). But simplicity is a feature, not a limitation. Each new
+field is a decision every implementer must understand and every UI
+must account for. We'd rather ship a small, clear vocabulary that
+people actually use than a rich taxonomy that fragments adoption.
+Refinement will follow real usage patterns, not speculation.
 
 ## The core belief
 
