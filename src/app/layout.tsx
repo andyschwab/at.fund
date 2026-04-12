@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { SessionProvider } from "@/components/SessionContext";
 import { NavBar } from "@/components/NavBar";
 import { LegacyMigrationModal } from "@/components/LegacyMigrationModal";
+import { Footer } from "@/components/Footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,6 +58,7 @@ export default async function RootLayout({
           <NavBar />
           <LegacyMigrationModal />
           {children}
+          <Footer />
         </SessionProvider>
       </body>
     </html>

@@ -377,7 +377,7 @@ export default function SpecPage() {
             <div className="space-y-1">
               <div><span className="text-slate-500 dark:text-slate-400">Layer 1: Contribute</span>{'      '}<span className="text-slate-400 dark:text-slate-500">&rarr;</span>  <span className="text-slate-600 dark:text-slate-300">&quot;Here is my funding page&quot;</span></div>
               <div><span className="text-slate-500 dark:text-slate-400">Layer 2: Channels + Plans</span>{' '}<span className="text-slate-400 dark:text-slate-500">&rarr;</span>  <span className="text-slate-600 dark:text-slate-300">&quot;Here are my payment endpoints and tiers&quot;</span></div>
-              <div><span className="text-slate-500 dark:text-slate-400">Layer 3: Social Graph</span>{'     '}<span className="text-slate-400 dark:text-slate-500">&rarr;</span>  <span className="text-slate-600 dark:text-slate-300">&quot;Here is who endorses and depends on me&quot;</span></div>
+              <div><span className="text-slate-500 dark:text-slate-400">Layer 3: Social Graph</span>{'     '}<span className="text-slate-400 dark:text-slate-500">&rarr;</span>  <span className="text-slate-600 dark:text-slate-300">&quot;Here is who I endorse and depend on&quot;</span></div>
             </div>
           </div>
 
@@ -591,12 +591,12 @@ export default function SpecPage() {
           <RecordSection
             schema={dependencySchema as unknown as LexSchema}
             keyType="any (subject)"
-            summary="One record per upstream project you depend on. The subject field is a DID or hostname. Surfaces the full dependency tree so the infrastructure underneath you gets credit too."
+            summary="One record per upstream project you depend on. The subject field is a DID. Surfaces the full dependency tree so the infrastructure underneath you gets credit too."
           />
           <RecordSection
             schema={endorseSchema as unknown as LexSchema}
             keyType="any (rkey = endorsed subject)"
-            summary="A public endorsement of any entity you use or value. The record key is the endorsed subject (a DID or hostname), so each entity can only be endorsed once per account. Unlike contribute and dependency (published by builders), endorse is published by users — a protocol-native signal of support. Counts are verifiable because endorsements are stored on each endorser&apos;s PDS, not the endorsed project&apos;s."
+            summary="A public endorsement of any entity you use or value. The record key is the endorsed subject (a DID), so each entity can only be endorsed once per account. Unlike contribute and dependency (published by builders), endorse is published by users — a protocol-native signal of support. Counts are verifiable because endorsements are stored on each endorser&apos;s PDS, not the endorsed project&apos;s."
           />
         </section>
 

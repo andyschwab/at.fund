@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertCircle, LogIn, Monitor } from 'lucide-react'
+import { AlertCircle, LogIn } from 'lucide-react'
 import { useSession } from '@/components/SessionContext'
 import { HandleAutocomplete } from '@/components/HandleAutocomplete'
 
@@ -53,21 +53,6 @@ export function LoginForm({ id }: { id: string }) {
           {loginError}
         </p>
       )}
-      <details className="rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
-        <summary className="flex cursor-pointer list-none items-center gap-2 font-medium [&::-webkit-details-marker]:hidden">
-          <Monitor className="h-4 w-4 shrink-0" aria-hidden />
-          Local development
-          <span className="text-slate-400">{'\u25BE'}</span>
-        </summary>
-        <p className="mt-2 pl-6 leading-relaxed">
-          Use{' '}
-          <code className="font-mono text-slate-700 dark:text-slate-300">
-            127.0.0.1
-          </code>{' '}
-          (not <code className="font-mono">localhost</code>) so sign-in
-          redirects work.
-        </p>
-      </details>
     </form>
   )
 }

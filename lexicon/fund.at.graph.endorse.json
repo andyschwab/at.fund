@@ -14,7 +14,7 @@
           "subject": {
             "type": "string",
             "maxLength": 512,
-            "description": "The endorsed entity: a DID (did:plc:..., did:web:...) or a hostname (example.com). DIDs are preferred for accounts with AT Protocol identity."
+            "description": "The endorsed entity: a DID (did:plc:..., did:web:...)."
           },
           "createdAt": {
             "type": "string",
