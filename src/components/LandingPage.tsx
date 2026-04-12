@@ -8,7 +8,6 @@ import {
   ArrowRight,
   Banknote,
   HeartHandshake,
-  LogIn,
   User,
   UserCog,
   Users,
@@ -62,7 +61,7 @@ export function LandingPage() {
             <h1 className="text-5xl font-semibold tracking-tight sm:text-6xl">
               <span className="inline-flex items-center font-mono font-medium text-slate-500 dark:text-slate-400">at<HeartHandshake className="inline-block h-[0.85em] w-[0.85em] translate-y-[0.04em] text-[var(--support)] mx-[0.12em]" strokeWidth={1.75} aria-hidden={true} />fund</span>
             </h1>
-            <p className="text-xl font-medium text-slate-900 dark:text-slate-100 sm:text-2xl">
+            <p className="text-2xl font-medium text-slate-900 dark:text-slate-100 sm:text-3xl">
               Fund your internet.
             </p>
             <p className="text-base leading-relaxed text-slate-600 dark:text-slate-400">
@@ -71,30 +70,53 @@ export function LandingPage() {
             </p>
           </div>
 
-          {/* CTA button */}
-          {hasSession ? (
-            <Link
-              href="/give"
-              className="inline-flex items-center gap-2 rounded-xl bg-[var(--support)] px-6 py-3 text-base font-medium text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
-            >
-              <LogIn className="h-5 w-5" aria-hidden />
-              Pay your builders
-              <ArrowRight className="h-5 w-5" aria-hidden />
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                document.cookie = 'returnTo=/give; path=/; max-age=300; SameSite=Lax'
-                const dialog = document.querySelector<HTMLDialogElement>('dialog')
-                dialog?.showModal()
-              }}
-              className="inline-flex items-center gap-2 rounded-xl bg-[var(--support)] px-6 py-3 text-base font-medium text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
-            >
-              <LogIn className="h-5 w-5" aria-hidden />
-              Pay your builders
-            </button>
-          )}
+          {/* Dual CTAs — steward left, user right */}
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            {hasSession ? (
+              <Link
+                href="/setup"
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--support-border)] px-6 py-3 text-base font-medium text-[var(--support)] shadow-sm transition-opacity hover:opacity-80"
+              >
+                Add your project
+                <ArrowRight className="h-5 w-5" aria-hidden />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  document.cookie = 'returnTo=/setup; path=/; max-age=300; SameSite=Lax'
+                  const dialog = document.querySelector<HTMLDialogElement>('dialog')
+                  dialog?.showModal()
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--support-border)] px-6 py-3 text-base font-medium text-[var(--support)] shadow-sm transition-opacity hover:opacity-80"
+              >
+                Add your project
+                <ArrowRight className="h-5 w-5" aria-hidden />
+              </button>
+            )}
+            {hasSession ? (
+              <Link
+                href="/give"
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--support)] px-6 py-3 text-base font-medium text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
+              >
+                Pay your builders
+                <ArrowRight className="h-5 w-5" aria-hidden />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  document.cookie = 'returnTo=/give; path=/; max-age=300; SameSite=Lax'
+                  const dialog = document.querySelector<HTMLDialogElement>('dialog')
+                  dialog?.showModal()
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--support)] px-6 py-3 text-base font-medium text-[var(--support-foreground)] shadow-sm transition-opacity hover:opacity-90"
+              >
+                Pay your builders
+                <ArrowRight className="h-5 w-5" aria-hidden />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ── Four audiences ───────────────────────────────────────────── */}
