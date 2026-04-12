@@ -320,9 +320,11 @@ export function ProfileClient({
     bumpIndex()
   }, [bumpIndex])
 
-  // Derive endorsed entries from the index filtered by effective endorsed set
+  // Derive endorsed entries from the index filtered by effective endorsed set.
+  // entryIndexRef read is intentional — indexVersion triggers recompute.
   const endorsedEntries = useMemo(() => {
     void indexVersion
+    // eslint-disable-next-line react-hooks/refs -- version-counter triggers recompute
     return entryIndexRef.current.toArray().filter((e) =>
       effectiveEndorsedUris.has(e.uri)
       || (!!e.did && effectiveEndorsedUris.has(e.did))
@@ -340,30 +342,32 @@ export function ProfileClient({
   // Live entry state — overlays form edits on top of baseEntry
   const [formOverrides, setFormOverrides] = useState<SetupFormData | null>(null)
 
-  const entry: StewardEntry | null = baseEntry
-    ? formOverrides
-      ? {
-          ...baseEntry,
-          contributeUrl: formOverrides.contributeUrl,
-          dependencies: formOverrides.dependencies.length > 0 ? formOverrides.dependencies : undefined,
-          channels: formOverrides.channels,
-          plans: formOverrides.plans,
-        }
-      : baseEntry
-    : null
+  const entry: StewardEntry | null = useMemo(() => {
+    if (!baseEntry) return null
+    if (!formOverrides) return baseEntry
+    return {
+      ...baseEntry,
+      contributeUrl: formOverrides.contributeUrl,
+      dependencies: formOverrides.dependencies.length > 0 ? formOverrides.dependencies : undefined,
+      channels: formOverrides.channels,
+      plans: formOverrides.plans,
+    }
+  }, [baseEntry, formOverrides])
 
   const entryUri = entry?.uri ?? handle
   const isEndorsed = effectiveEndorsedUris.has(entryUri) || effectiveEndorsedUris.has(did)
 
-  // All entries for dependency lookup (profile entry + everything in the index)
+  // All entries for dependency lookup (profile entry + everything in the index).
+  // entryIndexRef is read here intentionally — indexVersion triggers recompute
+  // when the ref's contents change. This is a deliberate version-counter pattern.
   const allEntries = useMemo(() => {
     void indexVersion
     const entries: StewardEntry[] = []
     if (entry) entries.push(entry)
+    // eslint-disable-next-line react-hooks/refs -- version-counter triggers recompute
     entries.push(...entryIndexRef.current.toArray())
     if (formOverrides?.resolvedDeps) entries.push(...formOverrides.resolvedDeps)
     return entries
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indexVersion, entry, formOverrides?.resolvedDeps])
 
   const handleFormChange = useCallback((data: SetupFormData) => {
