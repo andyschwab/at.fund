@@ -232,7 +232,7 @@ verifying compilation. But always run all three checks above.
 4. **Catalog entries require a `did` field** — all other fields are optional. The DID reverse index relies on this.
 5. **URI normalization matters** — always use `normalizeStewardUri()` from `steward-uri.ts` for user input.
 6. **DID is the dedup key** — `EntryIndex` merges entries by DID. Two entries with different URIs but the same DID will merge.
-7. **fund.at records win over manual catalog** — but manual contributeUrl is used as fallback when fund.at has none.
+7. **fund.at records win over manual catalog** — if a steward publishes any fund.at records, those records are fully authoritative, including any absences. Never mix in manual-catalog data (`contributeUrl`, dependencies, channels, plans) when fund.at records exist. The manual catalog applies only when the steward has no fund.at records at all.
 8. **The endorsement cap is 2500 follows** — by design, to prevent O(n^2) scans.
 9. **Don't use `resolveEntry()` in server components** — it runs a 4-phase sequential pipeline (identity → funding → capabilities → dependencies) that blocks page render. For pages, fetch data in parallel with `batchFetchProfiles` + `fetchFundAtRecords` + `fetchPublicEndorsements` and assemble with `buildIdentity()`. Let StackStream handle the heavy resolution client-side.
 10. **Don't check `did` cookie for owner mode** — use `getSession()` to validate the session. The cookie can outlive an expired OAuth session. Always validate server-side.

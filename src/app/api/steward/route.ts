@@ -8,7 +8,6 @@ import { xrpcQuery } from '@/lib/xrpc'
 import type { StewardEntry } from '@/lib/steward-model'
 import { logger } from '@/lib/logger'
 import { PUBLIC_API } from '@/lib/constants'
-import { mergeDeps } from '@/lib/merge-deps'
 
 /**
  * Thin steward lookup — resolves a URI to a basic StewardEntry.
@@ -109,13 +108,11 @@ export async function GET(request: NextRequest) {
     try {
       const fundAt = await fetchFundAtForStewardDid(stewardDid)
       if (fundAt) {
+        // fund.at records are fully authoritative; never mix in the manual catalog.
         const entry: StewardEntry = {
           ...base,
-          contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
-          dependencies: mergeDeps(
-            fundAt.dependencies?.map((d) => d.uri),
-            manual?.dependencies,
-          ),
+          contributeUrl: fundAt.contributeUrl,
+          dependencies: fundAt.dependencies?.map((d) => d.uri),
           source: 'fund.at',
         }
         return NextResponse.json(entry)

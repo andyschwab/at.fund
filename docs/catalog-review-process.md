@@ -149,6 +149,12 @@ Run this review quarterly (or when the ecosystem has notable new launches).
   - [ ] Check if NSID inference works or if a resolver override is needed
   - [ ] Add the manual-catalog entry with at minimum `displayName`
   - [ ] Look for funding/support links to add as `contribute.links`
+- [ ] Audit every `contributeUrl`: a donation/funding link must trace to a surface
+  the steward demonstrably controls (their Bluesky bio/pinned post, a website on
+  the handle's own domain, or a GitHub profile that is GitHub-verified back to the
+  handle). If it can't be traced — or it points to something other than a genuine
+  funding mechanism — remove the `contributeUrl` field (keep `did`, `dependencies`,
+  `tags`). We never surface an unverified donation link.
 - [ ] Validate JSON files
 - [ ] Test locally by signing in with an account that uses some of the new apps
 

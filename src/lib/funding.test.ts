@@ -118,7 +118,7 @@ describe('resolveFunding', () => {
     expect(result.warning).toBeUndefined()
   })
 
-  it('merges manual catalog dependencies with fund.at records', async () => {
+  it('does NOT merge manual catalog dependencies when fund.at records exist', async () => {
     mockFetchFundAt.mockResolvedValue({
       stewardDid: 'did:plc:abc123',
       contributeUrl: 'https://donate.example.com',
@@ -128,21 +128,27 @@ describe('resolveFunding', () => {
 
     const result = await resolveFunding(identity())
     expect(result.funding.source).toBe('fund.at')
-    expect(result.funding.dependencies).toContain('dep-a.com')
-    expect(result.funding.dependencies).toContain('dep-b.com')
+    expect(result.funding.dependencies).toEqual(['dep-a.com'])
+    // Manual deps are ignored entirely once the steward publishes fund.at records.
+    expect(result.funding.dependencies).not.toContain('dep-b.com')
   })
 
-  it('uses manual contributeUrl as fallback when fund.at has none', async () => {
+  it('uses no manual element when fund.at records exist but omit some', async () => {
     mockFetchFundAt.mockResolvedValue({
       stewardDid: 'did:plc:abc123',
       contributeUrl: undefined,
       dependencies: [{ uri: 'dep.com' }],
     })
-    mockCatalog.mockReturnValueOnce(manualRecord({ contributeUrl: 'https://manual-donate.com' }))
+    mockCatalog.mockReturnValueOnce(
+      manualRecord({ contributeUrl: 'https://manual-donate.com', dependencies: ['manual-dep.com'] }),
+    )
 
     const result = await resolveFunding(identity())
     expect(result.funding.source).toBe('fund.at')
-    expect(result.funding.contributeUrl).toBe('https://manual-donate.com')
+    // Steward opted into fund.at — neither manual contributeUrl nor manual deps apply.
+    expect(result.funding.contributeUrl).toBeUndefined()
+    expect(result.funding.dependencies).toEqual(['dep.com'])
+    expect(result.funding.dependencies).not.toContain('manual-dep.com')
   })
 
   it('falls back to manual catalog when fund.at returns null', async () => {
@@ -224,6 +230,22 @@ describe('resolveFundingForDep', () => {
 
     const result = await resolveFundingForDep(identity())
     expect(result.source).toBe('manual')
+  })
+
+  it('uses no manual element when fund.at records exist but omit some', async () => {
+    mockFetchRecords.mockResolvedValue({
+      contributeUrl: undefined,
+      dependencies: [{ uri: 'dep.com' }],
+    })
+    mockCatalog.mockReturnValueOnce(
+      manualRecord({ contributeUrl: 'https://manual-donate.com', dependencies: ['manual-dep.com'] }),
+    )
+
+    const result = await resolveFundingForDep(identity())
+    expect(result.source).toBe('fund.at')
+    expect(result.contributeUrl).toBeUndefined()
+    expect(result.dependencies).toEqual(['dep.com'])
+    expect(result.dependencies).not.toContain('manual-dep.com')
   })
 
   it('falls back to unknown when both miss', async () => {

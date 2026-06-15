@@ -116,10 +116,12 @@ export async function GET(
   // Fetch fund.at records from PDS
   const records = did ? await fetchFundAtRecords(did) : null
 
-  // Fall back to manual catalog for contributeUrl
-  const manual = lookupManualStewardRecord(identifier)
-    ?? (did ? lookupManualStewardRecord(did) : null)
-  const contributeUrl = records?.contributeUrl ?? manual?.contributeUrl
+  // If the steward publishes any fund.at records, they're fully authoritative.
+  // The manual catalog's contributeUrl is used only when there are no records.
+  const manual = records
+    ? null
+    : (lookupManualStewardRecord(identifier) ?? (did ? lookupManualStewardRecord(did) : null))
+  const contributeUrl = records ? records.contributeUrl : manual?.contributeUrl
 
   const handle = identity?.handle ?? identifier
   const avatar = identity?.avatar

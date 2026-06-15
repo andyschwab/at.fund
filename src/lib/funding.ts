@@ -5,7 +5,6 @@ import { fetchFundAtForStewardDid } from '@/lib/steward-funding'
 import { fetchOwnFundAtRecords, fetchFundAtRecords } from '@/lib/fund-at-records'
 import type { ScanContext } from '@/lib/scan-context'
 import { logger } from '@/lib/logger'
-import { mergeDeps } from '@/lib/merge-deps'
 
 // ---------------------------------------------------------------------------
 // Manual catalog lookup by identity keys
@@ -56,6 +55,11 @@ export type ResolveFundingResult = {
  *   2. Manual catalog (by DID, URI, handle, or extra keys)
  *   3. Unknown fallback
  *
+ * Precedence note: if a steward publishes any fund.at records, those records are
+ * fully authoritative — including any absences. We do NOT mix in the manual catalog
+ * (contributeUrl, dependencies, channels, or plans) when fund.at records exist. The
+ * manual catalog is consulted only when the steward has no fund.at records at all.
+ *
  * When the identity's DID matches the session DID, uses the authenticated
  * path to read the user's own records.
  *
@@ -78,15 +82,15 @@ export async function resolveFunding(
       fundAt = await fetchFundAtForStewardDid(identity.did)
     }
     if (fundAt) {
-      const manual = lookupManualByIdentity(identity, options?.extraCatalogKeys)
+      // A steward who publishes any fund.at records has opted into self-asserting
+      // their funding, so those records are fully authoritative — including any
+      // absences. We never mix in the manual catalog (contributeUrl, dependencies,
+      // channels, or plans) when fund.at records exist.
       return {
         funding: {
           source: 'fund.at',
-          contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
-          dependencies: mergeDeps(
-            fundAt.dependencies?.map((d) => d.uri),
-            manual?.dependencies,
-          ),
+          contributeUrl: fundAt.contributeUrl,
+          dependencies: fundAt.dependencies?.map((d) => d.uri),
           channels: fundAt.channels,
           plans: fundAt.plans,
         },
@@ -124,14 +128,11 @@ export async function resolveFundingForDep(
       fundAt = await fetchFundAtRecords(identity.did)
     }
     if (fundAt) {
-      const manual = lookupManualByIdentity(identity)
+      // fund.at records are fully authoritative; never mix in the manual catalog.
       return {
         source: 'fund.at',
-        contributeUrl: fundAt.contributeUrl ?? manual?.contributeUrl,
-        dependencies: mergeDeps(
-          fundAt.dependencies?.map((d) => d.uri),
-          manual?.dependencies,
-        ),
+        contributeUrl: fundAt.contributeUrl,
+        dependencies: fundAt.dependencies?.map((d) => d.uri),
         channels: fundAt.channels,
         plans: fundAt.plans,
       }

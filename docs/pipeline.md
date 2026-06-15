@@ -124,7 +124,7 @@ For each `GatheredAccount`:
 3. **Manual catalog by DID** — `lookupManualStewardRecord(did)` uses the DID reverse index to find hostname-keyed entries
 4. **Fallback** — `source: 'unknown'`
 
-When both fund.at and manual catalog exist, fund.at wins for `contributeUrl` (manual is fallback) and dependencies are unioned.
+If a steward publishes any fund.at records, those records are fully authoritative — including any absences. We never mix in the manual catalog (`contributeUrl`, dependencies, channels, or plans) when fund.at records exist; e.g. fund.at records with no `contributeUrl` show no donation link, and with no dependency records show no dependencies. The manual catalog is consulted only when the steward has no fund.at records at all.
 
 ### URI and displayName selection
 
@@ -396,7 +396,6 @@ src/
     ├── atfund-dns.ts                     _atproto DNS TXT → DID
     ├── atfund-uri.ts                     URI-like → hostname → PDS host funding
     ├── concurrency.ts                    runWithConcurrency() bounded parallel helper
-    ├── merge-deps.ts                     Dependency list union helper
     ├── repo-inspect.ts                   Filter noise collections (Bluesky core)
     ├── repo-collection-resolve.ts        Calendar createdWith + Standard.site $type
     ├── steward-uri.ts                    normalizeStewardUri (input validation)

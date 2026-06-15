@@ -10,7 +10,6 @@ import { fetchPublicEndorsements } from '@/lib/pipeline/fetch-public-endorsement
 import { batchFetchProfiles } from '@/lib/identity'
 import { buildIdentity } from '@/lib/steward-model'
 import { lookupManualByIdentity } from '@/lib/funding'
-import { mergeDeps } from '@/lib/merge-deps'
 import { getSession } from '@/lib/auth/session'
 import { ProfileClient } from '@/components/ProfileClient'
 import type { StewardEntry } from '@/lib/steward-model'
@@ -130,14 +129,16 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     avatar: profile?.avatar,
   })
 
+  // If the steward publishes any fund.at records, those records are fully
+  // authoritative — we never mix in the manual catalog. The manual catalog is
+  // used only when there are no fund.at records at all.
   const entry: StewardEntry = {
     ...identity,
     source: fundAtRecords ? 'fund.at' : manual ? 'manual' : 'unknown',
-    contributeUrl: fundAtRecords?.contributeUrl ?? manual?.contributeUrl,
-    dependencies: mergeDeps(
-      fundAtRecords?.dependencies?.map((d) => d.uri),
-      manual?.dependencies,
-    ),
+    contributeUrl: fundAtRecords ? fundAtRecords.contributeUrl : manual?.contributeUrl,
+    dependencies: fundAtRecords
+      ? fundAtRecords.dependencies?.map((d) => d.uri)
+      : manual?.dependencies,
     channels: fundAtRecords?.channels,
     plans: fundAtRecords?.plans,
     tags: [],
