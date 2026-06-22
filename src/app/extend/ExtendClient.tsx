@@ -117,7 +117,7 @@ export function ExtendClient() {
                 Embed Playground
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Add a support button to any page with a single iframe tag.
+                Embed a support button via iframe, or add an inline profile link icon for credits pages.
               </p>
             </div>
           </div>

@@ -6,8 +6,8 @@ import { Frame, Puzzle, BookOpen } from 'lucide-react'
 const CARDS = [
   {
     icon: Frame,
-    title: 'Embed a button',
-    description: 'Drop a support button into any page with a single iframe. Customize the styling to match your site.',
+    title: 'Embed on your site',
+    description: 'Drop in a support-button iframe, or copy an inline heart-hands icon that links to an at.fund profile — great for credits pages.',
     section: 'embeds',
   },
   {
